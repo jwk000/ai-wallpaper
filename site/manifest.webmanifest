@@ -1,0 +1,22 @@
+{
+  "name": "流光壁纸 · Lumen Archive",
+  "short_name": "流光壁纸",
+  "description": "给屏幕，留一片风景。免费下载高清、无水印壁纸。",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f1ede4",
+  "theme_color": "#f1ede4",
+  "icons": [
+    {
+      "src": "assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
