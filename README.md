@@ -1,4 +1,4 @@
-﻿# 流光壁纸 · Lumen
+# 流光壁纸 · Lumen
 
 一个跨平台的 **单文件 HTML 动态壁纸引擎**。在 Windows 与 macOS 上浏览、预览、应用壁纸，每个壁纸只需要一个 HTML 文件。
 
@@ -68,7 +68,7 @@ npm install
 
 首次启动后，主窗口会出现在屏幕中央；点击任意壁纸的 **播放** 预览，或 **应用** 直接替换桌面。
 
-当前工作区已经构建好 Windows 版本，也可以直接运行：
+构建完成后，Windows 产物会生成在 `dist/` 下：
 
 - 免安装版：`dist/Lumen Wallpaper 1.0.0.exe`
 - 安装版：`dist/Lumen Wallpaper Setup 1.0.0.exe`

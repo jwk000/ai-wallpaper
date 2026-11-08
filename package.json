@@ -7,6 +7,14 @@
   "author": "Lumen",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jwk000/ai-wallpaper.git"
+  },
+  "homepage": "https://github.com/jwk000/ai-wallpaper#readme",
+  "bugs": {
+    "url": "https://github.com/jwk000/ai-wallpaper/issues"
+  },
   "scripts": {
     "start": "node scripts/start.js",
     "dev": "node scripts/start.js --dev",
