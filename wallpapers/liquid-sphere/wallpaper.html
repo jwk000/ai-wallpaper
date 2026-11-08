@@ -1,0 +1,2324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#02070b">
+<meta name="color-scheme" content="dark">
+<title>Liquid Sphere · 粒子流体动态壁纸</title>
+<style>
+  :root{
+    --bg:#02070b;
+    --ink:rgba(209,255,249,.76);
+    --dim:rgba(164,231,223,.36);
+    --line:rgba(140,255,242,.17);
+    --accent:#8bfff1;
+    --glass:rgba(8,27,33,.32);
+  }
+  *{box-sizing:border-box}
+  html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--bg)}
+  body{
+    font-family:"Inter","SF Pro Display","Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    user-select:none;
+    -webkit-user-select:none;
+    overscroll-behavior:none;
+  }
+  #scene{
+    position:fixed;
+    inset:0;
+    display:block;
+    width:100%;
+    height:100%;
+    touch-action:none;
+  }
+  @media (pointer:fine){
+    #scene{cursor:none}
+  }
+
+  .veil{
+    position:fixed;
+    inset:0;
+    z-index:30;
+    background:#010407;
+    pointer-events:none;
+    opacity:1;
+    transition:opacity 1.6s cubic-bezier(.22,.61,.36,1);
+  }
+  .veil.ready{opacity:0}
+
+  .grain{
+    position:fixed;
+    inset:-20%;
+    z-index:8;
+    pointer-events:none;
+    opacity:.042;
+    mix-blend-mode:soft-light;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+    background-size:220px 220px;
+    animation:grainShift 9s steps(6) infinite;
+  }
+  @keyframes grainShift{
+    0%{transform:translate3d(0,0,0)}
+    100%{transform:translate3d(-3%,2%,0)}
+  }
+
+  .vignette{
+    position:fixed;
+    inset:0;
+    z-index:7;
+    pointer-events:none;
+    background:
+      radial-gradient(ellipse at 50% 44%, transparent 42%, rgba(0,6,9,.16) 67%, rgba(0,4,6,.55) 100%),
+      linear-gradient(to bottom, rgba(0,4,6,.24), transparent 18%, transparent 80%, rgba(0,4,6,.34));
+  }
+
+  .hud{
+    position:fixed;
+    z-index:12;
+    pointer-events:none;
+    opacity:1;
+    transition:opacity .8s cubic-bezier(.22,.61,.36,1), transform .8s cubic-bezier(.22,.61,.36,1);
+  }
+  body.ui-hidden .hud{opacity:0}
+  body.ui-hidden .brand{transform:translateY(-5px)}
+  body.ui-hidden .controls{transform:translateY(-5px)}
+
+  .brand{
+    top:30px;
+    left:34px;
+    display:flex;
+    align-items:flex-start;
+    gap:13px;
+  }
+  .brand-mark{
+    width:7px;height:7px;
+    margin-top:5px;
+    border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 8px rgba(112,255,238,.95), 0 0 26px rgba(70,255,229,.4);
+  }
+  .brand-name{
+    font-size:10px;
+    line-height:1;
+    letter-spacing:.36em;
+    font-weight:500;
+    color:rgba(220,255,250,.82);
+    white-space:nowrap;
+  }
+  .brand-sub{
+    margin-top:8px;
+    font-size:8px;
+    line-height:1;
+    letter-spacing:.25em;
+    color:rgba(164,235,226,.31);
+    white-space:nowrap;
+  }
+
+  .controls{
+    top:27px;
+    right:30px;
+    display:flex;
+    align-items:center;
+    gap:9px;
+    pointer-events:none;
+  }
+  .controls button{
+    position:relative;
+    display:grid;
+    place-items:center;
+    width:37px;height:37px;
+    padding:0;
+    border-radius:50%;
+    border:1px solid rgba(147,255,242,.13);
+    background:rgba(5,20,24,.28);
+    color:rgba(207,255,249,.68);
+    cursor:pointer;
+    pointer-events:auto;
+    outline:none;
+    -webkit-backdrop-filter:blur(10px);
+    backdrop-filter:blur(10px);
+    transition:color .25s, border-color .25s, background .25s, transform .25s;
+  }
+  .controls button:hover{
+    color:rgba(235,255,252,.96);
+    border-color:rgba(147,255,242,.34);
+    background:rgba(11,38,43,.5);
+    transform:translateY(-1px);
+  }
+  .controls button:focus-visible{
+    border-color:rgba(147,255,242,.72);
+    box-shadow:0 0 0 3px rgba(87,255,234,.11);
+  }
+  .controls button:active{transform:scale(.94)}
+  .controls svg{width:14px;height:14px;display:block;overflow:visible}
+  .controls svg.icon-play{display:none}
+  body.is-paused .controls svg.icon-pause{display:none}
+  body.is-paused .controls svg.icon-play{display:block}
+
+  .hint{
+    position:fixed;
+    z-index:11;
+    left:50%;
+    bottom:31px;
+    transform:translateX(-50%);
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:8px 13px 8px 12px;
+    border:1px solid rgba(139,255,242,.08);
+    border-radius:100px;
+    background:rgba(4,16,20,.17);
+    -webkit-backdrop-filter:blur(7px);
+    backdrop-filter:blur(7px);
+    color:rgba(190,247,240,.44);
+    font-size:9px;
+    letter-spacing:.22em;
+    white-space:nowrap;
+    pointer-events:none;
+    opacity:1;
+    transition:opacity 1.2s cubic-bezier(.22,.61,.36,1), transform 1.2s cubic-bezier(.22,.61,.36,1);
+  }
+  .hint::before{
+    content:"";
+    width:16px;height:1px;
+    background:linear-gradient(90deg, transparent, rgba(120,255,238,.42));
+  }
+  .hint .sep{opacity:.35;margin:0 1px}
+  .hint.dismissed{
+    opacity:0 !important;
+    transform:translateX(-50%) translateY(7px);
+  }
+  body.ui-hidden .hint:not(.dismissed){opacity:0}
+
+  .fallback{
+    position:fixed;
+    inset:0;
+    z-index:50;
+    display:grid;
+    place-items:center;
+    padding:30px;
+    background:radial-gradient(circle at 50% 45%, #071c21, #010507 65%);
+    text-align:center;
+  }
+  .fallback[hidden]{display:none}
+  .fallback-inner{max-width:420px}
+  .fallback-orb{
+    width:56px;height:56px;margin:0 auto 24px;border-radius:50%;
+    border:1px solid rgba(123,255,240,.28);
+    box-shadow:inset 0 0 22px rgba(49,255,226,.1), 0 0 40px rgba(49,255,226,.08);
+  }
+  .fallback h1{font-size:14px;font-weight:500;letter-spacing:.18em;margin:0 0 12px;color:rgba(210,255,250,.8)}
+  .fallback p{font-size:11px;line-height:1.9;letter-spacing:.06em;color:rgba(171,231,224,.44);margin:0}
+  .fallback code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10px;color:rgba(157,255,243,.72)}
+
+  #cursor{
+    position:fixed;
+    left:0;top:0;
+    z-index:20;
+    pointer-events:none;
+    opacity:0;
+    transition:opacity .3s ease;
+  }
+  #cursor.visible{opacity:1}
+  #cursor.hidden{opacity:0}
+  #cursor .ring{
+    position:absolute;
+    left:-15px;top:-15px;
+    width:30px;height:30px;
+    border:1px solid rgba(150,255,243,.34);
+    border-radius:50%;
+    box-shadow:0 0 18px rgba(63,255,232,.08), inset 0 0 9px rgba(63,255,232,.05);
+    transition:transform .25s cubic-bezier(.2,.8,.2,1), border-color .25s, background .25s;
+  }
+  #cursor .dot{
+    position:absolute;
+    left:-2px;top:-2px;
+    width:4px;height:4px;
+    border-radius:50%;
+    background:rgba(193,255,248,.9);
+    box-shadow:0 0 10px rgba(99,255,239,.85);
+    transition:transform .25s;
+  }
+  #cursor.down .ring{
+    transform:scale(1.35);
+    border-color:rgba(164,255,245,.58);
+    background:rgba(57,255,232,.035);
+  }
+  #cursor.down .dot{transform:scale(.55)}
+
+  @media (pointer:coarse){
+    #cursor{display:none}
+    .hint{font-size:8px;letter-spacing:.16em}
+  }
+  @media (max-width:700px){
+    .brand{top:21px;left:20px;gap:10px}
+    .brand-sub{display:none}
+    .brand-name{font-size:9px;letter-spacing:.3em}
+    .controls{top:18px;right:18px;gap:7px}
+    .controls button{width:34px;height:34px}
+    .hint{bottom:23px;font-size:8px;letter-spacing:.16em;padding:7px 12px}
+  }
+  @media (max-height:520px){
+    .brand{top:18px;left:22px}
+    .brand-sub{display:none}
+    .controls{top:15px;right:18px}
+    .hint{bottom:16px}
+  }
+</style>
+</head>
+<body>
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div class="hud brand" aria-hidden="true">
+    <span class="brand-mark"></span>
+    <div>
+      <div class="brand-name">LIQUID SPHERE</div>
+      <div class="brand-sub">PARTICLE HYDRODYNAMICS · 01</div>
+    </div>
+  </div>
+
+  <div class="hud controls">
+    <button id="pauseBtn" type="button" aria-label="暂停" title="暂停 / 继续（空格）">
+      <svg class="icon-pause" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round">
+        <path d="M5.5 4.2v7.6M10.5 4.2v7.6"/>
+      </svg>
+      <svg class="icon-play" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round">
+        <path d="M5.6 3.9l6.2 4.1-6.2 4.1z"/>
+      </svg>
+    </button>
+    <button id="fsBtn" type="button" aria-label="全屏" title="全屏（F / 双击）">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.1 3.1H3.1v3M9.9 3.1h3v3M6.1 12.9H3.1v-3M9.9 12.9h3v-3"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="hint" id="hint">
+    <span id="hintText">按住拖动 · 搅动水流</span>
+    <span class="sep" id="hintSep">/</span>
+    <span id="fsHint">双击 · 全屏</span>
+  </div>
+
+  <div id="cursor" aria-hidden="true">
+    <span class="ring"></span>
+    <span class="dot"></span>
+  </div>
+
+  <div class="veil" id="veil"></div>
+
+  <div class="fallback" id="fallback" hidden>
+    <div class="fallback-inner">
+      <div class="fallback-orb"></div>
+      <h1>需要 WebGL 2</h1>
+      <p id="fallbackMsg">这个流体场景需要支持 WebGL 2 的浏览器。请尝试更新 Chrome、Edge 或 Safari。</p>
+    </div>
+  </div>
+
+  <noscript>
+    <div class="fallback">
+      <div class="fallback-inner">
+        <div class="fallback-orb"></div>
+        <h1>需要 JavaScript</h1>
+        <p>请启用 JavaScript 以运行这个实时流体场景。</p>
+      </div>
+    </div>
+  </noscript>
+
+<script>
+(() => {
+"use strict";
+
+/* ============================================================
+   Liquid Sphere — a single-file WebGL2 dynamic wallpaper.
+
+   The liquid surface is a volume-preserving sloshing model:
+   two damped harmonic systems (global tilt + capillary modes)
+   drive a free surface, whose mean level is solved each frame
+   so the liquid keeps a constant area inside the sphere.
+
+   Thousands of glowing tracer particles are advected through
+   a divergence-free current field driven by that slosh. The
+   particles are the visible water; the shader adds the volume,
+   caustics, glass and bloom-like highlights.
+   ============================================================ */
+
+const canvas = document.getElementById("scene");
+const fallback = document.getElementById("fallback");
+const fallbackMsg = document.getElementById("fallbackMsg");
+const veil = document.getElementById("veil");
+const hint = document.getElementById("hint");
+const hintText = document.getElementById("hintText");
+const hintSep = document.getElementById("hintSep");
+const fsHint = document.getElementById("fsHint");
+const pauseBtn = document.getElementById("pauseBtn");
+const fsBtn = document.getElementById("fsBtn");
+const cursorEl = document.getElementById("cursor");
+
+const COARSE = window.matchMedia("(pointer: coarse)").matches;
+const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const gl = canvas.getContext("webgl2", {
+  alpha: false,
+  antialias: false,
+  depth: false,
+  stencil: false,
+  premultipliedAlpha: false,
+  powerPreference: "high-performance"
+});
+
+if (!gl) {
+  showFallback("当前浏览器没有可用的 WebGL 2 上下文。");
+  return;
+}
+
+/* ------------------------------------------------------------
+   Constants & state
+   ------------------------------------------------------------ */
+
+const PARTICLE_COUNT = 2400;
+const ANCHORED_COUNT = 1800;
+const TRAIL_COUNT = 55;
+const TRAIL_HISTORY = 82;
+const BUBBLE_COUNT = 40;
+const TEX_W = 64;
+const TEX_H = 64;
+const FILL = 0.66;
+const MAX_DPR = 2;
+const PIXEL_BUDGET = 3800000;
+
+const WAVE_K = [2.2, 3.75, 5.6];
+const WAVE_PHASE = [0.55, 1.9, 3.05];
+const WAVE_BASE_AMP = [0.030, 0.016, 0.0075];
+const WAVE_DRIVE_HZ = [0.47, 0.76, 1.21];
+const MICRO_AMP = 0.0068;
+const MICRO_K = 13.0;
+const MICRO_OMEGA = 1.35;
+const MICRO_PHASE = 1.2;
+const MICRO2_AMP = 0.0046;
+const MICRO2_K = 21.0;
+const MICRO2_OMEGA = 2.05;
+const MICRO2_PHASE = 4.2;
+
+const S = {
+  w: 1,
+  h: 1,
+  dpr: 1,
+  vw: 1,
+  vh: 1,
+  cx: 0,
+  cy: 0,
+  radius: 1,
+  time: 0,
+  paused: false,
+  ready: false
+};
+
+const pointer = {
+  x: 0,
+  y: 0,
+  vx: 0,
+  vy: 0,
+  speed: 0,
+  down: false,
+  inside: false,
+  lastT: 0
+};
+
+const surfaceState = {
+  level: -0.25,
+  tilt: 0,
+  tiltVel: 0,
+  waves: WAVE_K.map((k, i) => ({
+    a: 0,
+    v: 0,
+    splash: 0,
+    splashVel: 0,
+    k,
+    phase: WAVE_PHASE[i],
+    omega: [2.05, 3.25, 4.75][i],
+    damp: [0.58, 0.8, 1.15][i]
+  }))
+};
+
+let posX, posY, velX, velY, renderVX, renderVY;
+let anchorX, anchorT;
+let trailIndices, trailX, trailY, trailHead, trailVertices;
+let trailLineVertices;
+let bubbleX, bubbleY, bubbleR, bubblePhase, bubbleSpeed, bubbleUniform;
+let particleData;
+let glr = null;
+let lastFrame = 0;
+let resizeTimer = 0;
+let uiTimer = 0;
+let cursorTimer = 0;
+let firstUpload = true;
+
+/* ------------------------------------------------------------
+   UI & pointer
+   ------------------------------------------------------------ */
+
+function bindUI() {
+  if (!document.fullscreenEnabled) {
+    fsBtn.style.display = "none";
+    fsHint.style.display = "none";
+    hintSep.style.display = "none";
+  }
+  if (COARSE) hintText.textContent = "滑动 · 搅动水流";
+
+  pauseBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setPaused(!S.paused);
+  });
+  fsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleFullscreen();
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") {
+      e.preventDefault();
+      setPaused(!S.paused);
+    } else if (e.key === "f" || e.key === "F") {
+      toggleFullscreen();
+    } else if (e.key === "r" || e.key === "R") {
+      resetSurface();
+      initParticles();
+      S.time = 0;
+    }
+  });
+
+  document.addEventListener("dblclick", (e) => {
+    if (e.target.closest("button")) return;
+    toggleFullscreen();
+  });
+
+  document.addEventListener("fullscreenchange", () => {
+    fsBtn.title = document.fullscreenElement ? "退出全屏（F / 双击）" : "全屏（F / 双击）";
+    fsBtn.setAttribute("aria-label", document.fullscreenElement ? "退出全屏" : "全屏");
+  });
+
+  window.addEventListener("resize", () => {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(initWorld, 150);
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    lastFrame = performance.now();
+  });
+
+  const reveal = () => {
+    document.body.classList.remove("ui-hidden");
+    window.clearTimeout(uiTimer);
+    uiTimer = window.setTimeout(() => document.body.classList.add("ui-hidden"), 3200);
+  };
+  window.addEventListener("pointermove", reveal, { passive: true });
+  window.addEventListener("pointerdown", reveal, { passive: true });
+  window.setTimeout(() => hint.classList.add("dismissed"), 7000);
+
+  bindPointer();
+}
+
+function setPaused(paused) {
+  S.paused = paused;
+  document.body.classList.toggle("is-paused", paused);
+  pauseBtn.setAttribute("aria-label", paused ? "继续" : "暂停");
+  pauseBtn.title = paused ? "继续（空格）" : "暂停（空格）";
+  lastFrame = performance.now();
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenEnabled) return;
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  } else {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+}
+
+function bindPointer() {
+  const update = (e) => {
+    const now = performance.now();
+    const dt = Math.max(8, now - pointer.lastT);
+    const nx = e.clientX;
+    const ny = e.clientY;
+    const dx = nx - pointer.x;
+    const dy = ny - pointer.y;
+
+    pointer.vx = pointer.vx * 0.42 + (dx / dt * 1000) * 0.58;
+    pointer.vy = pointer.vy * 0.42 + (dy / dt * 1000) * 0.58;
+    pointer.vx = clamp(pointer.vx, -2400, 2400);
+    pointer.vy = clamp(pointer.vy, -2400, 2400);
+    pointer.speed = Math.min(2600, Math.hypot(pointer.vx, pointer.vy));
+    pointer.x = nx;
+    pointer.y = ny;
+    pointer.lastT = now;
+    pointer.inside = true;
+
+    if (!COARSE) {
+      cursorEl.style.transform = `translate3d(${nx}px, ${ny}px, 0)`;
+      cursorEl.classList.add("visible");
+      cursorEl.classList.remove("hidden");
+      window.clearTimeout(cursorTimer);
+      cursorTimer = window.setTimeout(() => {
+        if (!pointer.down) cursorEl.classList.add("hidden");
+      }, 2700);
+    }
+  };
+
+  window.addEventListener("pointermove", update, { passive: true });
+  window.addEventListener("pointerenter", update, { passive: true });
+
+  const press = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    if (e.target.closest("button")) return;
+    pointer.down = true;
+    hint.classList.add("dismissed");
+    if (!COARSE) cursorEl.classList.add("down");
+    splashAt(e.clientX, e.clientY, 0.8);
+  };
+
+  const release = () => {
+    pointer.down = false;
+    pointer.vx = 0;
+    pointer.vy = 0;
+    pointer.speed = 0;
+    if (!COARSE) cursorEl.classList.remove("down");
+  };
+
+  window.addEventListener("pointerdown", press, { passive: true });
+  window.addEventListener("pointerup", release, { passive: true });
+  window.addEventListener("pointercancel", release, { passive: true });
+  window.addEventListener("blur", release);
+  window.addEventListener("pointerleave", () => {
+    pointer.inside = false;
+    if (!pointer.down && !COARSE) cursorEl.classList.add("hidden");
+  });
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
+/* ------------------------------------------------------------
+   Layout & particle initialization
+   ------------------------------------------------------------ */
+
+function initWorld() {
+  S.w = Math.max(1, window.innerWidth);
+  S.h = Math.max(1, window.innerHeight);
+
+  const pixels = S.w * S.h;
+  S.dpr = Math.min(MAX_DPR, window.devicePixelRatio || 1);
+  if (pixels * S.dpr * S.dpr > PIXEL_BUDGET) {
+    S.dpr = Math.sqrt(PIXEL_BUDGET / pixels);
+  }
+  S.dpr = Math.max(0.35, S.dpr);
+  S.vw = Math.max(1, Math.round(S.w * S.dpr));
+  S.vh = Math.max(1, Math.round(S.h * S.dpr));
+
+  canvas.width = S.vw;
+  canvas.height = S.vh;
+  canvas.style.width = S.w + "px";
+  canvas.style.height = S.h + "px";
+
+  const minSide = Math.min(S.w, S.h);
+  const portrait = S.h > S.w * 1.18;
+  S.radius = Math.max(70, minSide * (portrait ? 0.435 : 0.333));
+  S.cx = S.w * 0.5;
+  S.cy = S.h * (portrait ? 0.455 : 0.485);
+
+  resetSurface();
+  initParticles();
+  if (glr) glr.resizeTargets();
+  S.ready = true;
+}
+
+function allocateParticles() {
+  posX = new Float32Array(PARTICLE_COUNT);
+  posY = new Float32Array(PARTICLE_COUNT);
+  velX = new Float32Array(PARTICLE_COUNT);
+  velY = new Float32Array(PARTICLE_COUNT);
+  renderVX = new Float32Array(PARTICLE_COUNT);
+  renderVY = new Float32Array(PARTICLE_COUNT);
+  anchorX = new Float32Array(PARTICLE_COUNT);
+  anchorT = new Float32Array(PARTICLE_COUNT);
+  particleData = new Float32Array(TEX_W * TEX_H * 4);
+  trailIndices = new Int32Array(TRAIL_COUNT);
+  trailX = new Float32Array(TRAIL_COUNT * TRAIL_HISTORY);
+  trailY = new Float32Array(TRAIL_COUNT * TRAIL_HISTORY);
+  trailVertices = new Float32Array(TRAIL_COUNT * TRAIL_HISTORY * 4);
+  trailLineVertices = new Float32Array(TRAIL_COUNT * (TRAIL_HISTORY - 1) * 2 * 3);
+  bubbleX = new Float32Array(BUBBLE_COUNT);
+  bubbleY = new Float32Array(BUBBLE_COUNT);
+  bubbleR = new Float32Array(BUBBLE_COUNT);
+  bubblePhase = new Float32Array(BUBBLE_COUNT);
+  bubbleSpeed = new Float32Array(BUBBLE_COUNT);
+  bubbleUniform = new Float32Array(BUBBLE_COUNT * 4);
+  trailHead = 0;
+
+  let t = 0;
+  for (let i = 0; i < ANCHORED_COUNT && t < TRAIL_COUNT; i += 60) {
+    trailIndices[t++] = i;
+  }
+  for (let i = ANCHORED_COUNT; i < PARTICLE_COUNT && t < TRAIL_COUNT; i += 24) {
+    trailIndices[t++] = i;
+  }
+  while (t < TRAIL_COUNT) trailIndices[t++] = t * 7 % PARTICLE_COUNT;
+}
+
+function resetSurface() {
+  surfaceState.tilt = 0;
+  surfaceState.tiltVel = 0;
+  surfaceState.waves.forEach((w, i) => {
+    w.splash = 0;
+    w.splashVel = 0;
+    w.a = WAVE_BASE_AMP[i] * Math.sin(WAVE_DRIVE_HZ[i] * S.time + WAVE_PHASE[i]);
+    w.v = WAVE_BASE_AMP[i] * WAVE_DRIVE_HZ[i] * Math.cos(WAVE_DRIVE_HZ[i] * S.time + WAVE_PHASE[i]);
+  });
+  solveLevel();
+}
+
+function initParticles() {
+  const cx = S.cx;
+  const cy = S.cy;
+  const R = S.radius;
+  const spacing = Math.sqrt((2 * FILL * Math.PI) / (PARTICLE_COUNT * Math.sqrt(3)));
+  const rowStep = spacing * Math.sqrt(3) * 0.5;
+  const points = [];
+  let row = 0;
+
+  for (let qy = -0.96 + rowStep * 0.5; qy < 0.96; qy += rowStep, row++) {
+    const half = Math.sqrt(Math.max(0, 0.956 * 0.956 - qy * qy));
+    if (half < 0.02) continue;
+    const offset = (row & 1) * spacing * 0.5;
+    for (let qx = -half + spacing * 0.5 + offset; qx < half; qx += spacing) {
+      if (qy > surfaceAt(qx) + 0.035) {
+        points.push(qx, qy);
+      }
+    }
+  }
+
+  shufflePairs(points);
+  const generated = points.length / 2;
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    let qx;
+    let qy;
+    if (i < generated) {
+      qx = points[i * 2] + (Math.random() - 0.5) * spacing * 0.32;
+      qy = points[i * 2 + 1] + (Math.random() - 0.5) * spacing * 0.32;
+    } else {
+      const p = randomWaterPoint();
+      qx = p[0];
+      qy = p[1];
+    }
+
+    qx = clamp(qx, -0.955, 0.955);
+    if (Math.abs(qx) < 0.955) {
+      const half = Math.sqrt(0.956 * 0.956 - qx * qx);
+      const s = surfaceAt(qx);
+      qy = clamp(qy, s + 0.018, half - 0.004);
+    }
+
+    posX[i] = cx + qx * R;
+    posY[i] = cy + qy * R;
+    velX[i] = 0;
+    velY[i] = 0;
+    renderVX[i] = 0;
+    renderVY[i] = 0;
+
+    const s = surfaceAt(qx);
+    const chord = Math.sqrt(Math.max(0, 0.962 * 0.962 - qx * qx));
+    anchorX[i] = qx;
+    anchorT[i] = clamp((qy - s) / Math.max(0.01, chord - s), 0.03, 0.97);
+  }
+
+  trailHead = 0;
+  for (let t = 0; t < TRAIL_COUNT; t++) {
+    const idx = trailIndices[t];
+    for (let k = 0; k < TRAIL_HISTORY; k++) {
+      trailX[t * TRAIL_HISTORY + k] = posX[idx];
+      trailY[t * TRAIL_HISTORY + k] = posY[idx];
+    }
+  }
+
+  for (let i = 0; i < BUBBLE_COUNT; i++) {
+    bubblePhase[i] = Math.random() * Math.PI * 2;
+    bubbleSpeed[i] = (8 + Math.random() * 15) * S.radius / 320;
+    bubbleR[i] = (1.8 + Math.pow(Math.random(), 2.0) * 5.4) * S.radius / 320;
+    resetBubble(i);
+  }
+  firstUpload = true;
+}
+
+function resetBubble(i) {
+  const R = S.radius;
+  for (let tries = 0; tries < 30; tries++) {
+    const qx = (Math.random() * 2 - 1) * 0.86;
+    const chord = Math.sqrt(Math.max(0, 0.955 * 0.955 - qx * qx));
+    const surf = surfaceAt(qx);
+    if (chord - surf < 0.08) continue;
+    const qy = surf + 0.06 + Math.random() * (chord - surf - 0.12);
+    bubbleX[i] = S.cx + qx * R;
+    bubbleY[i] = S.cy + qy * R;
+    return;
+  }
+  bubbleX[i] = S.cx;
+  bubbleY[i] = S.cy + S.radius * 0.55;
+}
+
+function updateBubbles(dt) {
+  const R = S.radius;
+  const t = S.time;
+  for (let i = 0; i < BUBBLE_COUNT; i++) {
+    bubbleY[i] -= bubbleSpeed[i] * dt;
+    bubbleX[i] += Math.sin(t * (0.7 + (i % 5) * 0.11) + bubblePhase[i]) * R * 0.035 * dt;
+    const qx = (bubbleX[i] - S.cx) / R;
+    const qy = (bubbleY[i] - S.cy) / R;
+    const surf = surfaceAt(qx);
+    if (qy < surf + 0.024 || Math.hypot(qx, qy) > 0.955) {
+      resetBubble(i);
+    }
+  }
+}
+
+function randomWaterPoint() {
+  for (let tries = 0; tries < 80; tries++) {
+    const qx = (Math.random() * 2 - 1) * 0.95;
+    const half = Math.sqrt(Math.max(0, 0.955 * 0.955 - qx * qx));
+    const s = surfaceAt(qx);
+    if (half <= s + 0.03) continue;
+    const qy = s + 0.03 + Math.random() * (half - s - 0.04);
+    return [qx, qy];
+  }
+  return [0, 0.35];
+}
+
+function shufflePairs(arr) {
+  for (let i = arr.length / 2 - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    const ax = arr[i * 2];
+    const ay = arr[i * 2 + 1];
+    arr[i * 2] = arr[j * 2];
+    arr[i * 2 + 1] = arr[j * 2 + 1];
+    arr[j * 2] = ax;
+    arr[j * 2 + 1] = ay;
+  }
+}
+
+/* ------------------------------------------------------------
+   Surface model
+   ------------------------------------------------------------ */
+
+function microRipple(qx) {
+  return MICRO_AMP * Math.sin(MICRO_K * qx - MICRO_OMEGA * S.time + MICRO_PHASE)
+    + MICRO2_AMP * Math.sin(MICRO2_K * qx - MICRO2_OMEGA * S.time + MICRO2_PHASE);
+}
+
+function surfaceAt(qx) {
+  const w = surfaceState.waves;
+  return surfaceState.level - surfaceState.tilt * qx
+    + w[0].a * Math.sin(WAVE_K[0] * qx + WAVE_PHASE[0])
+    + w[1].a * Math.sin(WAVE_K[1] * qx + WAVE_PHASE[1])
+    + w[2].a * Math.sin(WAVE_K[2] * qx + WAVE_PHASE[2])
+    + microRipple(qx);
+}
+
+function surfaceSlope(qx) {
+  const w = surfaceState.waves;
+  return -surfaceState.tilt
+    + w[0].a * WAVE_K[0] * Math.cos(WAVE_K[0] * qx + WAVE_PHASE[0])
+    + w[1].a * WAVE_K[1] * Math.cos(WAVE_K[1] * qx + WAVE_PHASE[1])
+    + w[2].a * WAVE_K[2] * Math.cos(WAVE_K[2] * qx + WAVE_PHASE[2])
+    + MICRO_AMP * MICRO_K * Math.cos(MICRO_K * qx - MICRO_OMEGA * S.time + MICRO_PHASE)
+    + MICRO2_AMP * MICRO2_K * Math.cos(MICRO2_K * qx - MICRO2_OMEGA * S.time + MICRO2_PHASE);
+}
+
+function surfaceVelocity(qx) {
+  const w = surfaceState.waves;
+  return -surfaceState.tiltVel * qx
+    + w[0].v * Math.sin(WAVE_K[0] * qx + WAVE_PHASE[0])
+    + w[1].v * Math.sin(WAVE_K[1] * qx + WAVE_PHASE[1])
+    + w[2].v * Math.sin(WAVE_K[2] * qx + WAVE_PHASE[2])
+    - MICRO_AMP * MICRO_OMEGA * Math.cos(MICRO_K * qx - MICRO_OMEGA * S.time + MICRO_PHASE)
+    - MICRO2_AMP * MICRO2_OMEGA * Math.cos(MICRO2_K * qx - MICRO2_OMEGA * S.time + MICRO2_PHASE);
+}
+
+function updateSurface(dt) {
+  const t = S.time;
+  const w = surfaceState.waves;
+
+  const autoTilt = (REDUCED ? 0.028 : 0.085) * Math.sin(t * 0.31 + 0.8)
+    + (REDUCED ? 0.012 : 0.034) * Math.sin(t * 0.17 + 2.1)
+    + (REDUCED ? 0.004 : 0.012) * Math.sin(t * 0.73 + 4.2);
+
+  let pointerTilt = 0;
+  let pointerDrag = 0;
+  if (pointer.inside) {
+    const px = clamp((pointer.x - S.cx) / S.radius, -1, 1);
+    pointerTilt = px * 0.026;
+    if (pointer.down) {
+      pointerTilt += px * 0.135;
+      pointerDrag = clamp(pointer.vx / (S.radius * 2.6), -1.4, 1.4);
+    }
+  }
+
+  const target = clamp(autoTilt + pointerTilt, -0.25, 0.25);
+  const acc = 1.2 * (target - surfaceState.tilt) - 0.52 * surfaceState.tiltVel;
+  surfaceState.tiltVel += acc * dt;
+  surfaceState.tilt += surfaceState.tiltVel * dt;
+  surfaceState.tilt = clamp(surfaceState.tilt, -0.3, 0.3);
+
+  if (pointer.down) {
+    surfaceState.tiltVel += pointerDrag * dt * 0.9;
+    w[0].splashVel += pointerDrag * dt * 0.42;
+    w[1].splashVel -= pointerDrag * dt * 0.22;
+  }
+
+  for (let i = 0; i < w.length; i++) {
+    const wave = w[i];
+    const base = WAVE_BASE_AMP[i] * Math.sin(WAVE_DRIVE_HZ[i] * t + WAVE_PHASE[i]);
+    const baseV = WAVE_BASE_AMP[i] * WAVE_DRIVE_HZ[i] * Math.cos(WAVE_DRIVE_HZ[i] * t + WAVE_PHASE[i]);
+
+    const splashAcc = -wave.omega * wave.omega * wave.splash - wave.damp * wave.splashVel;
+    wave.splashVel += splashAcc * dt;
+    wave.splash += wave.splashVel * dt;
+    wave.splash = clamp(wave.splash, -0.034, 0.034);
+
+    wave.a = clamp(base + wave.splash, -0.048, 0.048);
+    wave.v = baseV + wave.splashVel;
+  }
+
+  solveLevel();
+}
+
+function solveLevel() {
+  let lo = -1.2;
+  let hi = 1.2;
+  for (let i = 0; i < 21; i++) {
+    const mid = (lo + hi) * 0.5;
+    if (waterArea(mid) > FILL) lo = mid;
+    else hi = mid;
+  }
+  surfaceState.level = (lo + hi) * 0.5;
+}
+
+function waterArea(level) {
+  const steps = 96;
+  const dx = 2 / steps;
+  const w = surfaceState.waves;
+  let area = 0;
+
+  for (let i = 0; i < steps; i++) {
+    const qx = -1 + (i + 0.5) * dx;
+    const chord = Math.sqrt(Math.max(0, 1 - qx * qx));
+    const s = level - surfaceState.tilt * qx
+      + w[0].a * Math.sin(WAVE_K[0] * qx + WAVE_PHASE[0])
+      + w[1].a * Math.sin(WAVE_K[1] * qx + WAVE_PHASE[1])
+      + w[2].a * Math.sin(WAVE_K[2] * qx + WAVE_PHASE[2])
+      + microRipple(qx);
+    const top = Math.max(-chord, s);
+    if (top < chord) area += (chord - top) * dx;
+  }
+  return area / Math.PI;
+}
+
+/* ------------------------------------------------------------
+   Particle advection
+   ------------------------------------------------------------ */
+
+function updateParticles(dt) {
+  const R = S.radius;
+  const cx = S.cx;
+  const cy = S.cy;
+  const t = S.time;
+  const tiltVel = surfaceState.tiltVel;
+  const pointerDown = pointer.down && pointer.inside;
+  const pqx = (pointer.x - cx) / R;
+  const pqy = (pointer.y - cy) / R;
+  const pvx = pointer.vx / R;
+  const pvy = pointer.vy / R;
+  const pSpeed = pointer.speed / R;
+  const blend = 1 - Math.exp(-dt * 2.1);
+  const damp = Math.exp(-dt * 0.32);
+  const maxSpeed = R * 1.7;
+  const maxSpeed2 = maxSpeed * maxSpeed;
+
+  const w0 = surfaceState.waves[0];
+  const w1 = surfaceState.waves[1];
+  const w2 = surfaceState.waves[2];
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const isFlow = i >= ANCHORED_COUNT;
+    const flowScale = isFlow ? 1.70 : 0.70;
+    let qx = (posX[i] - cx) / R;
+    let qy = (posY[i] - cy) / R;
+    const surf = surfaceAt(qx);
+    const chord = Math.sqrt(Math.max(0, 0.962 * 0.962 - qx * qx));
+    const depthNorm = clamp((qy - surf) / Math.max(0.01, chord - surf), 0, 1);
+
+    // A divergence-free, slowly evolving current field. Two stream-function
+    // modes plus a soft global gyre keep the tracers in constant circulation.
+    const a = qx * 2.05 + 0.68 * Math.sin(1.7 * qy + t * 0.10) + t * 0.075;
+    const b = qy * 2.35 - 0.55 * Math.sin(1.3 * qx - t * 0.07) - t * 0.045;
+    const sa = Math.sin(a);
+    const ca = Math.cos(a);
+    const sb = Math.sin(b);
+    const cb = Math.cos(b);
+    const daDy = 0.68 * 1.7 * Math.cos(1.7 * qy + t * 0.10);
+    const dbDy = 2.35;
+    const daDx = 2.05;
+    const dbDx = -0.55 * 1.3 * Math.cos(1.3 * qx - t * 0.07);
+    let tvx = (ca * cb * daDy - sa * sb * dbDy) * R * 0.12 * flowScale;
+    let tvy = -(ca * cb * daDx - sa * sb * dbDx) * R * 0.12 * flowScale;
+
+    const a2 = qy * 1.9 - 0.45 * Math.sin(1.2 * qx + t * 0.09) - t * 0.06;
+    const b2 = qx * 2.7 + 0.35 * Math.sin(1.5 * qy - t * 0.08) + t * 0.05;
+    const ca2 = Math.cos(a2);
+    const sa2 = Math.sin(a2);
+    const cb2 = Math.cos(b2);
+    const sb2 = Math.sin(b2);
+    const da2Dy = 1.9 - 0.45 * 1.2 * Math.cos(1.2 * qx + t * 0.09);
+    const db2Dy = 0.35 * 1.5 * Math.cos(1.5 * qy - t * 0.08);
+    const da2Dx = -0.45 * 1.2 * Math.cos(1.2 * qx + t * 0.09);
+    const db2Dx = 2.7;
+    tvx += (ca2 * cb2 * da2Dy - sa2 * sb2 * db2Dy) * R * 0.070 * flowScale;
+    tvy -= (ca2 * cb2 * da2Dx - sa2 * sb2 * db2Dx) * R * 0.070 * flowScale;
+
+    tvx += -qy * R * 0.320;
+    tvy += qx * R * 0.320;
+
+    // Small, fast eddies add curvature to the luminous tracer paths.
+    tvx += Math.sin(qx * 8.6 + qy * 3.1 + t * 1.10) * R * 0.052 * flowScale;
+    tvy += Math.cos(qy * 7.8 - qx * 2.7 - t * 0.94) * R * 0.052 * flowScale;
+
+    // Slosh drift: the bulk of the liquid rocks with the first surface mode.
+    tvx += R * tiltVel * (0.48 + 0.62 * depthNorm);
+    tvx += -surfaceSlope(qx) * R * 0.14;
+
+    const dsdt = -tiltVel * qx
+      + w0.v * Math.sin(WAVE_K[0] * qx + WAVE_PHASE[0])
+      + w1.v * Math.sin(WAVE_K[1] * qx + WAVE_PHASE[1])
+      + w2.v * Math.sin(WAVE_K[2] * qx + WAVE_PHASE[2]);
+    tvy += R * dsdt * 0.55 * Math.exp(-depthNorm * 4.2);
+
+    if (pointerDown) {
+      const dx = qx - pqx;
+      const dy = qy - pqy;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < 0.34) {
+        const d = Math.sqrt(d2) + 0.0001;
+        const f = 1 - d / 0.583;
+        const fall = f * f;
+        const nx = dx / d;
+        const ny = dy / d;
+        const swirl = Math.min(pSpeed, 7) * 0.62;
+        tvx += (pvx * R * 0.36 - ny * R * swirl) * fall;
+        tvy += (pvy * R * 0.36 + nx * R * swirl) * fall;
+        tvx += nx * R * 0.18 * fall;
+        tvy += ny * R * 0.18 * fall;
+      }
+    }
+
+    // Weak restoration toward an evenly distributed, surface-following
+    // anchor lattice. This keeps the tracer cloud from collapsing into the
+    // centre of a gyre during long, calm runs.
+    const anchorSurface = surfaceAt(anchorX[i]);
+    const anchorChord = Math.sqrt(Math.max(0, 0.962 * 0.962 - anchorX[i] * anchorX[i]));
+    const anchorY = anchorSurface + anchorT[i] * (anchorChord - anchorSurface);
+    const anchorStrength = isFlow ? 0.42 : 1.42;
+    tvx += (anchorX[i] - qx) * R * anchorStrength;
+    tvy += (anchorY - qy) * R * anchorStrength;
+
+    velX[i] += (tvx - velX[i]) * blend;
+    velY[i] += (tvy - velY[i]) * blend;
+    velX[i] *= damp;
+    velY[i] *= damp;
+
+    let sp2 = velX[i] * velX[i] + velY[i] * velY[i];
+    if (sp2 > maxSpeed2) {
+      const sc = maxSpeed / Math.sqrt(sp2);
+      velX[i] *= sc;
+      velY[i] *= sc;
+    }
+
+    qx += (velX[i] * dt) / R;
+    qy += (velY[i] * dt) / R;
+
+    // Circular glass wall.
+    let rr = Math.hypot(qx, qy);
+    if (rr > 0.962) {
+      const nx = qx / (rr + 0.00001);
+      const ny = qy / (rr + 0.00001);
+      qx = nx * 0.962;
+      qy = ny * 0.962;
+      const vn = velX[i] * nx + velY[i] * ny;
+      if (vn > 0) {
+        velX[i] -= nx * vn * 1.16;
+        velY[i] -= ny * vn * 1.16;
+      }
+      const tx = -ny;
+      const ty = nx;
+      const vt = velX[i] * tx + velY[i] * ty;
+      velX[i] = tx * vt * 0.994 + nx * (velX[i] * nx + velY[i] * ny);
+      velY[i] = ty * vt * 0.994 + ny * (velX[i] * nx + velY[i] * ny);
+    }
+
+    // Free surface: stay under the liquid line.
+    const s2 = surfaceAt(qx);
+    const margin = 0.011;
+    if (qy < s2 + margin) {
+      qy = s2 + margin;
+      const slope = surfaceSlope(qx);
+      const invLen = 1 / Math.sqrt(1 + slope * slope);
+      const nx = -slope * invLen;
+      const ny = invLen;
+      const vn = velX[i] * nx + velY[i] * ny;
+      if (vn < 0) {
+        velX[i] -= nx * vn * 1.14;
+        velY[i] -= ny * vn * 1.14;
+      }
+    }
+
+    posX[i] = cx + qx * R;
+    posY[i] = cy + qy * R;
+
+    const smooth = 1 - Math.exp(-dt * 11);
+    renderVX[i] += (velX[i] - renderVX[i]) * smooth;
+    renderVY[i] += (velY[i] - renderVY[i]) * smooth;
+  }
+}
+
+function splashAt(x, y, strength) {
+  const R = S.radius;
+  const qpx = (x - S.cx) / R;
+  const qpy = (y - S.cy) / R;
+  if (qpx * qpx + qpy * qpy > 1.2) return;
+
+  surfaceState.tiltVel += clamp(qpx, -1, 1) * 0.26 * strength;
+  const w = surfaceState.waves;
+  w[0].splashVel += (Math.random() - 0.5) * 0.9 * strength;
+  w[1].splashVel += (Math.random() - 0.5) * 0.7 * strength;
+  w[2].splashVel += (Math.random() - 0.5) * 0.5 * strength;
+  for (let i = 0; i < w.length; i++) w[i].splash = clamp(w[i].splash, -0.034, 0.034);
+
+  const radius = 0.42;
+  const radius2 = radius * radius;
+  const power = R * 1.25 * strength;
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const qx = (posX[i] - S.cx) / R;
+    const qy = (posY[i] - S.cy) / R;
+    const dx = qx - qpx;
+    const dy = qy - qpy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > radius2) continue;
+    const d = Math.sqrt(d2) + 0.0001;
+    const f = 1 - d / radius;
+    const fall = f * f;
+    const nx = dx / d;
+    const ny = dy / d;
+    velX[i] += nx * power * fall;
+    velY[i] += ny * power * fall;
+    velX[i] += -ny * power * 0.32 * fall;
+    velY[i] += nx * power * 0.32 * fall;
+  }
+}
+
+/* ------------------------------------------------------------
+   Frame loop
+   ------------------------------------------------------------ */
+
+function loop(now) {
+  requestAnimationFrame(loop);
+
+  if (!lastFrame) lastFrame = now;
+  let delta = (now - lastFrame) / 1000;
+  lastFrame = now;
+  if (!Number.isFinite(delta)) delta = 1 / 60;
+  delta = clamp(delta, 0.001, 0.05);
+
+  if (!S.paused && S.ready) {
+    S.time += delta;
+    const dt = Math.min(delta, 1 / 40);
+    updateSurface(dt);
+    updateParticles(dt);
+    updateBubbles(dt);
+    captureTrails();
+    uploadParticles();
+  } else if (firstUpload && S.ready) {
+    uploadParticles();
+  }
+
+  if (glr) glr.render();
+  firstUpload = false;
+
+  if (!pointer.down && !COARSE) {
+    const idle = (performance.now() - (pointer.lastT || 0)) / 1000;
+    if (idle > 2.9) cursorEl.classList.add("hidden");
+  }
+}
+
+function captureTrails() {
+  trailHead = (trailHead + 1) % TRAIL_HISTORY;
+  for (let t = 0; t < TRAIL_COUNT; t++) {
+    const idx = trailIndices[t];
+    const o = t * TRAIL_HISTORY + trailHead;
+    trailX[o] = posX[idx];
+    trailY[o] = posY[idx];
+  }
+}
+
+function buildTrailVertices() {
+  let p = 0;
+  for (let t = 0; t < TRAIL_COUNT; t++) {
+    for (let age = 0; age < TRAIL_HISTORY; age++) {
+      const slot = (trailHead - age + TRAIL_HISTORY) % TRAIL_HISTORY;
+      const idx = t * TRAIL_HISTORY + slot;
+      const fade = Math.pow(1 - age / TRAIL_HISTORY, 1.45);
+      trailVertices[p++] = trailX[idx];
+      trailVertices[p++] = trailY[idx];
+      trailVertices[p++] = 0.048 * fade;
+      trailVertices[p++] = 1.25 + 3.0 * fade;
+    }
+  }
+
+  let l = 0;
+  for (let t = 0; t < TRAIL_COUNT; t++) {
+    for (let age = TRAIL_HISTORY - 1; age > 0; age--) {
+      const oldSlot = (trailHead - age + TRAIL_HISTORY) % TRAIL_HISTORY;
+      const newSlot = (trailHead - age + 1 + TRAIL_HISTORY) % TRAIL_HISTORY;
+      const oldIdx = t * TRAIL_HISTORY + oldSlot;
+      const newIdx = t * TRAIL_HISTORY + newSlot;
+      const oldFade = Math.pow(1 - age / TRAIL_HISTORY, 1.3);
+      const newFade = Math.pow(1 - (age - 1) / TRAIL_HISTORY, 1.3);
+      trailLineVertices[l++] = trailX[oldIdx];
+      trailLineVertices[l++] = trailY[oldIdx];
+      trailLineVertices[l++] = 0.14 * oldFade;
+      trailLineVertices[l++] = trailX[newIdx];
+      trailLineVertices[l++] = trailY[newIdx];
+      trailLineVertices[l++] = 0.14 * newFade;
+    }
+  }
+}
+
+function uploadParticles() {
+  const data = particleData;
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const o = i * 4;
+    data[o] = posX[i];
+    data[o + 1] = posY[i];
+    data[o + 2] = renderVX[i];
+    data[o + 3] = renderVY[i];
+  }
+  for (let i = PARTICLE_COUNT; i < TEX_W * TEX_H; i++) {
+    const o = i * 4;
+    data[o] = 0;
+    data[o + 1] = 0;
+    data[o + 2] = 0;
+    data[o + 3] = 0;
+  }
+  gl.bindTexture(gl.TEXTURE_2D, glr.particleTex);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, TEX_W, TEX_H, gl.RGBA, gl.FLOAT, data);
+  firstUpload = false;
+}
+
+/* ------------------------------------------------------------
+   Helpers
+   ------------------------------------------------------------ */
+
+function showFallback(message) {
+  fallbackMsg.textContent = message;
+  fallback.hidden = false;
+  document.querySelectorAll(".hud, .hint, #cursor").forEach((el) => {
+    el.style.display = "none";
+  });
+}
+
+function clamp(v, lo, hi) {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
+function makeShader(type, source) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, source.trim());
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(sh);
+    gl.deleteShader(sh);
+    throw new Error(`Shader compile error: ${log}`);
+  }
+  return sh;
+}
+
+function makeProgram(vsSource, fsSource) {
+  const vs = makeShader(gl.VERTEX_SHADER, vsSource);
+  const fs = makeShader(gl.FRAGMENT_SHADER, fsSource);
+  const p = gl.createProgram();
+  gl.attachShader(p, vs);
+  gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    const log = gl.getProgramInfoLog(p);
+    gl.deleteProgram(p);
+    throw new Error(`Program link error: ${log}`);
+  }
+  return p;
+}
+
+/* ------------------------------------------------------------
+   WebGL renderer
+   ------------------------------------------------------------ */
+
+function createRenderer() {
+  const sceneProgram = makeProgram(SCENE_VS, SCENE_FS);
+  const bubbleProgram = makeProgram(BUBBLE_VS, BUBBLE_FS);
+  const trailProgram = makeProgram(TRAIL_VS, TRAIL_FS);
+  const trailLineProgram = makeProgram(TRAIL_LINE_VS, TRAIL_LINE_FS);
+  const particleProgram = makeProgram(PARTICLE_VS, PARTICLE_FS);
+  const brightProgram = makeProgram(POST_VS, BRIGHT_FS);
+  const blurProgram = makeProgram(POST_VS, BLUR_FS);
+  const compositeProgram = makeProgram(POST_VS, COMPOSITE_FS);
+
+  const fullBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, fullBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+
+  function makeFullVAO(program) {
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, fullBuffer);
+    const attr = gl.getAttribLocation(program, "aPos");
+    if (attr >= 0) {
+      gl.enableVertexAttribArray(attr);
+      gl.vertexAttribPointer(attr, 2, gl.FLOAT, false, 0, 0);
+    }
+    gl.bindVertexArray(null);
+    return vao;
+  }
+
+  const fullVAO = makeFullVAO(sceneProgram);
+  const brightVAO = makeFullVAO(brightProgram);
+  const blurVAO = makeFullVAO(blurProgram);
+  const compositeVAO = makeFullVAO(compositeProgram);
+
+  const quadBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+
+  const particleVAO = gl.createVertexArray();
+  gl.bindVertexArray(particleVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+  const aCorner = gl.getAttribLocation(particleProgram, "aCorner");
+  gl.enableVertexAttribArray(aCorner);
+  gl.vertexAttribPointer(aCorner, 2, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+
+  const bubbleVAO = gl.createVertexArray();
+  gl.bindVertexArray(bubbleVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+  const bCorner = gl.getAttribLocation(bubbleProgram, "aCorner");
+  gl.enableVertexAttribArray(bCorner);
+  gl.vertexAttribPointer(bCorner, 2, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+
+  const trailBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, trailBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, trailVertices.byteLength, gl.DYNAMIC_DRAW);
+
+  const trailVAO = gl.createVertexArray();
+  gl.bindVertexArray(trailVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, trailBuffer);
+  const trailPos = gl.getAttribLocation(trailProgram, "aPos");
+  const trailAlpha = gl.getAttribLocation(trailProgram, "aAlpha");
+  const trailSize = gl.getAttribLocation(trailProgram, "aSize");
+  gl.enableVertexAttribArray(trailPos);
+  gl.vertexAttribPointer(trailPos, 2, gl.FLOAT, false, 16, 0);
+  gl.enableVertexAttribArray(trailAlpha);
+  gl.vertexAttribPointer(trailAlpha, 1, gl.FLOAT, false, 16, 8);
+  gl.enableVertexAttribArray(trailSize);
+  gl.vertexAttribPointer(trailSize, 1, gl.FLOAT, false, 16, 12);
+  gl.bindVertexArray(null);
+
+  const trailLineBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, trailLineBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, trailLineVertices.byteLength, gl.DYNAMIC_DRAW);
+
+  const trailLineVAO = gl.createVertexArray();
+  gl.bindVertexArray(trailLineVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, trailLineBuffer);
+  const linePos = gl.getAttribLocation(trailLineProgram, "aPos");
+  const lineAlpha = gl.getAttribLocation(trailLineProgram, "aAlpha");
+  gl.enableVertexAttribArray(linePos);
+  gl.vertexAttribPointer(linePos, 2, gl.FLOAT, false, 12, 0);
+  gl.enableVertexAttribArray(lineAlpha);
+  gl.vertexAttribPointer(lineAlpha, 1, gl.FLOAT, false, 12, 8);
+  gl.bindVertexArray(null);
+
+  const particleTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, particleTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, TEX_W, TEX_H, 0, gl.RGBA, gl.FLOAT, particleData);
+
+  const sceneU = {
+    uRes: gl.getUniformLocation(sceneProgram, "uRes"),
+    uViewport: gl.getUniformLocation(sceneProgram, "uViewport"),
+    uCenter: gl.getUniformLocation(sceneProgram, "uCenter"),
+    uRadius: gl.getUniformLocation(sceneProgram, "uRadius"),
+    uTime: gl.getUniformLocation(sceneProgram, "uTime"),
+    uSurfaceA: gl.getUniformLocation(sceneProgram, "uSurfaceA"),
+    uSurfaceB: gl.getUniformLocation(sceneProgram, "uSurfaceB")
+  };
+
+  const bubbleU = {
+    uRes: gl.getUniformLocation(bubbleProgram, "uRes"),
+    uBubbles: gl.getUniformLocation(bubbleProgram, "uBubbles[0]")
+  };
+
+  const trailU = {
+    uRes: gl.getUniformLocation(trailProgram, "uRes"),
+    uPointScale: gl.getUniformLocation(trailProgram, "uPointScale"),
+    uTrailHistory: gl.getUniformLocation(trailProgram, "uTrailHistory"),
+    uCenter: gl.getUniformLocation(trailProgram, "uCenter"),
+    uRadius: gl.getUniformLocation(trailProgram, "uRadius"),
+    uTime: gl.getUniformLocation(trailProgram, "uTime"),
+    uSurfaceA: gl.getUniformLocation(trailProgram, "uSurfaceA"),
+    uSurfaceB: gl.getUniformLocation(trailProgram, "uSurfaceB")
+  };
+
+  const trailLineU = {
+    uRes: gl.getUniformLocation(trailLineProgram, "uRes"),
+    uOffset: gl.getUniformLocation(trailLineProgram, "uOffset"),
+    uGain: gl.getUniformLocation(trailLineProgram, "uGain"),
+    uCenter: gl.getUniformLocation(trailLineProgram, "uCenter"),
+    uRadius: gl.getUniformLocation(trailLineProgram, "uRadius"),
+    uTime: gl.getUniformLocation(trailLineProgram, "uTime"),
+    uSurfaceA: gl.getUniformLocation(trailLineProgram, "uSurfaceA"),
+    uSurfaceB: gl.getUniformLocation(trailLineProgram, "uSurfaceB")
+  };
+
+  const particleU = {
+    uParticles: gl.getUniformLocation(particleProgram, "uParticles"),
+    uRes: gl.getUniformLocation(particleProgram, "uRes"),
+    uCenter: gl.getUniformLocation(particleProgram, "uCenter"),
+    uRadius: gl.getUniformLocation(particleProgram, "uRadius"),
+    uUnit: gl.getUniformLocation(particleProgram, "uUnit"),
+    uAnchoredCount: gl.getUniformLocation(particleProgram, "uAnchoredCount"),
+    uTime: gl.getUniformLocation(particleProgram, "uTime"),
+    uSurfaceA: gl.getUniformLocation(particleProgram, "uSurfaceA"),
+    uSurfaceB: gl.getUniformLocation(particleProgram, "uSurfaceB"),
+    uTexW: gl.getUniformLocation(particleProgram, "uTexW")
+  };
+
+  const brightU = {
+    uScene: gl.getUniformLocation(brightProgram, "uScene"),
+    uThreshold: gl.getUniformLocation(brightProgram, "uThreshold")
+  };
+
+  const blurU = {
+    uTex: gl.getUniformLocation(blurProgram, "uTex"),
+    uDir: gl.getUniformLocation(blurProgram, "uDir")
+  };
+
+  const compositeU = {
+    uScene: gl.getUniformLocation(compositeProgram, "uScene"),
+    uBloom: gl.getUniformLocation(compositeProgram, "uBloom"),
+    uBloomStrength: gl.getUniformLocation(compositeProgram, "uBloomStrength"),
+    uTime: gl.getUniformLocation(compositeProgram, "uTime")
+  };
+
+  let sceneTarget = null;
+  let bloomA = null;
+  let bloomB = null;
+
+  function makeTarget(w, h) {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      throw new Error("无法创建后期处理缓冲。");
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { tex, fb, w, h };
+  }
+
+  function resizeTargets() {
+    if (sceneTarget) {
+      gl.deleteFramebuffer(sceneTarget.fb);
+      gl.deleteTexture(sceneTarget.tex);
+      gl.deleteFramebuffer(bloomA.fb);
+      gl.deleteTexture(bloomA.tex);
+      gl.deleteFramebuffer(bloomB.fb);
+      gl.deleteTexture(bloomB.tex);
+    }
+    sceneTarget = makeTarget(S.vw, S.vh);
+    const bw = Math.max(64, Math.round(S.vw / 4));
+    const bh = Math.max(64, Math.round(S.vh / 4));
+    bloomA = makeTarget(bw, bh);
+    bloomB = makeTarget(bw, bh);
+  }
+
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.CULL_FACE);
+  gl.disable(gl.BLEND);
+
+  return {
+    particleTex,
+    resizeTargets,
+    render
+  };
+
+  function render() {
+    if (!S.ready || !sceneTarget) return;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget.fb);
+    gl.viewport(0, 0, S.vw, S.vh);
+    gl.clearColor(0.002, 0.006, 0.009, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    const w0 = surfaceState.waves[0].a;
+    const w1 = surfaceState.waves[1].a;
+    const w2 = surfaceState.waves[2].a;
+
+    gl.useProgram(sceneProgram);
+    gl.bindVertexArray(fullVAO);
+    gl.uniform2f(sceneU.uRes, S.w, S.h);
+    gl.uniform2f(sceneU.uViewport, S.vw, S.vh);
+    gl.uniform2f(sceneU.uCenter, S.cx, S.cy);
+    gl.uniform1f(sceneU.uRadius, S.radius);
+    gl.uniform1f(sceneU.uTime, S.time);
+    gl.uniform4f(sceneU.uSurfaceA, surfaceState.level, surfaceState.tilt, w0, w1);
+    gl.uniform2f(sceneU.uSurfaceB, w2, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+
+    for (let i = 0; i < BUBBLE_COUNT; i++) {
+      const o = i * 4;
+      bubbleUniform[o] = bubbleX[i];
+      bubbleUniform[o + 1] = bubbleY[i];
+      bubbleUniform[o + 2] = bubbleR[i];
+      bubbleUniform[o + 3] = bubblePhase[i];
+    }
+    gl.useProgram(bubbleProgram);
+    gl.bindVertexArray(bubbleVAO);
+    gl.uniform2f(bubbleU.uRes, S.w, S.h);
+    gl.uniform4fv(bubbleU.uBubbles, bubbleUniform);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, BUBBLE_COUNT);
+
+    buildTrailVertices();
+
+    // Continuous thread lines make the currents read as flow rather than dust.
+    gl.useProgram(trailLineProgram);
+    gl.bindVertexArray(trailLineVAO);
+    gl.bindBuffer(gl.ARRAY_BUFFER, trailLineBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, trailLineVertices);
+    gl.uniform2f(trailLineU.uRes, S.w, S.h);
+    gl.uniform2f(trailLineU.uCenter, S.cx, S.cy);
+    gl.uniform1f(trailLineU.uRadius, S.radius);
+    gl.uniform1f(trailLineU.uTime, S.time);
+    gl.uniform4f(trailLineU.uSurfaceA, surfaceState.level, surfaceState.tilt, w0, w1);
+    gl.uniform2f(trailLineU.uSurfaceB, w2, 0);
+    const offsets = [
+      [0, 0, 1.0],
+      [0.75, 0, 0.24],
+      [-0.75, 0, 0.24],
+      [0, 0.75, 0.24],
+      [0, -0.75, 0.24]
+    ];
+    for (let o = 0; o < offsets.length; o++) {
+      gl.uniform2f(trailLineU.uOffset, offsets[o][0], offsets[o][1]);
+      gl.uniform1f(trailLineU.uGain, offsets[o][2]);
+      gl.drawArrays(gl.LINES, 0, TRAIL_COUNT * (TRAIL_HISTORY - 1) * 2);
+    }
+
+    // Wispy points along the same ribbons add a soft glow.
+    gl.useProgram(trailProgram);
+    gl.bindVertexArray(trailVAO);
+    gl.bindBuffer(gl.ARRAY_BUFFER, trailBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, trailVertices);
+    gl.uniform2f(trailU.uRes, S.w, S.h);
+    gl.uniform1f(trailU.uPointScale, S.vw / S.w);
+    gl.uniform1f(trailU.uTrailHistory, TRAIL_HISTORY);
+    gl.uniform2f(trailU.uCenter, S.cx, S.cy);
+    gl.uniform1f(trailU.uRadius, S.radius);
+    gl.uniform1f(trailU.uTime, S.time);
+    gl.uniform4f(trailU.uSurfaceA, surfaceState.level, surfaceState.tilt, w0, w1);
+    gl.uniform2f(trailU.uSurfaceB, w2, 0);
+    gl.drawArrays(gl.POINTS, 0, TRAIL_COUNT * TRAIL_HISTORY);
+
+    gl.useProgram(particleProgram);
+    gl.bindVertexArray(particleVAO);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, particleTex);
+    gl.uniform1i(particleU.uParticles, 0);
+    gl.uniform2f(particleU.uRes, S.w, S.h);
+    gl.uniform2f(particleU.uCenter, S.cx, S.cy);
+    gl.uniform1f(particleU.uRadius, S.radius);
+    gl.uniform1f(particleU.uUnit, S.radius / 320);
+    gl.uniform1f(particleU.uAnchoredCount, ANCHORED_COUNT);
+    gl.uniform1f(particleU.uTime, S.time);
+    gl.uniform4f(particleU.uSurfaceA, surfaceState.level, surfaceState.tilt, w0, w1);
+    gl.uniform2f(particleU.uSurfaceB, w2, 0);
+    gl.uniform1i(particleU.uTexW, TEX_W);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, PARTICLE_COUNT);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(null);
+
+    // Bloom: threshold the composited scene, then two ping-pong Gaussian
+    // iterations at quarter resolution. This gives the water and particles a
+    // soft halo without the cost of a full-resolution blur.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, bloomA.fb);
+    gl.viewport(0, 0, bloomA.w, bloomA.h);
+    gl.useProgram(brightProgram);
+    gl.bindVertexArray(brightVAO);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, sceneTarget.tex);
+    gl.uniform1i(brightU.uScene, 0);
+    gl.uniform1f(brightU.uThreshold, 0.17);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    gl.useProgram(blurProgram);
+    gl.bindVertexArray(blurVAO);
+    gl.uniform1i(blurU.uTex, 0);
+    for (let pass = 0; pass < 2; pass++) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, bloomB.fb);
+      gl.viewport(0, 0, bloomB.w, bloomB.h);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, bloomA.tex);
+      gl.uniform2f(blurU.uDir, 1 / bloomA.w, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, bloomA.fb);
+      gl.viewport(0, 0, bloomA.w, bloomA.h);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, bloomB.tex);
+      gl.uniform2f(blurU.uDir, 0, 1 / bloomB.h);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, S.vw, S.vh);
+    gl.useProgram(compositeProgram);
+    gl.bindVertexArray(compositeVAO);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, sceneTarget.tex);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, bloomA.tex);
+    gl.uniform1i(compositeU.uScene, 0);
+    gl.uniform1i(compositeU.uBloom, 1);
+    gl.uniform1f(compositeU.uBloomStrength, 0.85);
+    gl.uniform1f(compositeU.uTime, S.time);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindVertexArray(null);
+  }
+}
+
+/* ------------------------------------------------------------
+   Shaders
+   ------------------------------------------------------------ */
+
+const COMMON = `
+#version 300 es
+precision highp float;
+precision highp int;
+`;
+
+const POST_VS = COMMON + `
+in vec2 aPos;
+out vec2 vUv;
+void main() {
+  vUv = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}
+`;
+
+const BRIGHT_FS = COMMON + `
+uniform sampler2D uScene;
+uniform float uThreshold;
+in vec2 vUv;
+out vec4 outColor;
+void main() {
+  vec3 c = texture(uScene, vUv).rgb;
+  float m = max(c.r, max(c.g, c.b));
+  float b = smoothstep(uThreshold, uThreshold + 0.22, m);
+  outColor = vec4(c * b, 1.0);
+}
+`;
+
+const BLUR_FS = COMMON + `
+uniform sampler2D uTex;
+uniform vec2 uDir;
+in vec2 vUv;
+out vec4 outColor;
+void main() {
+  vec3 c = texture(uTex, vUv).rgb * 0.227027;
+  c += texture(uTex, vUv + uDir * 1.384615).rgb * 0.316216;
+  c += texture(uTex, vUv - uDir * 1.384615).rgb * 0.316216;
+  c += texture(uTex, vUv + uDir * 3.230769).rgb * 0.070270;
+  c += texture(uTex, vUv - uDir * 3.230769).rgb * 0.070270;
+  outColor = vec4(c, 1.0);
+}
+`;
+
+const COMPOSITE_FS = COMMON + `
+uniform sampler2D uScene;
+uniform sampler2D uBloom;
+uniform float uBloomStrength;
+uniform float uTime;
+in vec2 vUv;
+out vec4 outColor;
+void main() {
+  vec3 scene = texture(uScene, vUv).rgb;
+  vec3 bloom = texture(uBloom, vUv).rgb;
+  vec3 col = scene + bloom * uBloomStrength * vec3(0.86, 1.0, 0.96);
+  col = 1.0 - exp(-col * 1.3);
+  float dither = fract(sin(dot(gl_FragCoord.xy + uTime, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+  outColor = vec4(max(col + dither * 0.003, 0.0), 1.0);
+}
+`;
+
+const SCENE_VS = COMMON + `
+in vec2 aPos;
+void main() {
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}
+`;
+
+const SCENE_FS = COMMON + `
+uniform vec2 uRes;
+uniform vec2 uViewport;
+uniform vec2 uCenter;
+uniform float uRadius;
+uniform float uTime;
+uniform vec4 uSurfaceA; // level, tilt, wave0, wave1
+uniform vec2 uSurfaceB; // wave2, unused
+out vec4 outColor;
+
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash21(i);
+  float b = hash21(i + vec2(1.0, 0.0));
+  float c = hash21(i + vec2(0.0, 1.0));
+  float d = hash21(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.52;
+  mat2 rot = mat2(0.80, 0.60, -0.60, 0.80);
+  for (int i = 0; i < 4; i++) {
+    v += a * vnoise(p);
+    p = rot * p * 2.03 + vec2(13.7, 7.1);
+    a *= 0.5;
+  }
+  return v;
+}
+
+float surfaceAt(float x) {
+  return uSurfaceA.x - uSurfaceA.y * x
+    + uSurfaceA.z * sin(2.2 * x + 0.55)
+    + uSurfaceA.w * sin(3.75 * x + 1.9)
+    + uSurfaceB.x * sin(5.6 * x + 3.05)
+    + 0.0068 * sin(13.0 * x - 1.35 * uTime + 1.2)
+    + 0.0046 * sin(21.0 * x - 2.05 * uTime + 4.2);
+}
+
+float surfaceSlope(float x) {
+  return -uSurfaceA.y
+    + uSurfaceA.z * 2.2 * cos(2.2 * x + 0.55)
+    + uSurfaceA.w * 3.75 * cos(3.75 * x + 1.9)
+    + uSurfaceB.x * 5.6 * cos(5.6 * x + 3.05)
+    + 0.0068 * 13.0 * cos(13.0 * x - 1.35 * uTime + 1.2)
+    + 0.0046 * 21.0 * cos(21.0 * x - 2.05 * uTime + 4.2);
+}
+
+float stars(vec2 p, float scale, float threshold, float t) {
+  vec2 sp = p / scale;
+  vec2 id = floor(sp);
+  vec2 f = fract(sp) - 0.5;
+  float h = hash21(id);
+  vec2 off = vec2(hash21(id + 17.3), hash21(id + 41.9)) - 0.5;
+  float d = length(f - off * 0.7);
+  float s = smoothstep(0.032, 0.0, d);
+  s += smoothstep(0.11, 0.0, d) * 0.16;
+  s *= step(threshold, h);
+  s *= 0.56 + 0.44 * sin(t * (0.4 + h * 1.5) + h * 31.4);
+  return max(s, 0.0);
+}
+
+vec3 background(vec2 p, float d) {
+  vec2 uv = p / uRes;
+  vec2 q = (p - uCenter) / uRadius;
+  vec3 col = mix(vec3(0.013, 0.032, 0.044), vec3(0.0012, 0.0035, 0.008), smoothstep(0.0, 0.96, uv.y));
+
+  col += vec3(0.0045, 0.060, 0.068) * exp(-d * d * 1.22);
+
+  vec2 np = (p - uCenter) / uRes.y;
+  float cloud = fbm(np * 2.15 + vec2(uTime * 0.006, -0.035));
+  col += vec3(0.010, 0.052, 0.054) * smoothstep(0.40, 0.82, cloud) * exp(-d * d * 0.68);
+
+  float cloud2 = fbm(np * 1.15 + vec2(-uTime * 0.004, 0.04) + 7.1);
+  col += vec3(0.008, 0.038, 0.050) * smoothstep(0.46, 0.86, cloud2) * exp(-d * d * 0.48);
+
+  float auroraBand = exp(-pow((q.y * 0.62 - q.x * 0.54 + 0.18 + 0.12 * sin(q.x * 2.2 + uTime * 0.035)) / 0.28, 2.0));
+  col += vec3(0.006, 0.030, 0.040) * auroraBand * (0.35 + 0.65 * smoothstep(0.25, 0.8, cloud));
+
+  float pool = exp(-pow((p.x - uCenter.x) / (uRadius * 0.84), 2.0) * 1.45
+                 - pow((p.y - (uCenter.y + uRadius * 1.13)) / (uRadius * 0.095), 2.0));
+  col += vec3(0.0045, 0.082, 0.080) * pool * 0.76;
+
+  float st = stars(p + vec2(0.0, uTime * 0.45), 88.0, 0.934, uTime)
+           + 0.65 * stars(p * 1.7 + vec2(4.0, -uTime * 0.2), 57.0, 0.962, uTime)
+           + 0.4 * stars(p * 0.55 + vec2(8.0, uTime * 0.08), 170.0, 0.980, uTime);
+  col += vec3(0.24, 0.62, 0.61) * st * 0.25;
+
+  float aura = exp(-pow(max(d - 1.0, 0.0) * 3.1, 2.0));
+  col += vec3(0.008, 0.095, 0.100) * aura * 0.95;
+
+  float orbit = exp(-pow((d - 1.185) / 0.0034, 2.0));
+  float orbitFade = 0.16 + 0.84 * pow(0.5 + 0.5 * sin(atan(p.y - uCenter.y, p.x - uCenter.x) + 0.7), 5.0);
+  col += vec3(0.040, 0.19, 0.18) * orbit * 0.13 * orbitFade;
+
+  float orbit2 = exp(-pow((d - 1.072) / 0.0026, 2.0));
+  float orbitFade2 = 0.10 + 0.9 * pow(0.5 + 0.5 * sin(atan(p.y - uCenter.y, p.x - uCenter.x) - 1.9), 7.0);
+  col += vec3(0.022, 0.13, 0.13) * orbit2 * 0.08 * orbitFade2;
+
+  return col;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uViewport;
+  vec2 p = vec2(uv.x * uRes.x, (1.0 - uv.y) * uRes.y);
+  vec2 q = (p - uCenter) / uRadius;
+  float rr = length(q);
+  vec3 col = background(p, rr);
+
+  float inside = 1.0 - smoothstep(0.993, 1.007, rr);
+
+  if (inside > 0.001) {
+    vec3 air = col * 0.44 + vec3(0.0012, 0.012, 0.018) * (0.6 + 0.4 * (1.0 - rr));
+    air += vec3(0.0, 0.016, 0.022) * smoothstep(0.15, 1.0, rr) * 0.9;
+    col = mix(col, air, inside);
+
+    float qx = q.x;
+    float surf = surfaceAt(qx);
+    float below = q.y - surf;
+    float chord = sqrt(max(0.0, 1.0 - qx * qx));
+    float aa = max(fwidth(below), 0.0016);
+    float waterMask = smoothstep(-aa, aa, below) * inside;
+    float depth = clamp(below / max(chord - surf, 0.008), 0.0, 1.0);
+
+    vec3 deep = vec3(0.0012, 0.015, 0.040);
+    vec3 mid = vec3(0.0050, 0.090, 0.125);
+    vec3 shallow = vec3(0.036, 0.400, 0.370);
+    vec3 water = mix(shallow, mid, smoothstep(0.0, 0.26, depth));
+    water = mix(water, deep, smoothstep(0.33, 1.0, depth));
+
+    float nearSurface = exp(-max(0.0, below) * 2.8);
+    water += vec3(0.010, 0.18, 0.16) * nearSurface * 0.34;
+    water += vec3(0.0, 0.030, 0.045) * smoothstep(-0.45, 0.8, q.x) * (1.0 - depth) * 0.4;
+
+    float surfaceGlow = exp(-max(0.0, below) * 8.5);
+    water += vec3(0.020, 0.34, 0.30) * surfaceGlow * 0.52;
+
+    float volume = fbm(q * 1.8 + vec2(uTime * 0.024, -uTime * 0.018));
+    water += vec3(0.0, 0.042, 0.050) * smoothstep(0.36, 0.82, volume)
+           * (0.35 + 0.65 * (1.0 - depth)) * 0.28;
+
+    float turb = fbm(q * 2.9 + vec2(uTime * 0.048, -uTime * 0.038) + 3.7);
+    water += vec3(0.0, 0.050, 0.055) * smoothstep(0.40, 0.85, turb)
+           * (0.30 + 0.70 * (1.0 - depth)) * 0.22;
+
+    vec2 lq = q - vec2(-0.26, 0.06);
+    float lightPool = exp(-dot(lq, lq) * 2.7);
+    water += vec3(0.006, 0.095, 0.085) * lightPool * (0.25 + 0.75 * (1.0 - depth)) * 0.40;
+
+    float shaft = exp(-pow((qx + 0.30 + q.y * 0.20) / 0.24, 2.0))
+                * exp(-max(0.0, below) * 1.35);
+    water += vec3(0.012, 0.13, 0.13) * shaft * 0.26;
+
+    // Caustic network: several warped interference fields produce mobile
+    // filaments of light. The domain warp keeps them organic instead of gridlike.
+    vec2 causticWarp = vec2(
+      fbm(q * 2.1 + vec2(uTime * 0.028, 0.0)),
+      fbm(q * 2.1 + vec2(4.7, -uTime * 0.023))
+    );
+    vec2 cq = q + (causticWarp - 0.5) * 0.26;
+    float warp = fbm(cq * 2.4 + vec2(uTime * 0.026, -uTime * 0.020));
+
+    float beams = pow(0.5 + 0.5 * sin(cq.x * 7.0 - cq.y * 12.0 + warp * 6.0 + uTime * 0.12), 10.0);
+    water += vec3(0.010, 0.080, 0.078) * beams * (0.20 + 0.80 * (1.0 - depth)) * 0.22;
+
+    float causticPatch = smoothstep(0.28, 0.82, fbm(q * 1.4 - vec2(uTime * 0.015, uTime * 0.012) + 7.3));
+    float a1 = 0.5 + 0.5 * sin(cq.x * 26.0 + cq.y * 10.0 + warp * 10.0 - uTime * 0.50);
+    float a2 = 0.5 + 0.5 * sin(cq.x * 16.0 - cq.y * 23.0 + warp * 8.0 + uTime * 0.38);
+    float b1 = 0.5 + 0.5 * sin(cq.x * 40.0 + cq.y * 17.0 - warp * 12.0 + uTime * 0.70);
+    float b2 = 0.5 + 0.5 * sin(cq.x * 24.0 - cq.y * 36.0 + warp * 9.0 - uTime * 0.54);
+    float net = pow(a1 * a2, 7.0) * 1.15;
+    float fine = pow(b1 * b2, 11.0) * 0.60;
+    float w1 = 0.5 + 0.5 * sin(cq.x * 27.0 + cq.y * 11.0 + warp * 11.0 - uTime * 0.48);
+    float w2 = 0.5 + 0.5 * sin(cq.x * 16.0 - cq.y * 29.0 + warp * 9.0 + uTime * 0.39);
+    float w3 = 0.5 + 0.5 * sin(cq.x * 38.0 + cq.y * 4.0 + warp * 13.0 + uTime * 0.62);
+    float caustic = (net + fine + pow(w1, 32.0) * 0.8 + pow(w2, 36.0) * 0.58 + pow(w3, 44.0) * 0.32)
+                  * (0.30 + 0.70 * causticPatch);
+    float causticDepth = exp(-depth * 2.35);
+    vec2 lp = q - vec2(-0.34, 0.06);
+    float lightMask = 0.30 + 0.70 * exp(-dot(lp, lp) * 1.9);
+    water += vec3(0.060, 0.55, 0.48) * caustic * causticDepth * lightMask
+           * (0.22 + 0.58 * (1.0 - depth)) * (0.45 + 0.55 * smoothstep(0.0, 0.42, below));
+
+    float beamCoord = cq.x + cq.y * 0.42 + warp * 0.55;
+    float godray = pow(0.5 + 0.5 * sin(beamCoord * 6.8 + uTime * 0.10), 9.0);
+    water += vec3(0.008, 0.075, 0.078) * godray * exp(-depth * 1.35) * 0.30;
+
+    float surfaceFiligree = pow(0.5 + 0.5 * sin(qx * 31.0 + q.y * 5.0 + warp * 9.0 - uTime * 0.68), 20.0);
+    water += vec3(0.030, 0.38, 0.34) * surfaceFiligree * exp(-max(0.0, below) * 5.6) * 0.36;
+
+    float ray = pow(0.5 + 0.5 * sin(qx * 9.0 + warp * 5.2 + uTime * 0.24), 8.0);
+    water += vec3(0.006, 0.062, 0.063) * ray * exp(-max(0.0, below) * 1.7) * 0.20;
+
+    float sparkle = vnoise(q * vec2(28.0, 22.0) + vec2(uTime * 0.15, -uTime * 0.11));
+    water += vec3(0.0, 0.085, 0.082) * smoothstep(0.60, 0.94, sparkle) * 0.10;
+
+    float slope = surfaceSlope(qx);
+    vec3 n = normalize(vec3(-slope * 0.55, 1.0, 0.72));
+    vec3 L = normalize(vec3(-0.52, -0.64, 0.56));
+    float spec = pow(max(dot(reflect(-L, n), vec3(0.0, 0.0, 1.0)), 0.0), 24.0);
+    water += vec3(0.10, 0.42, 0.38) * spec * exp(-max(0.0, below) * 8.0) * 0.18;
+
+    float underside = exp(-max(0.0, below) * 2.5);
+    water += vec3(0.035, 0.40, 0.35) * underside * 0.13;
+
+    col = mix(col, water, waterMask);
+
+    float aboveWater = -below;
+    float airGlow = exp(-max(0.0, aboveWater) * 5.0) * smoothstep(0.0, 0.35, aboveWater) * (1.0 - smoothstep(0.55, 1.1, aboveWater));
+    col += vec3(0.004, 0.050, 0.050) * airGlow * 0.30;
+
+    float airMask = inside * (1.0 - waterMask);
+    float sheenBand = exp(-pow((q.x * 0.66 + q.y * 0.54 + 0.18) / 0.105, 2.0));
+    float sheenBand2 = exp(-pow((q.x * 0.66 + q.y * 0.54 + 0.48) / 0.17, 2.0));
+    col += vec3(0.010, 0.045, 0.052) * (sheenBand * 0.70 + sheenBand2 * 0.22) * airMask;
+
+    mat2 glassRot = mat2(0.84, 0.54, -0.54, 0.84);
+    vec2 rp = glassRot * q;
+    float softbox = exp(-pow((rp.x + 0.33) / 0.075, 2.0) - pow((rp.y + 0.28) / 0.29, 2.0));
+    col += vec3(0.070, 0.22, 0.25) * softbox * airMask * 0.30;
+    float softboxCore = exp(-pow((rp.x + 0.33) / 0.026, 2.0) - pow((rp.y + 0.28) / 0.24, 2.0));
+    col += vec3(0.10, 0.30, 0.34) * softboxCore * airMask * 0.10;
+
+    float haze = fbm(q * 1.55 + vec2(uTime * 0.018, -uTime * 0.014) + 2.4);
+    col += vec3(0.0, 0.022, 0.026) * smoothstep(0.34, 0.82, haze) * airMask * 0.38;
+
+    vec2 moteGrid = q * 18.0 + vec2(sin(uTime * 0.13) * 0.4, uTime * 0.12);
+    vec2 moteId = floor(moteGrid);
+    vec2 moteF = fract(moteGrid) - 0.5;
+    float moteHash = hash21(moteId);
+    vec2 moteOff = vec2(hash21(moteId + 3.1), hash21(moteId + 7.7)) - 0.5;
+    float moteD = length(moteF - moteOff * 0.8);
+    float motes = smoothstep(0.048, 0.0, moteD) * step(0.978, moteHash);
+    col += vec3(0.25, 0.58, 0.58) * motes * airMask * 0.055;
+
+    // The meniscus: a thin, bright liquid line plus a soft halo.
+    float edgeWidth = aa * 1.55 + 0.0030;
+    float edge = exp(-pow(below / edgeWidth, 2.0)) * inside;
+    float edgeVariation = 0.65 + 0.35 * vnoise(vec2(qx * 47.0, uTime * 0.75));
+    float slopeLight = 0.78 + 0.22 * clamp(-surfaceSlope(qx) * 5.0, -1.0, 1.0);
+    col += vec3(0.40, 1.0, 0.92) * edge * 0.66 * edgeVariation * slopeLight;
+
+    float edgeHalo = exp(-pow(below / (aa * 4.0 + 0.018), 2.0)) * inside;
+    col += vec3(0.02, 0.30, 0.27) * edgeHalo * 0.26;
+
+    float foamNoise = vnoise(vec2(qx * 44.0, uTime * 0.65))
+                    * vnoise(vec2(qx * 19.0 + 11.0, uTime * 0.42));
+    float foam = smoothstep(0.30, 0.78, foamNoise)
+               * exp(-max(0.0, below) * 95.0)
+               * smoothstep(0.0, 0.004, below) * inside;
+    col += vec3(0.46, 1.0, 0.92) * foam * 0.24;
+
+    float surfaceSpec = exp(-pow((qx + 0.36) / 0.22, 2.0)) * edge;
+    col += vec3(0.75, 1.0, 0.96) * surfaceSpec * 0.30;
+
+    float upward = exp(-max(0.0, aboveWater) * 2.4) * airMask;
+    col += vec3(0.003, 0.032, 0.033) * upward * 0.55;
+
+    float airCaustic = caustic * exp(-max(0.0, aboveWater) * 5.0) * airMask;
+    col += vec3(0.020, 0.15, 0.15) * airCaustic * 0.22;
+
+    float mirrorLine = exp(-pow((aboveWater - 0.030 - 0.008 * sin(qx * 9.0 + uTime * 0.45)) / 0.010, 2.0)) * airMask;
+    col += vec3(0.10, 0.42, 0.39) * mirrorLine * 0.18;
+
+    float reflectionLine = exp(-pow((below - 0.034 - 0.010 * sin(qx * 8.0 + uTime * 0.55)) / 0.010, 2.0))
+                         * inside * waterMask;
+    col += vec3(0.035, 0.26, 0.23) * reflectionLine * 0.14;
+
+    // Liquid contact with the glass is slightly brighter.
+    float contact = smoothstep(0.90, 0.995, rr) * waterMask;
+    col += vec3(0.03, 0.22, 0.21) * contact * 0.22;
+
+    float bottomGlow = exp(-pow((rr - 0.94) / 0.055, 2.0)) * waterMask;
+    col += vec3(0.015, 0.11, 0.11) * bottomGlow * 0.20;
+
+    // Glass shell.
+    float fres = pow(1.0 - sqrt(max(0.0, 1.0 - rr * rr)), 2.8);
+    col += vec3(0.012, 0.070, 0.078) * fres * inside * 0.65;
+
+    float innerShade = exp(-pow((rr - 0.966) / 0.024, 2.0));
+    col *= 1.0 - 0.24 * innerShade * inside;
+
+    float rim = exp(-pow((rr - 0.9965) / 0.0040, 2.0));
+    col += vec3(0.20, 0.54, 0.55) * rim * 0.34;
+
+    float rimInner = exp(-pow((rr - 0.982) / 0.0060, 2.0));
+    col += vec3(0.030, 0.14, 0.15) * rimInner * inside * 0.22;
+
+    float outerRing = exp(-pow((rr - 1.018) / 0.013, 2.0));
+    col += vec3(0.018, 0.11, 0.115) * outerRing * 0.12;
+
+    vec2 dir = q / max(rr, 0.0001);
+    float lightFacing = smoothstep(0.05, 1.0, dot(dir, normalize(vec2(-0.58, -0.81))));
+    float rimHi = exp(-pow((rr - 0.992) / 0.0055, 2.0)) * lightFacing;
+    col += vec3(0.62, 0.96, 0.94) * rimHi * 0.44;
+
+    float rimArc = exp(-pow((rr - 0.988) / 0.0032, 2.0)) * smoothstep(0.55, 1.0, lightFacing);
+    col += vec3(0.80, 1.0, 1.0) * rimArc * 0.24;
+
+    vec2 dir2 = normalize(vec2(0.56, 0.83));
+    float lightFacing2 = smoothstep(0.15, 1.0, dot(dir, dir2));
+    float rimHi2 = exp(-pow((rr - 0.9945) / 0.0050, 2.0)) * lightFacing2;
+    col += vec3(0.24, 0.54, 0.56) * rimHi2 * 0.16;
+
+    vec2 hp = (q - vec2(-0.53, -0.80)) * vec2(4.8, 9.4);
+    float glint = exp(-dot(hp, hp) * 4.2);
+    col += vec3(0.46, 0.88, 0.91) * glint * 0.15;
+
+    vec2 hpCore = (q - vec2(-0.56, -0.84)) * vec2(19.0, 34.0);
+    float glintCore = exp(-dot(hpCore, hpCore) * 5.0);
+    col += vec3(0.76, 1.0, 0.98) * glintCore * 0.34;
+
+    vec2 hp2 = (q - vec2(0.72, 0.57)) * vec2(7.4, 12.0);
+    float glint2 = exp(-dot(hp2, hp2) * 3.2);
+    col += vec3(0.16, 0.52, 0.54) * glint2 * 0.08;
+
+    float band = exp(-pow((qx * 0.55 + q.y * 0.95 + 0.14) / 0.21, 2.0));
+    col += vec3(0.004, 0.032, 0.036) * band * smoothstep(0.92, 0.25, rr) * 0.42;
+  }
+
+  vec2 vuv = p / uRes - 0.5;
+  float vig = smoothstep(0.94, 0.22, length(vuv * vec2(1.0, 1.2)));
+  col *= 0.54 + 0.46 * vig;
+
+  col = pow(max(col, 0.0), vec3(0.93));
+  float grain = hash21(gl_FragCoord.xy + fract(uTime) * 113.0) - 0.5;
+  col += grain * 0.0065;
+
+  outColor = vec4(max(col, 0.0), 1.0);
+}
+`;
+
+const BUBBLE_VS = COMMON + `
+uniform vec2 uRes;
+uniform vec4 uBubbles[40];
+in vec2 aCorner;
+out vec2 vUv;
+out float vSeed;
+void main() {
+  vec4 b = uBubbles[gl_InstanceID];
+  vec2 pos = b.xy + aCorner * b.z;
+  vec2 clip = vec2(pos.x / uRes.x * 2.0 - 1.0, 1.0 - pos.y / uRes.y * 2.0);
+  gl_Position = vec4(clip, 0.0, 1.0);
+  vUv = aCorner;
+  vSeed = b.w;
+}
+`;
+
+const BUBBLE_FS = COMMON + `
+in vec2 vUv;
+in float vSeed;
+out vec4 outColor;
+void main() {
+  vec2 uv = vUv;
+  float r = length(uv);
+  if (r > 1.0) discard;
+
+  float rim = exp(-pow((r - 0.86) / 0.085, 2.0));
+  vec2 hl = uv - vec2(-0.33, -0.40);
+  hl.x *= 1.35;
+  float highlight = exp(-dot(hl, hl) * 24.0);
+  float center = smoothstep(0.95, 0.0, r) * 0.035;
+
+  float shimmer = 0.75 + 0.25 * sin(vSeed * 7.0);
+  vec3 col = mix(vec3(0.04, 0.46, 0.52), vec3(0.70, 1.0, 0.95), highlight);
+  float a = (rim * 0.40 + highlight * 0.62 + center) * shimmer;
+  outColor = vec4(col * a, 1.0);
+}
+`;
+
+const TRAIL_LINE_VS = COMMON + `
+uniform vec2 uRes;
+uniform vec2 uOffset;
+uniform float uGain;
+in vec2 aPos;
+in float aAlpha;
+out float vAlpha;
+out vec2 vPos;
+void main() {
+  vec2 p = aPos + uOffset;
+  vec2 clip = vec2(p.x / uRes.x * 2.0 - 1.0, 1.0 - p.y / uRes.y * 2.0);
+  gl_Position = vec4(clip, 0.0, 1.0);
+  vAlpha = aAlpha * uGain;
+  vPos = aPos;
+}
+`;
+
+const TRAIL_LINE_FS = COMMON + `
+uniform vec2 uCenter;
+uniform float uRadius;
+uniform float uTime;
+uniform vec4 uSurfaceA;
+uniform vec2 uSurfaceB;
+in float vAlpha;
+in vec2 vPos;
+out vec4 outColor;
+
+float surfaceAt(float x) {
+  return uSurfaceA.x - uSurfaceA.y * x
+    + uSurfaceA.z * sin(2.2 * x + 0.55)
+    + uSurfaceA.w * sin(3.75 * x + 1.9)
+    + uSurfaceB.x * sin(5.6 * x + 3.05)
+    + 0.0068 * sin(13.0 * x - 1.35 * uTime + 1.2)
+    + 0.0046 * sin(21.0 * x - 2.05 * uTime + 4.2);
+}
+
+void main() {
+  vec2 q = (vPos - uCenter) / uRadius;
+  if (dot(q, q) > 0.98) discard;
+  if (q.y < surfaceAt(q.x) - 0.002) discard;
+  vec3 col = mix(vec3(0.04, 0.45, 0.48), vec3(0.45, 0.95, 0.86), clamp(vAlpha * 9.0, 0.0, 1.0));
+  outColor = vec4(col * vAlpha, 1.0);
+}
+`;
+
+const TRAIL_VS = COMMON + `
+uniform vec2 uRes;
+uniform float uPointScale;
+uniform float uTrailHistory;
+in vec2 aPos;
+in float aAlpha;
+in float aSize;
+out float vAlpha;
+out float vTone;
+out vec2 vPos;
+out float vSizeCss;
+void main() {
+  vec2 clip = vec2(aPos.x / uRes.x * 2.0 - 1.0, 1.0 - aPos.y / uRes.y * 2.0);
+  gl_Position = vec4(clip, 0.0, 1.0);
+  gl_PointSize = clamp(aSize * uPointScale, 1.0, 36.0);
+  vAlpha = aAlpha;
+  vTone = fract(sin(floor(float(gl_VertexID) / uTrailHistory) * 12.9898 + 4.1) * 43758.5453);
+  vPos = aPos;
+  vSizeCss = aSize;
+}
+`;
+
+const TRAIL_FS = COMMON + `
+uniform vec2 uCenter;
+uniform float uRadius;
+uniform float uTime;
+uniform vec4 uSurfaceA;
+uniform vec2 uSurfaceB;
+in float vAlpha;
+in float vTone;
+in vec2 vPos;
+in float vSizeCss;
+out vec4 outColor;
+
+float surfaceAt(float x) {
+  return uSurfaceA.x - uSurfaceA.y * x
+    + uSurfaceA.z * sin(2.2 * x + 0.55)
+    + uSurfaceA.w * sin(3.75 * x + 1.9)
+    + uSurfaceB.x * sin(5.6 * x + 3.05)
+    + 0.0068 * sin(13.0 * x - 1.35 * uTime + 1.2)
+    + 0.0046 * sin(21.0 * x - 2.05 * uTime + 4.2);
+}
+
+void main() {
+  vec2 fragPos = vPos + (gl_PointCoord - 0.5) * vSizeCss;
+  vec2 q = (fragPos - uCenter) / uRadius;
+  if (dot(q, q) > 0.98) discard;
+  if (q.y < surfaceAt(q.x) - 0.002) discard;
+  vec2 pc = gl_PointCoord * 2.0 - 1.0;
+  float r2 = dot(pc, pc);
+  if (r2 > 1.0) discard;
+  float glow = exp(-r2 * 3.4);
+  float core = exp(-r2 * 18.0);
+  vec3 col = mix(vec3(0.035, 0.42, 0.48), vec3(0.40, 0.92, 0.86), vTone * 0.75);
+  float a = (glow * 0.82 + core * 0.50) * vAlpha;
+  outColor = vec4(col * a, 1.0);
+}
+`;
+
+const PARTICLE_VS = COMMON + `
+uniform sampler2D uParticles;
+uniform vec2 uRes;
+uniform float uUnit;
+uniform float uAnchoredCount;
+uniform int uTexW;
+in vec2 aCorner;
+out vec2 vUv;
+out vec3 vColor;
+out vec2 vDrawPos;
+out float vSeed;
+out float vFlow;
+
+uint hashU(uint x) {
+  x ^= x >> 16;
+  x *= 0x7feb352du;
+  x ^= x >> 15;
+  x *= 0x846ca68bu;
+  x ^= x >> 16;
+  return x;
+}
+float randf(uint x) {
+  return float(hashU(x) & 0x00ffffffu) / 16777215.0;
+}
+
+void main() {
+  int idx = gl_InstanceID;
+  ivec2 tc = ivec2(idx % uTexW, idx / uTexW);
+  vec4 pd = texelFetch(uParticles, tc, 0);
+  vec2 pos = pd.xy;
+  vec2 vel = pd.zw;
+
+  float h1 = randf(uint(idx) * 7u + 3u);
+  float h2 = randf(uint(idx) * 13u + 11u);
+  float h3 = randf(uint(idx) * 29u + 19u);
+  float isFlow = step(uAnchoredCount, float(idx));
+
+  float speed = length(vel);
+  vec2 dir = speed > 4.0 ? vel / speed : vec2(0.7071, 0.7071);
+  vec2 side = vec2(-dir.y, dir.x);
+
+  float px = mix(1.55 + 1.95 * pow(h1, 4.0), 2.05 + 4.0 * pow(h1, 6.0), isFlow) * uUnit;
+  if (h1 > 0.972) px *= mix(1.5, 2.2, isFlow);
+  float stretch = min(speed * mix(0.004, 0.012, isFlow), 4.0) * uUnit;
+  float halfLen = px * (0.98 + stretch * mix(0.4, 0.6, isFlow));
+
+  vec2 local = dir * (aCorner.x * halfLen) + side * (aCorner.y * px);
+  vec2 drawPos = pos + local;
+  vec2 clip = vec2(drawPos.x / uRes.x * 2.0 - 1.0, 1.0 - drawPos.y / uRes.y * 2.0);
+
+  vUv = aCorner;
+  vDrawPos = drawPos;
+  vSeed = h1;
+  vFlow = isFlow;
+  vec3 fixedColor = mix(vec3(0.035, 0.32, 0.42), vec3(0.38, 0.86, 0.82), h2);
+  vec3 flowColor = mix(vec3(0.05, 0.45, 0.58), vec3(0.66, 1.0, 0.93), h2);
+  flowColor = mix(vec3(0.13, 0.30, 0.95), flowColor, 0.68 + 0.32 * h3);
+  vColor = mix(fixedColor, flowColor, isFlow);
+
+  gl_Position = vec4(clip, 0.0, 1.0);
+}
+`;
+
+const PARTICLE_FS = COMMON + `
+uniform vec2 uCenter;
+uniform float uRadius;
+uniform float uTime;
+uniform vec4 uSurfaceA;
+uniform vec2 uSurfaceB;
+in vec2 vUv;
+in vec3 vColor;
+in vec2 vDrawPos;
+in float vSeed;
+in float vFlow;
+out vec4 outColor;
+
+float surfaceAt(float x) {
+  return uSurfaceA.x - uSurfaceA.y * x
+    + uSurfaceA.z * sin(2.2 * x + 0.55)
+    + uSurfaceA.w * sin(3.75 * x + 1.9)
+    + uSurfaceB.x * sin(5.6 * x + 3.05)
+    + 0.0068 * sin(13.0 * x - 1.35 * uTime + 1.2)
+    + 0.0046 * sin(21.0 * x - 2.05 * uTime + 4.2);
+}
+
+void main() {
+  vec2 q = (vDrawPos - uCenter) / uRadius;
+  if (dot(q, q) > 0.966) discard;
+  float surf = surfaceAt(q.x);
+  if (q.y < surf - 0.004) discard;
+
+  float depth = clamp(q.y - surf, 0.0, 1.0);
+  float twinkle = 0.84 + 0.16 * sin(uTime * (0.8 + vSeed * 2.4) + vSeed * 37.0);
+
+  vec2 uv = vUv;
+  float taper = mix(0.22, 1.0, smoothstep(-1.0, 0.96, uv.x));
+  vec2 qq = vec2(uv.x, uv.y / max(taper, 0.08));
+  float r2 = dot(qq, qq);
+  if (r2 > 1.0) discard;
+
+  float glow = exp(-r2 * 3.4);
+  vec2 coreQ = qq * vec2(2.3, 5.0);
+  float core = exp(-dot(coreQ, coreQ) * 2.7);
+
+  float fadeDeep = 1.0 - mix(0.48, 0.34, vFlow) * smoothstep(0.18, 0.95, depth);
+  float brightness = mix(0.78, 1.0, vFlow);
+  float alpha = (glow * 0.22 + core * 0.80) * fadeDeep * twinkle * brightness;
+  vec3 col = vColor * alpha;
+  col += vec3(0.64, 1.0, 0.97) * core * mix(0.12, 0.28, vFlow) * twinkle;
+
+  outColor = vec4(col, 1.0);
+}
+`;
+
+/* ------------------------------------------------------------
+   Boot
+   ------------------------------------------------------------ */
+
+try {
+  allocateParticles();
+  glr = createRenderer();
+  initWorld();
+  bindUI();
+  requestAnimationFrame(loop);
+  requestAnimationFrame(() => requestAnimationFrame(() => veil.classList.add("ready")));
+  window.setTimeout(() => {
+    document.body.classList.add("ui-hidden");
+    hint.classList.add("dismissed");
+  }, 7500);
+} catch (err) {
+  console.error(err);
+  showFallback(`初始化失败：${err.message || err}`);
+}
+
+})();
+</script>
+</body>
+</html>

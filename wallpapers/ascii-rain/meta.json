@@ -1,0 +1,12 @@
+{
+  "title": "数字雨",
+  "subtitle": "ASCII Rain // 3D",
+  "description": "可漫游的三维 ASCII 数字雨，镜头静止，雨幕一直下落，点击触发微弱冲击波。",
+  "tags": [
+    "WebGL 2",
+    "3D",
+    "赛博"
+  ],
+  "accent": "#78e08f",
+  "order": 7
+}

@@ -1,0 +1,12 @@
+{
+  "title": "液态球",
+  "subtitle": "Liquid Sphere",
+  "description": "两千余发光粒子在球形玻璃容器中流动、旋涡与晃动，液面始终守恒。",
+  "tags": [
+    "WebGL 2",
+    "粒子",
+    "流体"
+  ],
+  "accent": "#6fd6e8",
+  "order": 3
+}

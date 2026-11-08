@@ -1,0 +1,12 @@
+{
+  "title": "月夜 · 焰火",
+  "subtitle": "Moonlit Fireworks",
+  "description": "圆月、湖面与山影之上，烟花升空、绽放、二次爆炸，再缓缓熄灭。",
+  "tags": [
+    "Canvas 2D",
+    "粒子",
+    "夜景"
+  ],
+  "accent": "#f0c987",
+  "order": 2
+}

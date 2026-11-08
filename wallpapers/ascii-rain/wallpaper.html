@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>ASCII RAIN // 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script>document.documentElement.classList.add('wallpaper');</script>
+<script>
+  if (/[?&]wallpaper=1/.test(location.search)) {
+    document.documentElement.classList.add("wallpaper");
+  }
+</script>
+<style>
+  :root { --green: #7dffa8; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; width: 100%; height: 100%;
+    background: #000; overflow: hidden;
+  }
+  body {
+    font-family: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
+    color: var(--green);
+    cursor: crosshair;
+    user-select: none;
+  }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .atmos {
+    position: fixed; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 44%, rgba(20, 140, 70, .10) 0%, rgba(0,0,0,0) 52%),
+      radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 42%, rgba(0,0,0,.50) 100%);
+  }
+  .scan {
+    position: fixed; inset: 0; pointer-events: none; opacity: .10;
+    background: repeating-linear-gradient(to bottom,
+      rgba(0,0,0,.55) 0px, rgba(0,0,0,.55) 1px, transparent 1px, transparent 3px);
+  }
+
+  .hud {
+    position: fixed; z-index: 3; pointer-events: none;
+    font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+  }
+  .hud.top { top: 22px; left: 26px; }
+  .hud.bottom {
+    left: 26px; right: 26px; bottom: 20px;
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 18px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; letter-spacing: .32em; color: #adffc6;
+    text-shadow: 0 0 16px rgba(64, 255, 132, .55);
+  }
+  .brand .slash { opacity: .45; }
+  .brand .dim { opacity: .45; font-size: 10px; letter-spacing: .2em; }
+  .rec {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #58ff92; box-shadow: 0 0 10px #58ff92;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+  .sub { margin-top: 7px; opacity: .33; font-size: 9px; letter-spacing: .26em; }
+  .hud.bottom .hint,
+  .hud.bottom .readout {
+    background: rgba(0, 7, 3, .48);
+    border: 1px solid rgba(110, 255, 160, .09);
+    padding: 4px 8px;
+  }
+  .readout .sep { opacity: .3; margin: 0 8px; }
+  .readout .state { color: #d8ffe4; }
+  .readout .state.paused { color: #ffd47d; }
+
+  .reticle {
+    position: fixed; z-index: 3; left: 50%; top: 50%; width: 26px; height: 26px;
+    margin: -13px 0 0 -13px; pointer-events: none; opacity: 0;
+    transition: opacity .3s ease;
+  }
+  .reticle.on { opacity: .7; }
+  .reticle::before {
+    content: ""; position: absolute; inset: 0; border: 1px solid rgba(140,255,178,.45);
+    border-radius: 50%; box-shadow: 0 0 14px rgba(60,255,130,.22), inset 0 0 10px rgba(60,255,130,.12);
+  }
+  .reticle::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 3px; height: 3px;
+    border-radius: 50%; background: #b8ffcd; transform: translate(-50%, -50%);
+    box-shadow: 0 0 9px rgba(100,255,150,.9);
+  }
+
+  .enter {
+    position: fixed; inset: 0; z-index: 4; display: grid; place-items: center;
+    pointer-events: none; opacity: 1; transition: opacity .45s ease;
+  }
+  .enter.hidden { opacity: 0; }
+  .panel {
+    max-width: min(500px, calc(100vw - 40px));
+    padding: 22px 34px 20px; text-align: center;
+    border: 1px solid rgba(110,255,160,.20);
+    background: linear-gradient(180deg, rgba(0,18,8,.48), rgba(0,8,3,.28));
+    box-shadow: 0 0 55px rgba(30,255,110,.07), inset 0 0 40px rgba(30,255,110,.025);
+    backdrop-filter: blur(2px);
+  }
+  .kicker { font-size: 9px; letter-spacing: .34em; opacity: .45; text-transform: uppercase; }
+  .title {
+    margin-top: 14px; font-size: clamp(20px, 3.2vw, 30px); letter-spacing: .16em;
+    color: #caffda; text-shadow: 0 0 24px rgba(60,255,130,.45);
+  }
+  .enter-sub { margin-top: 9px; font-size: 10px; letter-spacing: .34em; opacity: .5; }
+  .enter-controls {
+    margin-top: 20px; padding-top: 14px; border-top: 1px solid rgba(110,255,160,.14);
+    font-size: 10px; letter-spacing: .13em; opacity: .55; line-height: 1.8;
+  }
+  .enter-controls b { color: #a9ffc3; font-weight: 600; }
+
+  #err {
+    position: fixed; z-index: 9; left: 24px; bottom: 80px; right: 24px;
+    display: none; margin: 0; padding: 14px 16px;
+    color: #ff9a9a; background: rgba(20,0,0,.82); border: 1px solid rgba(255,90,90,.35);
+    font-size: 12px; line-height: 1.5; white-space: pre-wrap;
+  }
+  .fallback {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: #000; color: #9bffb7; font-size: 14px; text-align: center; line-height: 2;
+    padding: 24px;
+  }
+
+  /* wallpaper mode: no cursor, no UI, just the rain */
+  html.wallpaper,
+  html.wallpaper body { cursor: default !important; }
+  html.wallpaper .enter,
+  html.wallpaper .hud,
+  html.wallpaper .reticle,
+  html.wallpaper #err { display: none !important; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div class="atmos"></div>
+<div class="scan"></div>
+<div class="reticle" id="reticle"></div>
+
+<div class="hud top">
+  <div class="brand"><span class="rec"></span>ASCII<span class="slash">//</span>RAIN<span class="dim">3D</span></div>
+  <div class="sub">shockwave rain field / static camera</div>
+</div>
+
+<div class="enter" id="enter">
+  <div class="panel">
+    <div class="kicker">static camera / falling rain</div>
+    <div class="title">点击进入雨幕</div>
+    <div class="enter-sub">CLICK TO ENGAGE · CAMERA STAYS STILL</div>
+    <div class="enter-controls">
+      <b>WASD</b> 手动移动 &nbsp;·&nbsp; <b>鼠标</b> 环视 &nbsp;·&nbsp; <b>左键</b> 冲击波<br>
+      <b>Q / E</b> 升降 &nbsp;·&nbsp; <b>Shift</b> 加速 &nbsp;·&nbsp; <b>空格</b> 暂停 &nbsp;·&nbsp; <b>Esc</b> 释放鼠标
+    </div>
+  </div>
+</div>
+
+<div class="hud bottom">
+  <div class="hint">WASD 移动 · 鼠标 旋转 · 左键 冲击波</div>
+  <div class="readout"><span>CAM STATIC</span><span class="sep">/</span><span class="state" id="state">STANDBY</span></div>
+</div>
+
+<pre id="err"></pre>
+
+<script>
+/*
+  ASCII RAIN // 3D
+  A dependency-free WebGL2 rain field.
+
+  - the rain is made of short falling segments: each one has a bright head,
+    a fading tail, and respawns at a new random 3D position after it falls
+  - the shader shades the field from dark green at the top of the screen to a
+    pale bright green at the bottom
+  - every glyph is double-sided; back faces mirror their atlas U coordinate so
+    the characters stay readable from both sides
+  - the camera is still by default: it only moves when WASD / QE are pressed,
+    and there is no automatic drift
+  - a click sends out a very faint spherical shockwave: the rain barely bends
+    and a thin, dim ring expands for 2.8 seconds
+*/
+(function () {
+  "use strict";
+
+  var errBox = document.getElementById("err");
+  function fail(message) {
+    errBox.style.display = "block";
+    errBox.textContent = "ERROR // " + message;
+  }
+  window.addEventListener("error", function (e) {
+    fail(e.message || String(e.error || "unknown"));
+  });
+
+  var canvas = document.getElementById("gl");
+  var gl = canvas.getContext("webgl2", {
+    alpha: false,
+    antialias: true,
+    depth: false,
+    stencil: false,
+    powerPreference: "high-performance",
+    preserveDrawingBuffer: false
+  });
+  if (!gl) {
+    document.body.innerHTML =
+      '<div class="fallback">此浏览器不支持 WebGL2。<br>请使用最新版 Chrome / Edge / Firefox 打开。</div>';
+    return;
+  }
+
+  // ---------------------------------------------------------------------------
+  // small helpers
+  // ---------------------------------------------------------------------------
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function smooth01(x) {
+    x = clamp(x, 0, 1);
+    return x * x * (3 - 2 * x);
+  }
+
+  // ---------------------------------------------------------------------------
+  // glyph atlas: all printable ASCII, baked with a soft glow
+  // ---------------------------------------------------------------------------
+  var ATLAS_COLS = 16;
+  var ATLAS_ROWS = 8;
+  var CELL = 128;
+  var CHARS = [];
+  var ci;
+  for (ci = 33; ci <= 126; ci++) CHARS.push(String.fromCharCode(ci));
+
+  var POOL = [];
+  function pushRange(a, b, times) {
+    for (var c = a; c <= b; c++) {
+      for (var k = 0; k < times; k++) POOL.push(c - 33);
+    }
+  }
+  pushRange(48, 57, 3);   // digits
+  pushRange(65, 90, 2);   // uppercase
+  pushRange(97, 122, 1);  // lowercase
+  pushRange(33, 47, 1);   // symbols
+  pushRange(58, 64, 1);
+  pushRange(91, 96, 1);
+  pushRange(123, 126, 1);
+
+  function makeAtlas() {
+    var cv = document.createElement("canvas");
+    cv.width = ATLAS_COLS * CELL;
+    cv.height = ATLAS_ROWS * CELL;
+    var ctx = cv.getContext("2d");
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = '600 84px "Cascadia Mono", Consolas, "Courier New", monospace';
+
+    for (var n = 0; n < CHARS.length; n++) {
+      var gx = (n % ATLAS_COLS) * CELL + CELL * 0.5;
+      var gy = Math.floor(n / ATLAS_COLS) * CELL + CELL * 0.5 + 1;
+      ctx.save();
+      ctx.shadowColor = "rgba(200, 255, 220, 1)";
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(CHARS[n], gx, gy);
+      ctx.restore();
+      ctx.save();
+      ctx.fillStyle = "rgba(255,255,255,.92)";
+      ctx.fillText(CHARS[n], gx, gy);
+      ctx.restore();
+    }
+    return cv;
+  }
+
+  function makeTexture(source) {
+    var tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    var aniso = gl.getExtension("EXT_texture_filter_anisotropic");
+    if (aniso) {
+      var max = gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+      gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, max));
+    }
+    return tex;
+  }
+
+  var atlasTex = makeTexture(makeAtlas());
+
+  // ---------------------------------------------------------------------------
+  // explosion texture: left cell = faint shockwave ring, right cell = soft glow
+  // used by the small halos on each falling head
+  // ---------------------------------------------------------------------------
+  function makeEffectAtlas() {
+    var cv = document.createElement("canvas");
+    cv.width = 512;
+    cv.height = 256;
+    var ctx = cv.getContext("2d");
+    ctx.clearRect(0, 0, cv.width, cv.height);
+
+    // ring (cell 0)
+    ctx.save();
+    var g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    g.addColorStop(0.00, "rgba(255,255,255,0)");
+    g.addColorStop(0.60, "rgba(255,255,255,0)");
+    g.addColorStop(0.69, "rgba(255,255,255,.12)");
+    g.addColorStop(0.755, "rgba(255,255,255,.95)");
+    g.addColorStop(0.79, "rgba(255,255,255,.10)");
+    g.addColorStop(0.90, "rgba(255,255,255,0)");
+    g.addColorStop(1.00, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = "rgba(255,255,255,.9)";
+    ctx.lineWidth = 2;
+    ctx.shadowColor = "rgba(210,255,225,.95)";
+    ctx.shadowBlur = 20;
+    for (var a = 0; a < 4; a++) {
+      var start = a * Math.PI * 0.5 + 0.18;
+      ctx.beginPath();
+      ctx.arc(128, 128, 102, start, start + 0.95);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // flash (cell 1)
+    var g2 = ctx.createRadialGradient(384, 128, 0, 384, 128, 120);
+    g2.addColorStop(0.0, "rgba(255,255,255,1)");
+    g2.addColorStop(0.18, "rgba(235,255,240,.78)");
+    g2.addColorStop(0.55, "rgba(180,255,205,.16)");
+    g2.addColorStop(1.0, "rgba(180,255,205,0)");
+    ctx.fillStyle = g2;
+    ctx.fillRect(256, 0, 256, 256);
+
+    return cv;
+  }
+
+  var effectTex = makeTexture(makeEffectAtlas());
+
+  // ---------------------------------------------------------------------------
+  // shaders
+  // ---------------------------------------------------------------------------
+  var RAIN_VS = [
+    "#version 300 es",
+    "precision highp float;",
+    "",
+    "layout(location = 0) in vec2 aCorner;",
+    "layout(location = 1) in vec4 aPosSize;",
+    "layout(location = 2) in vec4 aGlyph;",
+    "layout(location = 3) in vec4 aColor;",
+    "",
+    "uniform mat4 uViewProj;",
+    "uniform vec3 uCamPos;",
+    "uniform float uTime;",
+    "uniform vec4 uBlasts[4];",
+    "",
+    "out vec2 vUv;",
+    "out vec2 vUvBack;",
+    "out float vGrad;",
+    "out float vAlpha;",
+    "out float vShock;",
+    "out float vLocal;",
+    "out vec3 vColor;",
+    "",
+    "void main() {",
+    "  vec3 center = aPosSize.xyz;",
+    "  float size = aPosSize.w;",
+    "  float yaw = aGlyph.y;",
+    "  float roll = aGlyph.z;",
+    "",
+    "  vec4 baseClip = uViewProj * vec4(center, 1.0);",
+    "  vGrad = clamp(0.5 - (baseClip.y / baseClip.w) * 0.5, 0.0, 1.0);",
+    "",
+    "  vec3 p = center;",
+    "  float shock = 0.0;",
+    "  float tilt = 0.0;",
+    "",
+    "  for (int i = 0; i < 4; i++) {",
+    "    if (uBlasts[i].w < 0.0) continue;",
+    "    float age = uTime - uBlasts[i].w;",
+    "    if (age < 0.0 || age > 2.8) continue;",
+    "    vec3 rel = p - uBlasts[i].xyz;",
+    "    float d = length(rel);",
+    "    float R = 1.5 + age * 12.0;",
+    "    float width = 2.6 + age * 0.8;",
+    "    float q = (d - R) / width;",
+    "    float band = exp(-q * q) * (1.0 - age / 2.8);",
+    "    vec3 dir = rel / max(d, 0.001);",
+    "    float decay = 1.0 - age / 2.8;",
+    "    float inside = 1.0 - smoothstep(0.0, R + 4.0, d);",
+    "    p += dir * band * 1.15;",
+    "    p += dir * inside * decay * 0.45 * sin(age * 6.0 + d * 0.30);",
+    "    p.y += band * 0.25 * sin(age * 15.0 + d * 0.55);",
+    "    p.y += inside * decay * 0.25 * sin(age * 4.5 + p.x * 0.35);",
+    "    float ang = band * 0.16 + inside * decay * 0.22 * sin(age * 3.0 + d * 0.2);",
+    "    float ca = cos(ang);",
+    "    float sa = sin(ang);",
+    "    vec2 rxz = p.xz - uBlasts[i].xz;",
+    "    p.xz = uBlasts[i].xz + mat2(ca, sa, -sa, ca) * rxz;",
+    "    shock = max(shock, band);",
+    "    tilt += band;",
+    "  }",
+    "",
+    "  float rr = roll + tilt * 0.15 * sin(p.x * 2.3 + p.y * 1.7 + uTime * 8.0);",
+    "  float cr = cos(rr);",
+    "  float sr = sin(rr);",
+    "  vec2 q = vec2(aCorner.x * cr - aCorner.y * sr,",
+    "                aCorner.x * sr + aCorner.y * cr);",
+    "  vec3 right = vec3(cos(yaw), 0.0, -sin(yaw));",
+    "  vec3 up = vec3(0.0, 1.0, 0.0);",
+    "  vec3 world = p + (right * q.x + up * q.y) * size * (1.0 + shock * 0.05);",
+    "",
+    "  gl_Position = uViewProj * vec4(world, 1.0);",
+    "",
+    "  float idx = aGlyph.x;",
+    "  float cx = mod(idx, 16.0);",
+    "  float cy = floor(idx / 16.0);",
+    "  vec2 cellUv = vec2(0.5 + aCorner.x * 0.94, 0.5 - aCorner.y * 0.94);",
+    "  vUv = vec2((cx + cellUv.x) / 16.0, 1.0 - (cy + cellUv.y) / 8.0);",
+    "  vUvBack = vec2((cx + 1.0 - cellUv.x) / 16.0, 1.0 - (cy + cellUv.y) / 8.0);",
+    "",
+    "  float dist = distance(world, uCamPos);",
+    "  float fog = 1.0 - smoothstep(26.0, 72.0, dist);",
+    "  float nearFade = smoothstep(0.35, 1.6, dist);",
+    "  vAlpha = aGlyph.w * fog * nearFade;",
+    "  vShock = shock;",
+    "  vLocal = aColor.w;",
+    "  vColor = aColor.rgb;",
+    "}"
+  ].join("\n");
+
+  var RAIN_FS = [
+    "#version 300 es",
+    "precision highp float;",
+    "",
+    "uniform sampler2D uAtlas;",
+    "",
+    "in vec2 vUv;",
+    "in vec2 vUvBack;",
+    "in float vGrad;",
+    "in float vAlpha;",
+    "in float vShock;",
+    "in float vLocal;",
+    "in vec3 vColor;",
+    "",
+    "out vec4 outColor;",
+    "",
+    "void main() {",
+    "  bool front = gl_FrontFacing;",
+    "  vec2 uv = front ? vUv : vUvBack;",
+    "  float mask = texture(uAtlas, uv).a;",
+    "  if (mask < 0.004) discard;",
+    "",
+    "  float sg = 0.20 + 0.80 * pow(clamp(vGrad, 0.0, 1.0), 0.90);",
+    "  float local = clamp(vLocal, 0.0, 1.0);",
+    "  float localCurve = pow(local, 1.0);",
+    "  float mixv = clamp(sg * (0.45 + 0.55 * localCurve), 0.0, 1.0);",
+    "  vec3 dark = vec3(0.012, 0.20, 0.055);",
+    "  vec3 bright = vec3(0.80, 1.0, 0.84);",
+    "  vec3 col = mix(dark, bright, pow(mixv, 1.10)) * vColor;",
+    "  col += vec3(0.55, 1.0, 0.68) * vShock * 0.28;",
+    "  col += vec3(0.45, 0.95, 0.55) * pow(local, 6.0) * sg * 0.45;",
+    "",
+    "  float alpha = mask * vAlpha * sg * (0.32 + 0.68 * localCurve);",
+    "  if (!front) alpha *= 0.76;",
+    "  outColor = vec4(col, alpha);",
+    "}"
+  ].join("\n");
+
+  var EFFECT_VS = [
+    "#version 300 es",
+    "precision highp float;",
+    "",
+    "layout(location = 0) in vec2 aCorner;",
+    "layout(location = 1) in vec4 aPosSize;",
+    "layout(location = 2) in vec4 aData; // alpha, cell, aspect, unused",
+    "layout(location = 3) in vec4 aColor;",
+    "",
+    "uniform mat4 uViewProj;",
+    "uniform vec3 uCamRight;",
+    "uniform vec3 uCamUp;",
+    "",
+    "out vec2 vUv;",
+    "out float vAlpha;",
+    "out float vHeadGrad;",
+    "out float vHeadMix;",
+    "out vec3 vColor;",
+    "",
+    "void main() {",
+    "  vec3 world = aPosSize.xyz +",
+    "    (uCamRight * (aCorner.x * aData.z) + uCamUp * aCorner.y) * aPosSize.w;",
+    "  gl_Position = uViewProj * vec4(world, 1.0);",
+    "  float cell = aData.y;",
+    "  vUv = vec2((cell + aCorner.x + 0.5) * 0.5, aCorner.y + 0.5);",
+    "  vAlpha = aData.x;",
+    "  vHeadMix = aData.w;",
+    "  float ndc = gl_Position.y / gl_Position.w;",
+    "  vHeadGrad = 0.14 + 0.86 * clamp(0.5 - ndc * 0.5, 0.0, 1.0);",
+    "  vColor = aColor.rgb;",
+    "}"
+  ].join("\n");
+
+  var EFFECT_FS = [
+    "#version 300 es",
+    "precision highp float;",
+    "",
+    "uniform sampler2D uEffectTex;",
+    "",
+    "in vec2 vUv;",
+    "in float vAlpha;",
+    "in float vHeadGrad;",
+    "in float vHeadMix;",
+    "in vec3 vColor;",
+    "",
+    "out vec4 outColor;",
+    "",
+    "void main() {",
+    "  float mask = texture(uEffectTex, vUv).a;",
+    "  if (mask < 0.004) discard;",
+    "  float a = vAlpha * mix(1.0, vHeadGrad, vHeadMix);",
+    "  outColor = vec4(vColor, mask * a);",
+    "}"
+  ].join("\n");
+
+  function compile(type, source) {
+    var sh = gl.createShader(type);
+    gl.shaderSource(sh, source);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(sh) || "shader compile failed");
+    }
+    return sh;
+  }
+
+  function makeProgram(vs, fs) {
+    var p = gl.createProgram();
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(p) || "program link failed");
+    }
+    return p;
+  }
+
+  var rainProgram = makeProgram(RAIN_VS, RAIN_FS);
+  var effectProgram = makeProgram(EFFECT_VS, EFFECT_FS);
+
+  var rainU = {
+    viewProj: gl.getUniformLocation(rainProgram, "uViewProj"),
+    camPos: gl.getUniformLocation(rainProgram, "uCamPos"),
+    time: gl.getUniformLocation(rainProgram, "uTime"),
+    blasts: gl.getUniformLocation(rainProgram, "uBlasts[0]") ||
+            gl.getUniformLocation(rainProgram, "uBlasts"),
+    atlas: gl.getUniformLocation(rainProgram, "uAtlas")
+  };
+  var effectU = {
+    viewProj: gl.getUniformLocation(effectProgram, "uViewProj"),
+    camRight: gl.getUniformLocation(effectProgram, "uCamRight"),
+    camUp: gl.getUniformLocation(effectProgram, "uCamUp"),
+    tex: gl.getUniformLocation(effectProgram, "uEffectTex")
+  };
+
+  // ---------------------------------------------------------------------------
+  // geometry / buffers
+  // ---------------------------------------------------------------------------
+  var STREAK_COUNT = 1200;
+  var MAX_GLYPHS = 24;
+  var STRIDE = 12;
+  var RAIN_CAPACITY = STREAK_COUNT * MAX_GLYPHS;
+  var MAX_BLASTS = 4;
+  var EFFECT_CAPACITY = 2048;
+
+  var quadVerts = new Float32Array([
+    -0.5, -0.5,
+     0.5, -0.5,
+     0.5,  0.5,
+    -0.5,  0.5
+  ]);
+  var quadIndices = new Uint16Array([0, 1, 2, 0, 2, 3]);
+
+  var quadBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, quadVerts, gl.STATIC_DRAW);
+
+  var indexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, quadIndices, gl.STATIC_DRAW);
+
+  var rainData = new Float32Array(RAIN_CAPACITY * STRIDE);
+  var rainBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, rainBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, rainData.byteLength, gl.DYNAMIC_DRAW);
+
+  var effectData = new Float32Array(EFFECT_CAPACITY * STRIDE);
+  var effectBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, effectBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, effectData.byteLength, gl.DYNAMIC_DRAW);
+
+  function makeVao(instanceBuffer) {
+    var vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 4, gl.FLOAT, false, STRIDE * 4, 0);
+    gl.vertexAttribDivisor(1, 1);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 4, gl.FLOAT, false, STRIDE * 4, 16);
+    gl.vertexAttribDivisor(2, 1);
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 4, gl.FLOAT, false, STRIDE * 4, 32);
+    gl.vertexAttribDivisor(3, 1);
+
+    gl.bindVertexArray(null);
+    return vao;
+  }
+
+  var rainVao = makeVao(rainBuffer);
+  var effectVao = makeVao(effectBuffer);
+
+  // ---------------------------------------------------------------------------
+  // state
+  // ---------------------------------------------------------------------------
+  var eye = [0, 0, 0];
+  var vel = [0, 0, 0];
+  var yaw = 0;
+  var pitch = 0;
+  var fwd = [0, 0, -1];
+  var rightVec = [1, 0, 0];
+  var camUp = [0, 1, 0];
+  var keys = Object.create(null);
+  var paused = false;
+  var freeLook = false;
+  var simTime = 0;
+  var rainDrawCount = 0;
+  var effectDrawCount = 0;
+
+  // Wallpaper defaults: faint auto shockwaves, 30 fps, and DPR capped at 1.
+  // URL options (if the host supports query strings): ?blasts=0 and ?fps=60.
+  var WALLPAPER = document.documentElement.classList.contains("wallpaper");
+  var wallpaperParams = new URLSearchParams(location.search);
+  var AUTO_BLASTS = WALLPAPER && wallpaperParams.get("blasts") !== "0";
+  var WALLPAPER_FPS = WALLPAPER
+    ? clamp(parseFloat(wallpaperParams.get("fps")) || 30, 10, 60)
+    : 0;
+  var nextAutoBlast = WALLPAPER ? 8 + Math.random() * 10 : Infinity;
+  var lastDraw = 0;
+
+  var proj = new Float32Array(16);
+  var view = new Float32Array(16);
+  var viewProj = new Float32Array(16);
+  var blastUniform = new Float32Array(16);
+
+  var RAIN_CULL = 74;
+
+  var streaks = [];
+  var blasts = [];
+
+  function orientStreak(s) {
+    s.yaw = Math.atan2(eye[0] - s.x, eye[2] - s.z) + rnd(-0.16, 0.16);
+  }
+
+  function spawnStreak(s, initial) {
+    var angle = rnd(0, Math.PI * 2);
+    var radius = 3.0 + 55.0 * Math.sqrt(Math.random());
+    s.x = eye[0] + Math.cos(angle) * radius;
+    s.z = eye[2] + Math.sin(angle) * radius;
+    s.y = eye[1] + (initial ? rnd(-32.0, 24.0) : rnd(44.0, 62.0));
+    s.len = 6 + Math.floor(Math.random() * 16);
+    s.size = rnd(0.55, 0.95);
+    s.spacing = s.size * rnd(1.02, 1.20);
+    s.speed = rnd(6.8, 8.0);
+    s.tintR = rnd(0.82, 1.04);
+    s.tintB = rnd(0.84, 1.16);
+    s.bright = rnd(1.0, 1.35);
+    s.seed = (Math.random() * 0x7fffffff) | 0;
+    orientStreak(s);
+
+    for (var i = 0; i < MAX_GLYPHS; i++) {
+      s.glyphs[i] = POOL[(Math.random() * POOL.length) | 0];
+      s.timers[i] = rnd(0, 1.5);
+    }
+  }
+
+  for (var si = 0; si < STREAK_COUNT; si++) {
+    var st = {
+      x: 0, y: 0, z: 0, len: 0, size: 0, spacing: 0, speed: 0,
+      yaw: 0, tintR: 1, tintB: 1, bright: 1, seed: 0,
+      glyphs: new Int32Array(MAX_GLYPHS),
+      timers: new Float32Array(MAX_GLYPHS)
+    };
+    spawnStreak(st, true);
+    streaks.push(st);
+  }
+
+  // ---------------------------------------------------------------------------
+  // matrix helpers
+  // ---------------------------------------------------------------------------
+  function perspective(out, fovy, aspect, near, far) {
+    var f = 1 / Math.tan(fovy / 2);
+    out[0] = f / aspect; out[1] = 0; out[2] = 0; out[3] = 0;
+    out[4] = 0; out[5] = f; out[6] = 0; out[7] = 0;
+    out[8] = 0; out[9] = 0; out[10] = (far + near) / (near - far); out[11] = -1;
+    out[12] = 0; out[13] = 0; out[14] = (2 * far * near) / (near - far); out[15] = 0;
+  }
+
+  function lookAt(out, ex, ey, ez, tx, ty, tz, ux, uy, uz) {
+    var zx = ex - tx, zy = ey - ty, zz = ez - tz;
+    var zl = 1 / Math.sqrt(zx * zx + zy * zy + zz * zz + 1e-9);
+    zx *= zl; zy *= zl; zz *= zl;
+
+    var xx = uy * zz - uz * zy;
+    var xy = uz * zx - ux * zz;
+    var xz = ux * zy - uy * zx;
+    var xl = 1 / Math.sqrt(xx * xx + xy * xy + xz * xz + 1e-9);
+    xx *= xl; xy *= xl; xz *= xl;
+
+    var yx = zy * xz - zz * xy;
+    var yy = zz * xx - zx * xz;
+    var yz = zx * xy - zy * xx;
+
+    out[0] = xx; out[1] = yx; out[2] = zx; out[3] = 0;
+    out[4] = xy; out[5] = yy; out[6] = zy; out[7] = 0;
+    out[8] = xz; out[9] = yz; out[10] = zz; out[11] = 0;
+    out[12] = -(xx * ex + xy * ey + xz * ez);
+    out[13] = -(yx * ex + yy * ey + yz * ez);
+    out[14] = -(zx * ex + zy * ey + zz * ez);
+    out[15] = 1;
+  }
+
+  function multiply(out, a, b) {
+    for (var c = 0; c < 4; c++) {
+      for (var r = 0; r < 4; r++) {
+        out[c * 4 + r] =
+          a[r] * b[c * 4] +
+          a[4 + r] * b[c * 4 + 1] +
+          a[8 + r] * b[c * 4 + 2] +
+          a[12 + r] * b[c * 4 + 3];
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // camera: 100% manual, no drift
+  // ---------------------------------------------------------------------------
+  function updateCamera(dt) {
+    var cp = Math.cos(pitch);
+    var sp = Math.sin(pitch);
+    fwd[0] = Math.sin(yaw) * cp;
+    fwd[1] = sp;
+    fwd[2] = -Math.cos(yaw) * cp;
+
+    rightVec[0] = Math.cos(yaw);
+    rightVec[1] = 0;
+    rightVec[2] = Math.sin(yaw);
+
+    camUp[0] = -Math.sin(yaw) * sp;
+    camUp[1] = cp;
+    camUp[2] = Math.cos(yaw) * sp;
+
+    var forwardInput = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+    var strafeInput = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+    var verticalInput = (keys.KeyE ? 1 : 0) - (keys.KeyQ ? 1 : 0);
+
+    var mx = fwd[0] * forwardInput + rightVec[0] * strafeInput;
+    var my = fwd[1] * forwardInput + verticalInput;
+    var mz = fwd[2] * forwardInput + rightVec[2] * strafeInput;
+    var len = Math.sqrt(mx * mx + my * my + mz * mz);
+    if (len > 1) { mx /= len; my /= len; mz /= len; }
+
+    var speed = 8.5 * ((keys.ShiftLeft || keys.ShiftRight) ? 2.1 : 1.0);
+    var k = 1 - Math.exp(-dt * 10);
+    vel[0] += (mx * speed - vel[0]) * k;
+    vel[1] += (my * speed - vel[1]) * k;
+    vel[2] += (mz * speed - vel[2]) * k;
+
+    eye[0] += vel[0] * dt;
+    eye[1] += vel[1] * dt;
+    eye[2] += vel[2] * dt;
+
+    lookAt(
+      view,
+      eye[0], eye[1], eye[2],
+      eye[0] + fwd[0], eye[1] + fwd[1], eye[2] + fwd[2],
+      0, 1, 0
+    );
+    perspective(proj, 66 * Math.PI / 180, canvas.width / Math.max(1, canvas.height), 0.05, 240);
+    multiply(viewProj, proj, view);
+  }
+
+  function updateStreaks(dt) {
+    for (var i = 0; i < streaks.length; i++) {
+      var s = streaks[i];
+      s.y -= s.speed * dt;
+
+      for (var k = 0; k < s.len; k++) {
+        s.timers[k] -= dt;
+        if (s.timers[k] <= 0) {
+          s.glyphs[k] = POOL[(Math.random() * POOL.length) | 0];
+          s.timers[k] = 0.10 + Math.random() * 1.25;
+        }
+      }
+
+      var tailTop = s.y + (s.len - 1) * s.spacing;
+      var farX = Math.abs(s.x - eye[0]) > RAIN_CULL;
+      var farZ = Math.abs(s.z - eye[2]) > RAIN_CULL;
+      if (tailTop < eye[1] - 44.0 || farX || farZ) {
+        spawnStreak(s, false);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // explosions
+  // ---------------------------------------------------------------------------
+  function fireBlast() {
+    if (paused) {
+      paused = false;
+      updateState();
+    }
+
+    var dist = 14.0;
+    var b = {
+      x: eye[0] + fwd[0] * dist,
+      y: eye[1] + fwd[1] * dist,
+      z: eye[2] + fwd[2] * dist,
+      start: simTime
+    };
+
+    if (blasts.length >= MAX_BLASTS) blasts.shift();
+    blasts.push(b);
+  }
+
+  function updateBlasts() {
+    for (var i = blasts.length - 1; i >= 0; i--) {
+      if (simTime - blasts[i].start > 2.8) blasts.splice(i, 1);
+    }
+    for (var k = 0; k < 4; k++) {
+      var o = k * 4;
+      if (k < blasts.length) {
+        blastUniform[o] = blasts[k].x;
+        blastUniform[o + 1] = blasts[k].y;
+        blastUniform[o + 2] = blasts[k].z;
+        blastUniform[o + 3] = blasts[k].start;
+      } else {
+        blastUniform[o] = 0;
+        blastUniform[o + 1] = 0;
+        blastUniform[o + 2] = 0;
+        blastUniform[o + 3] = -1000;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // pack the falling rain segments
+  // ---------------------------------------------------------------------------
+  function packRain() {
+    var data = rainData;
+    var o = 0;
+    var t = simTime;
+    var hf = Math.sqrt(fwd[0] * fwd[0] + fwd[2] * fwd[2]);
+
+    for (var si = 0; si < streaks.length; si++) {
+      var s = streaks[si];
+      var relx = s.x - eye[0];
+      var relz = s.z - eye[2];
+      var hor = Math.sqrt(relx * relx + relz * relz);
+      if (hor > RAIN_CULL) continue;
+
+      if (hf > 0.2) {
+        var dot = relx * fwd[0] + relz * fwd[2];
+        if (dot < -0.35 * hor) continue;
+      }
+
+      var inv = 1 / Math.max(1, s.len - 1);
+      for (var i = 0; i < s.len; i++) {
+        if (o >= data.length) break;
+
+        var y = s.y + i * s.spacing;
+        var local = 1 - i * inv;
+        var pulse = 1 + 0.06 * Math.sin(t * 7.5 + s.seed * 0.001 + i * 0.8);
+        var alpha = s.bright * pulse;
+
+        data[o]     = s.x;
+        data[o + 1] = y;
+        data[o + 2] = s.z;
+        data[o + 3] = s.size;
+        data[o + 4] = s.glyphs[i];
+        data[o + 5] = s.yaw;
+        data[o + 6] = 0;
+        data[o + 7] = alpha;
+        data[o + 8] = s.tintR;
+        data[o + 9] = 1.0;
+        data[o + 10] = s.tintB;
+        data[o + 11] = local;
+        o += STRIDE;
+      }
+    }
+
+    rainDrawCount = o / STRIDE;
+  }
+
+  // ---------------------------------------------------------------------------
+  // pack the explosion effects
+  // ---------------------------------------------------------------------------
+  function addEffect(x, y, z, size, alpha, cell, aspect, r, g, b, isHead) {
+    if (effectDrawCount >= EFFECT_CAPACITY) return;
+    var o = effectDrawCount * STRIDE;
+    var d = effectData;
+    d[o]     = x;
+    d[o + 1] = y;
+    d[o + 2] = z;
+    d[o + 3] = size;
+    d[o + 4] = alpha;
+    d[o + 5] = cell;
+    d[o + 6] = aspect;
+    d[o + 7] = isHead ? 1 : 0;
+    d[o + 8] = r;
+    d[o + 9] = g;
+    d[o + 10] = b;
+    d[o + 11] = 0;
+    effectDrawCount++;
+  }
+
+  function packEffects() {
+    effectDrawCount = 0;
+    var t = simTime;
+
+    // small halos on every falling head, faded by distance and screen height
+    for (var hi = 0; hi < streaks.length; hi++) {
+      var hs = streaks[hi];
+      var hdx = hs.x - eye[0];
+      var hdy = hs.y - eye[1];
+      var hdz = hs.z - eye[2];
+      var hd = Math.sqrt(hdx * hdx + hdy * hdy + hdz * hdz);
+      if (hd > RAIN_CULL) continue;
+      var near = smooth01((hd - 0.35) / 1.6);
+      var fog = 1 - smooth01((hd - 26.0) / 46.0);
+      var ha = 0.38 * hs.bright * near * fog;
+      if (ha <= 0.002) continue;
+
+      addEffect(
+        hs.x, hs.y, hs.z,
+        hs.size * 3.8,
+        ha,
+        1, 1.0,
+        0.58, 1.0, 0.68,
+        1
+      );
+    }
+
+    for (var i = 0; i < blasts.length; i++) {
+      var b = blasts[i];
+      var age = t - b.start;
+      if (age < 0 || age > 2.8) continue;
+      var fade = 1 - age / 2.8;
+
+      var R = 1.5 + age * 12.0;
+      addEffect(
+        b.x, b.y, b.z,
+        R * 2.2,
+        0.13 * Math.pow(fade, 1.5),
+        0, 1.0,
+        0.26, 0.90, 0.40
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // input / pointer lock
+  // ---------------------------------------------------------------------------
+  var enterEl = document.getElementById("enter");
+  var reticleEl = document.getElementById("reticle");
+  var stateEl = document.getElementById("state");
+
+  function pointerLocked() {
+    return document.pointerLockElement === canvas;
+  }
+
+  function active() {
+    return pointerLocked() || freeLook;
+  }
+
+  function updateState() {
+    var text;
+    if (paused) text = "PAUSED";
+    else if (active()) text = "LIVE";
+    else text = "STANDBY";
+    stateEl.textContent = text;
+    stateEl.classList.toggle("paused", paused);
+  }
+
+  function syncLockUI() {
+    var on = active();
+    enterEl.classList.toggle("hidden", on);
+    reticleEl.classList.toggle("on", on);
+    updateState();
+  }
+
+  window.addEventListener("mousedown", function (e) {
+    if (WALLPAPER) return;
+    if (e.button !== 0) return;
+    if (!active()) {
+      enterEl.classList.add("hidden");
+      reticleEl.classList.add("on");
+      try {
+        var p = canvas.requestPointerLock();
+        if (p && p.catch) {
+          p.catch(function () {
+            freeLook = true;
+            syncLockUI();
+          });
+        }
+      } catch (err) {
+        freeLook = true;
+        syncLockUI();
+      }
+    }
+    fireBlast();
+  });
+
+  document.addEventListener("pointerlockchange", syncLockUI);
+  document.addEventListener("pointerlockerror", function () {
+    freeLook = true;
+    syncLockUI();
+  });
+
+  document.addEventListener("mousemove", function (e) {
+    if (WALLPAPER || !active()) return;
+    var mx = typeof e.movementX === "number" ? e.movementX : 0;
+    var my = typeof e.movementY === "number" ? e.movementY : 0;
+    yaw += mx * 0.0022;
+    pitch -= my * 0.0022;
+    pitch = clamp(pitch, -1.30, 1.30);
+  });
+
+  window.addEventListener("keydown", function (e) {
+    if (WALLPAPER) return;
+    if (e.code === "Space") {
+      e.preventDefault();
+      paused = !paused;
+      updateState();
+      return;
+    }
+    keys[e.code] = true;
+  });
+
+  window.addEventListener("keyup", function (e) {
+    if (WALLPAPER) return;
+    keys[e.code] = false;
+  });
+
+  window.addEventListener("blur", function () {
+    keys = Object.create(null);
+  });
+
+  window.addEventListener("contextmenu", function (e) {
+    e.preventDefault();
+  });
+
+  // ---------------------------------------------------------------------------
+  // resize / render
+  // ---------------------------------------------------------------------------
+  function resize() {
+    var dpr = Math.min(window.devicePixelRatio || 1, WALLPAPER ? 1.0 : 2);
+    var w = Math.max(1, Math.floor(window.innerWidth * dpr));
+    var h = Math.max(1, Math.floor(window.innerHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+      gl.viewport(0, 0, w, h);
+    }
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  function render() {
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    gl.useProgram(rainProgram);
+    gl.uniformMatrix4fv(rainU.viewProj, false, viewProj);
+    gl.uniform3f(rainU.camPos, eye[0], eye[1], eye[2]);
+    gl.uniform1f(rainU.time, simTime);
+    gl.uniform4fv(rainU.blasts, blastUniform);
+    gl.uniform1i(rainU.atlas, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, atlasTex);
+
+    gl.bindVertexArray(rainVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, rainBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, rainData, 0, rainDrawCount * STRIDE);
+    gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0, rainDrawCount);
+
+    gl.useProgram(effectProgram);
+    gl.uniformMatrix4fv(effectU.viewProj, false, viewProj);
+    gl.uniform3f(effectU.camRight, rightVec[0], rightVec[1], rightVec[2]);
+    gl.uniform3f(effectU.camUp, camUp[0], camUp[1], camUp[2]);
+    gl.uniform1i(effectU.tex, 1);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, effectTex);
+
+    gl.bindVertexArray(effectVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, effectBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, effectData, 0, effectDrawCount * STRIDE);
+    gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0, effectDrawCount);
+
+    gl.bindVertexArray(null);
+  }
+
+  // ---------------------------------------------------------------------------
+  // main loop
+  // ---------------------------------------------------------------------------
+  gl.clearColor(0, 0, 0, 1);
+  gl.disable(gl.DEPTH_TEST);
+  gl.depthMask(false);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+  gl.disable(gl.CULL_FACE);
+
+  updateCamera(0);
+  updateBlasts();
+  packRain();
+  packEffects();
+  syncLockUI();
+
+  var last = performance.now();
+
+  function frame(now) {
+    if (WALLPAPER_FPS) {
+      var frameInterval = 1000 / WALLPAPER_FPS;
+      if (now - lastDraw < frameInterval - 1) {
+        requestAnimationFrame(frame);
+        return;
+      }
+      lastDraw = now;
+    }
+
+    var dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+    last = now;
+
+    if (!paused) {
+      simTime += dt;
+      updateStreaks(dt);
+      updateBlasts();
+
+      if (AUTO_BLASTS && simTime >= nextAutoBlast) {
+        fireBlast();
+        nextAutoBlast = simTime + 14 + Math.random() * 16;
+      }
+    }
+
+    resize();
+    updateCamera(dt);
+    packRain();
+    packEffects();
+    if (!WALLPAPER) updateState();
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "title": "荷间",
+  "subtitle": "Lotus Fish",
+  "description": "荷间游鱼，Boids 群游与预测避障；点击水面会泛起一圈涟漪。",
+  "tags": [
+    "Canvas 2D",
+    "水墨",
+    "Boids"
+  ],
+  "accent": "#b6d3c0",
+  "order": 4
+}

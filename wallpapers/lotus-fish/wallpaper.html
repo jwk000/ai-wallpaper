@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#e9e5d9">
+<title>荷间 · 水墨游鱼</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#e9e5d9;color:#424e46}body{font-family:"Songti SC","STSong","SimSun",serif}canvas{display:block;width:100%;height:100%}header{position:fixed;top:8.5%;right:6.2%;pointer-events:none;display:flex;gap:17px;align-items:flex-start}h1{writing-mode:vertical-rl;margin:0;font-size:clamp(34px,4.4vw,62px);font-weight:400;letter-spacing:.22em;color:#344b40}header p{writing-mode:vertical-rl;font-size:12px;letter-spacing:.3em;margin:7px 0 0;color:#788074;line-height:2}.seal{position:absolute;top:calc(100% + 22px);right:9px;border:1px solid #a95747;color:#a95747;padding:6px 4px;font-size:12px;writing-mode:vertical-rl;letter-spacing:3px;opacity:.85}.caption{position:fixed;bottom:39px;left:46px;font-size:11px;letter-spacing:.28em;color:#737e72;pointer-events:none}.caption span{display:block;margin-top:9px;letter-spacing:.18em;font-size:9px;opacity:.6;font-family:Georgia,serif}.controls{position:fixed;right:35px;bottom:28px;display:flex;gap:7px;align-items:center;transition:opacity .6s}button{font:12px inherit;color:#59675a;border:1px solid #7b887233;background:#f7f4e76b;border-radius:50%;width:34px;height:34px;cursor:pointer;transition:background .2s}button:hover{background:#faf7ea}button:focus-visible{outline:2px solid #a95747;outline-offset:4px}.controls label{font-size:11px;margin-right:8px;display:flex;gap:8px;align-items:center}input{accent-color:#687e65;width:70px}.quiet header,.quiet .caption{opacity:0}.quiet .controls{opacity:0}.quiet .controls:hover,.quiet .controls:focus-within{opacity:1}header,.caption{transition:opacity .6s}#hint{position:fixed;top:22px;left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:.12em;opacity:0;transition:opacity .4s;pointer-events:none}@media(max-width:600px){header{right:7%;top:6%;gap:7px}header p{font-size:10px}.caption{left:22px;bottom:28px}.controls{right:18px;bottom:20px}.controls label{display:none}}
+</style>
+</head>
+<body>
+<canvas id="pond" aria-label="水墨荷塘动态壁纸，最多十条金鱼自由结群、散游，游出和游入画面。"></canvas>
+<header><p>一池清浅 · 半日闲情</p><h1>荷间</h1><div class="seal">观鱼</div></header>
+<div class="caption">风过荷塘，鱼游墨间。<span>LOTUS POND · A LIVING INK PAINTING</span></div>
+<div class="controls" aria-label="壁纸控制"><label>游鱼 <input id="count" type="range" min="1" max="10" value="10" aria-label="金鱼数量"><output id="countValue">10</output></label><button id="pause" title="暂停 / 继续（空格）" aria-label="暂停">Ⅱ</button><button id="clean" title="纯壁纸模式（H）" aria-label="隐藏文字与控件">◌</button><button id="full" title="全屏（F）" aria-label="全屏">⛶</button></div>
+<div id="hint" role="status"></div>
+<script>
+'use strict';
+(() => {
+const canvas=document.getElementById('pond'),ctx=canvas.getContext('2d');
+const TAU=Math.PI*2, clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), mix=(a,b,t)=>a+(b-a)*t;
+let seed=73417;
+function random(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;}
+const rand=(a,b)=>a+(b-a)*random(), angleDiff=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
+let W=1440,H=900,scale=1,dpr=1,time=0,paused=false,last=0,accumulator=0,fish=[],leaves=[],flowers=[],ripples=[],paper;
+const STEP=1/60, MARGIN=240, BODY_RADIUS=60;
+let groupTarget={x:720,y:450},groupTimer=0,nextRipple=0;
+const leafLayout=[[.08,.15,102,-.4],[.205,.12,76,.9],[.12,.37,79,1.5],[.025,.53,102,-.9],[.26,.25,63,.2],[.82,.81,110,2.6],[.96,.67,104,.7],[.97,.96,104,-1.2],[.72,.98,78,1.2],[.9,.46,58,2.1]];
+function makePaper(){
+ paper=document.createElement('canvas');paper.width=Math.ceil(W);paper.height=Math.ceil(H);const p=paper.getContext('2d');
+ p.fillStyle='#eae7dc';p.fillRect(0,0,W,H);
+ for(let i=0;i<19;i++){let x=rand(0,W),y=rand(0,H),r=rand(90,370);let g=p.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,i%3?'rgba(124,149,126,.032)':'rgba(174,155,116,.035)');g.addColorStop(1,'rgba(150,160,130,0)');p.fillStyle=g;p.fillRect(x-r,y-r,r*2,r*2);}
+ for(let i=0;i<W*H/45;i++){p.fillStyle=`rgba(88,81,60,${rand(.018,.055)})`;p.fillRect(rand(0,W),rand(0,H),rand(.4,1.2),rand(.4,1.5));}
+ for(let i=0;i<1600;i++){p.strokeStyle='rgba(130,118,84,.025)';p.beginPath();let x=rand(0,W),y=rand(0,H);p.moveTo(x,y);p.lineTo(x+rand(2,12),y+rand(-2,2));p.stroke();}
+}
+function resize(){
+ const oldW=W,oldH=H;W=1440*Math.min(1,innerWidth/innerHeight);H=1440*Math.min(1,innerHeight/innerWidth);scale=innerWidth/W;dpr=Math.min(devicePixelRatio||1,2);
+ canvas.width=Math.round(innerWidth*dpr);canvas.height=Math.round(innerHeight*dpr);
+ leaves=leafLayout.map((v,i)=>({x:v[0]*W,y:v[1]*H,r:v[2]*Math.min(1,W/1000,H/750),angle:v[3],phase:i*2.37,texture:i+1}));
+ flowers=[{x:.185*W,y:.30*H,r:45,phase:1},{x:.845*W,y:.68*H,r:48,phase:3},{x:.065*W,y:.66*H,r:24,phase:5,bud:true}];
+ if(fish.length)for(const f of fish){f.x=f.x/oldW*W;f.y=f.y/oldH*H;}makePaper();resolveCollisions();
+}
+function spawn(i){
+ let x,y,safe=false;for(let k=0;k<300&&!safe;k++){x=rand(-100,W+100);y=rand(-100,H+100);safe=leaves.every(l=>Math.hypot(x-l.x,y-l.y)>l.r+BODY_RADIUS+12)&&fish.every(f=>Math.hypot(x-f.x,y-f.y)>BODY_RADIUS*2+8);}
+ return {id:i,x,y,heading:rand(0,TAU),speed:rand(24,38),phase:rand(0,TAU),turn:0,baseSpeed:rand(28,40),wander:rand(0,TAU),size:rand(.87,1.08),ink:i%4===2,target:{x:rand(-160,W+160),y:rand(-160,H+160)},timer:0,wake:rand(0,4)};
+}
+function setCount(n){while(fish.length<n)fish.push(spawn(fish.length));fish.length=n;document.getElementById('countValue').textContent=n;}
+function addRipple(x,y,strength=1){ripples.push({x,y,age:0,life:rand(4,7),r:rand(5,12),strength,phase:rand(0,TAU)});if(ripples.length>45)ripples.shift();}
+// Forward acceleration and a bounded turn rate keep the fish moving head-first.
+// Boids forces are sampled together, before any fish is advanced.
+function simulate(dt){
+ time+=dt;groupTimer-=dt;
+ const school=(Math.sin(time/13)+1)*.5, cohesion=school*school;
+ if(groupTimer<=0){groupTimer=rand(12,21);const side=Math.floor(rand(0,5));groupTarget=side===0?{x:-160,y:rand(0,H)}:side===1?{x:W+160,y:rand(0,H)}:side===2?{x:rand(0,W),y:-150}:side===3?{x:rand(0,W),y:H+150}:{x:rand(W*.2,W*.8),y:rand(H*.2,H*.8)};}
+ const decisions=fish.map(f=>{
+  f.timer-=dt;if(f.timer<=0||Math.hypot(f.x-f.target.x,f.y-f.target.y)<80){f.timer=rand(8,18);f.target={x:rand(-180,W+180),y:rand(-180,H+180)};}
+  f.wander+=Math.sin(time*.43+f.phase)*dt*.52;
+  let tx=mix(f.target.x,groupTarget.x,cohesion*.92),ty=mix(f.target.y,groupTarget.y,cohesion*.92);
+  let dx=tx-f.x,dy=ty-f.y,d=Math.hypot(dx,dy)||1;
+  let sx=dx/d*.65+Math.cos(f.wander)*.22,sy=dy/d*.65+Math.sin(f.wander)*.22;
+  let cx=0,cy=0,ax=0,ay=0,n=0;
+  for(const other of fish){if(other===f)continue;let ox=f.x-other.x,oy=f.y-other.y,dist=Math.hypot(ox,oy)||.001;
+   if(dist<300){cx+=other.x;cy+=other.y;ax+=Math.cos(other.heading);ay+=Math.sin(other.heading);n++;}
+   const separation=BODY_RADIUS*(f.size+other.size)+40;
+   if(dist<separation){let weight=(separation-dist)/separation*5.5;sx+=ox/dist*weight;sy+=oy/dist*weight;}
+  }
+  if(n){let vx=cx/n-f.x,vy=cy/n-f.y,vd=Math.hypot(vx,vy)||1;sx+=vx/vd*cohesion*.64+ax/n*cohesion*.7;sy+=vy/vd*cohesion*.64+ay/n*cohesion*.7;}
+  // Predict a swept path, then steer tangentially around each lotus leaf.
+  for(const l of leaves){let ox=f.x-l.x,oy=f.y-l.y,dist=Math.hypot(ox,oy)||1,clear=l.r+BODY_RADIUS*f.size+13;
+   let fx=f.x+Math.cos(f.heading)*95-l.x,fy=f.y+Math.sin(f.heading)*95-l.y;
+   if(dist<clear+110||Math.hypot(fx,fy)<clear+25){let weight=clamp((clear+125-dist)/110,0,2.8);let cross=Math.cos(f.heading)*oy-Math.sin(f.heading)*ox,side=cross>=0?1:-1;
+    sx+=(ox/dist*1.8+(-oy/dist)*side*.95)*weight;sy+=(oy/dist*1.8+(ox/dist)*side*.95)*weight;
+   }
+  }
+  const edge=90;if(f.x< -MARGIN+edge)sx+=(-MARGIN+edge-f.x)/55;if(f.x>W+MARGIN-edge)sx-=(f.x-W-MARGIN+edge)/55;
+  if(f.y< -MARGIN+edge)sy+=(-MARGIN+edge-f.y)/55;if(f.y>H+MARGIN-edge)sy-=(f.y-H-MARGIN+edge)/55;
+  return Math.atan2(sy,sx);
+ });
+ fish.forEach((f,i)=>{
+  let error=angleDiff(decisions[i],f.heading),turnGoal=clamp(error*1.8,-.74,.74);
+  f.turn=mix(f.turn,turnGoal,1-Math.exp(-dt*3.5));f.heading+=f.turn*dt;
+  // A propulsive burst is followed by a longer glide; the tail beat leads speed.
+  let burst=Math.pow((Math.sin(time*1.55+f.phase)+1)*.5,3),desired=f.baseSpeed*(.66+burst*.63)*(1-Math.min(.32,Math.abs(f.turn)*.3));
+  f.speed=mix(f.speed,desired,1-Math.exp(-dt*1.5));f.phase+=dt*(2.1+f.speed*.043);
+  f.x+=Math.cos(f.heading)*f.speed*dt;f.y+=Math.sin(f.heading)*f.speed*dt;
+  f.wake-=dt;if(f.wake<0){f.wake=rand(2.8,5.8);if(f.x>0&&f.x<W&&f.y>0&&f.y<H)addRipple(f.x-30*Math.cos(f.heading),f.y-30*Math.sin(f.heading),.36);}
+ });
+ resolveCollisions();
+ nextRipple-=dt;if(nextRipple<0){nextRipple=rand(2,4);addRipple(rand(0,W),rand(0,H),rand(.4,.9));}
+ ripples.forEach(r=>r.age+=dt);ripples=ripples.filter(r=>r.age<r.life);
+}
+// A conservative disk encloses the whole fish, including its flowing tail.
+// Iterative constraints are a last safety net for crowded or resized scenes.
+function resolveCollisions(){
+ for(let k=0;k<8;k++){
+  for(const f of fish){for(const l of leaves){let dx=f.x-l.x,dy=f.y-l.y,d=Math.hypot(dx,dy),min=l.r+BODY_RADIUS*f.size+7;if(d<min){if(d<.001){dx=1;dy=0;d=1;}f.x=l.x+dx/d*min;f.y=l.y+dy/d*min;}}
+   f.x=clamp(f.x,-MARGIN,W+MARGIN);f.y=clamp(f.y,-MARGIN,H+MARGIN);
+  }
+  for(let i=0;i<fish.length;i++)for(let j=i+1;j<fish.length;j++){const a=fish[i],b=fish[j];let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),min=BODY_RADIUS*(a.size+b.size)+4;if(d<min){if(d<.001){dx=1;dy=0;d=1;}const p=(min-d)*.5;a.x-=dx/d*p;a.y-=dy/d*p;b.x+=dx/d*p;b.y+=dy/d*p;}}
+ }
+}
+function leafPath(r,phase){ctx.beginPath();for(let i=0;i<=100;i++){let a=.19+(TAU-.38)*i/100;let rr=r*(1+.028*Math.sin(a*7+phase)+.017*Math.sin(a*13+phase));let x=Math.cos(a)*rr,y=Math.sin(a)*rr*.77;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.lineTo(-r*.12,0);ctx.closePath();}
+function drawLeaf(l){
+ ctx.save();ctx.translate(l.x,l.y);ctx.rotate(l.angle+Math.sin(time*.25+l.phase)*.017);
+ ctx.save();ctx.translate(3,9);ctx.fillStyle='rgba(53,79,64,.07)';leafPath(l.r+3,l.phase);ctx.fill();ctx.restore();
+ let g=ctx.createRadialGradient(-l.r*.25,-l.r*.3,3,0,0,l.r);g.addColorStop(0,'rgba(89,124,98,.76)');g.addColorStop(.55,'rgba(69,105,84,.80)');g.addColorStop(1,'rgba(46,77,63,.88)');leafPath(l.r,l.phase);ctx.fillStyle=g;ctx.fill();
+ ctx.save();ctx.clip();
+ for(let j=0;j<65;j++){let a=j*2.399+l.phase,rr=l.r*Math.sqrt((j+.5)/65),x=Math.cos(a)*rr,y=Math.sin(a)*rr*.77;let wash=ctx.createRadialGradient(x,y,0,x,y,l.r*.28);wash.addColorStop(0,j%3?'rgba(19,49,37,.055)':'rgba(220,223,177,.07)');wash.addColorStop(1,'rgba(60,90,65,0)');ctx.fillStyle=wash;ctx.fillRect(x-l.r*.3,y-l.r*.3,l.r*.6,l.r*.6);}
+ for(let j=0;j<13;j++){let a=.22+j*(TAU-.44)/12,ex=Math.cos(a)*l.r,ey=Math.sin(a)*l.r*.77;ctx.beginPath();ctx.moveTo(-l.r*.12,0);ctx.quadraticCurveTo(ex*.5,ey*.36,ex,ey);ctx.strokeStyle='rgba(207,217,174,.23)';ctx.lineWidth=j%3===0?1.1:.65;ctx.stroke();
+  for(let q=1;q<4;q++){let t=q/4;ctx.beginPath();ctx.moveTo(mix(-l.r*.12,ex,t),ey*t*.8);ctx.lineTo(Math.cos(a+.2)*l.r*(t+.17),Math.sin(a+.2)*l.r*.77*(t+.17));ctx.strokeStyle='rgba(206,216,172,.10)';ctx.lineWidth=.5;ctx.stroke();}}
+ ctx.restore();leafPath(l.r,l.phase);ctx.strokeStyle='rgba(30,61,44,.28)';ctx.lineWidth=1.25;ctx.stroke();ctx.restore();
+}
+function petal(x,y,len,width,rotation,shade){
+ ctx.save();ctx.translate(x,y);ctx.rotate(rotation);ctx.beginPath();ctx.moveTo(0,4);ctx.bezierCurveTo(-width,-len*.28,-width*.66,-len*.7,0,-len);ctx.bezierCurveTo(width*.72,-len*.68,width,-len*.20,0,4);
+ let g=ctx.createLinearGradient(0,0,0,-len);g.addColorStop(0,'rgba(222,210,174,.92)');g.addColorStop(.45,'rgba(237,217,200,.95)');g.addColorStop(1,shade?'rgba(165,88,92,.8)':'rgba(197,125,128,.8)');ctx.fillStyle=g;ctx.fill();ctx.strokeStyle='rgba(137,82,80,.27)';ctx.lineWidth=.7;ctx.stroke();
+ for(let i=-1;i<=1;i++){ctx.beginPath();ctx.moveTo(i*2,0);ctx.quadraticCurveTo(i*width*.25,-len*.45,0,-len*.94);ctx.strokeStyle='rgba(154,90,92,.13)';ctx.lineWidth=.6;ctx.stroke();}ctx.restore();
+}
+function drawFlower(f){
+ const sway=Math.sin(time*.48+f.phase)*3.2,x=f.x+sway,y=f.y+Math.cos(time*.38+f.phase)*1.8;
+ ctx.save();ctx.strokeStyle='rgba(70,100,71,.42)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(f.x-16,f.y+83);ctx.bezierCurveTo(f.x+9,f.y+63,x-9,y+25,x,y);ctx.stroke();
+ ctx.translate(x,y);ctx.rotate(sway*.012);ctx.scale(f.r/45,f.r/45);
+ if(f.bud){petal(0,7,46,13,-.13,true);petal(1,9,42,9,.12,false);}
+ else{for(let i=-3;i<=3;i++)petal(i*3,5+Math.abs(i)*1.8,42-Math.abs(i)*3,13,i*.26,true);
+  for(let i=-3;i<=3;i++)petal(i*3,11,36-Math.abs(i)*2,16,i*.40,false);
+  petal(-5,12,30,18,-1.15,false);petal(5,12,30,18,1.15,false);petal(0,16,29,18,0,false);
+  ctx.fillStyle='rgba(166,139,67,.8)';for(let i=0;i<10;i++){ctx.beginPath();ctx.ellipse(Math.sin(i*2.4)*8,6+Math.cos(i*2.4)*3,1.1,2,0,0,TAU);ctx.fill();}}
+ ctx.restore();
+}
+function drawRipples(){
+ for(const r of ripples){let p=r.age/r.life,alpha=Math.sin(p*Math.PI)*.18*r.strength;for(let j=0;j<3;j++){let radius=r.r+r.age*12+j*12;if(j* .11>p)continue;ctx.beginPath();for(let n=0;n<=80;n++){let a=n/80*TAU,rr=radius+Math.sin(a*5+r.phase)*1.2+Math.sin(a*9-r.phase)*.4;let x=r.x+Math.cos(a)*rr,y=r.y+Math.sin(a)*rr*.48;if(n===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.strokeStyle=`rgba(75,103,88,${alpha*(1-j*.21)})`;ctx.lineWidth=j===0?1:.65;ctx.stroke();}}
+}
+function drawFish(f){
+ ctx.save();ctx.translate(f.x,f.y);ctx.rotate(f.heading);ctx.scale(f.size,f.size);
+ let beat=f.phase,amp=2.1+f.speed*.045;
+ const spine=u=>Math.sin(beat-u*4.1)*amp*u*u+f.turn*u*u*7;
+ const color=f.ink?'54,67,62':'175,66,44', dark=f.ink?'32,44,39':'128,51,34';
+ // Fan tail: the motion grows from a stable head toward a flexible peduncle.
+ let rootY=spine(.79),tipY=spine(1.45),fan=14+Math.sin(beat-3)*2;
+ ctx.beginPath();ctx.moveTo(-18,rootY);ctx.bezierCurveTo(-26,rootY-5,-36,tipY-fan-5,-44,tipY-fan);ctx.bezierCurveTo(-41,tipY-4,-42,tipY+3,-45,tipY+fan);ctx.bezierCurveTo(-32,tipY+fan+4,-26,rootY+5,-18,rootY);
+ let tail=ctx.createLinearGradient(-44,0,-16,0);tail.addColorStop(0,`rgba(${color},.14)`);tail.addColorStop(.7,`rgba(${color},.42)`);tail.addColorStop(1,`rgba(${color},.69)`);ctx.fillStyle=tail;ctx.fill();ctx.strokeStyle=`rgba(${dark},.25)`;ctx.lineWidth=.6;ctx.stroke();
+ for(let i=-4;i<=4;i++){ctx.beginPath();ctx.moveTo(-18,rootY);ctx.quadraticCurveTo(-30,rootY+i*1.6,-43,tipY+i*fan/4);ctx.strokeStyle=`rgba(${dark},.16)`;ctx.lineWidth=.55;ctx.stroke();}
+ // Paired pectoral fins feather backward with phase-offset strokes.
+ for(const side of [-1,1]){let flap=Math.sin(beat+side*.8)*2;ctx.beginPath();ctx.moveTo(9,side*8);ctx.bezierCurveTo(2,side*(15+flap),-9,side*(23+flap),-14,side*17);ctx.quadraticCurveTo(-5,side*8,4,side*5);ctx.fillStyle=`rgba(${color},.25)`;ctx.fill();ctx.strokeStyle=`rgba(${dark},.16)`;ctx.stroke();}
+ // Both contours share a traveling centerline, rather than rotating a sprite.
+ ctx.beginPath();ctx.moveTo(28,0);ctx.bezierCurveTo(26,-9,13,-13,3,-11);ctx.bezierCurveTo(-8,-10+spine(.4),-14,-5+spine(.7),-22,rootY);ctx.bezierCurveTo(-14,5+spine(.7),-8,10+spine(.4),3,11);ctx.bezierCurveTo(13,13,26,9,28,0);ctx.closePath();
+ let body=ctx.createLinearGradient(2,-12,3,12);body.addColorStop(0,`rgba(${dark},.82)`);body.addColorStop(.4,`rgba(${color},.94)`);body.addColorStop(1,f.ink?'rgba(123,132,115,.76)':'rgba(202,117,74,.8)');ctx.fillStyle=body;ctx.fill();
+ ctx.save();ctx.clip();ctx.fillStyle=f.ink?'rgba(226,223,202,.65)':'rgba(241,222,185,.71)';ctx.beginPath();ctx.ellipse(-2,6,12,4,-.2,0,TAU);ctx.fill();ctx.fillStyle=`rgba(${dark},.16)`;for(let i=0;i<12;i++){ctx.beginPath();ctx.ellipse(15-(i%4)*8,-5+Math.floor(i/4)*4,3.5,2.2,.3,0,Math.PI);ctx.strokeStyle=`rgba(${dark},.11)`;ctx.lineWidth=.5;ctx.stroke();}ctx.restore();
+ ctx.beginPath();ctx.moveTo(9,-9);ctx.quadraticCurveTo(5,0,10,9);ctx.strokeStyle=`rgba(${dark},.28)`;ctx.lineWidth=.7;ctx.stroke();
+ for(const side of [-1,1]){ctx.fillStyle='rgba(228,210,165,.83)';ctx.beginPath();ctx.ellipse(20,side*5.8,2.4,2,side*.2,0,TAU);ctx.fill();ctx.fillStyle='#283a31';ctx.beginPath();ctx.arc(20.7,side*6,1.25,0,TAU);ctx.fill();}
+ ctx.restore();
+}
+function draw(){
+ ctx.setTransform(dpr*scale,0,0,dpr*scale,0,0);ctx.clearRect(0,0,W,H);ctx.drawImage(paper,0,0,W,H);drawRipples();
+ // Subtle water silhouettes make the fish sit inside the wash.
+ for(const f of fish){if(f.x< -60||f.x>W+60||f.y< -60||f.y>H+60)continue;ctx.save();ctx.translate(f.x+4,f.y+8);ctx.rotate(f.heading);ctx.fillStyle='rgba(58,83,65,.035)';ctx.beginPath();ctx.ellipse(0,0,35*f.size,13*f.size,0,0,TAU);ctx.fill();ctx.restore();drawFish(f);}
+ leaves.forEach(drawLeaf);flowers.forEach(drawFlower);
+}
+function frame(ms){if(!last)last=ms;const elapsed=Math.min((ms-last)/1000,.1);last=ms;if(!paused){accumulator+=elapsed;while(accumulator>=STEP){simulate(STEP);accumulator-=STEP;}}draw();requestAnimationFrame(frame);}
+function togglePause(){paused=!paused;document.getElementById('pause').textContent=paused?'▷':'Ⅱ';document.getElementById('pause').setAttribute('aria-label',paused?'继续':'暂停');}
+function clean(){document.body.classList.toggle('quiet');}
+function hint(text){const h=document.getElementById('hint');h.textContent=text;h.style.opacity=1;setTimeout(()=>h.style.opacity=0,2600);}
+async function fullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{hint('当前环境不支持全屏，请在浏览器中打开。');}}
+document.getElementById('count').addEventListener('input',e=>setCount(Number(e.target.value)));
+document.getElementById('pause').addEventListener('click',togglePause);document.getElementById('clean').addEventListener('click',clean);document.getElementById('full').addEventListener('click',fullscreen);
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;if(e.code==='Space'){e.preventDefault();togglePause();}if(e.key.toLowerCase()==='h')clean();if(e.key.toLowerCase()==='f')fullscreen();});
+canvas.addEventListener('pointerdown',e=>{const r=canvas.getBoundingClientRect();addRipple((e.clientX-r.left)/scale,(e.clientY-r.top)/scale,1.5);});
+document.addEventListener('visibilitychange',()=>{last=0;accumulator=0;});
+window.addEventListener('resize',resize);resize();setCount(10);resolveCollisions();
+// Small read-only diagnostics plus a deterministic step for offline simulation QA.
+window.pond={getState:()=>({time,width:W,height:H,fish:fish.map(f=>({...f})),leaves:leaves.map(l=>({...l})),paused}),step:simulate};
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
+
+

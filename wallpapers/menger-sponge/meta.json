@@ -1,0 +1,12 @@
+{
+  "title": "门格海绵",
+  "subtitle": "Menger Sponge",
+  "description": "无限递归的门格海绵在深空光场中缓慢旋转，全部由 SDF 光线步进绘制。",
+  "tags": [
+    "WebGL 2",
+    "分形",
+    "SDF"
+  ],
+  "accent": "#8fffd8",
+  "order": 5
+}

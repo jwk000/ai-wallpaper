@@ -1,0 +1,69 @@
+{
+  "name": "lumen-wallpaper",
+  "productName": "Lumen Wallpaper",
+  "version": "1.0.0",
+  "description": "流光壁纸 · 一个跨平台的单文件 HTML 动态壁纸引擎",
+  "main": "src/main/index.js",
+  "author": "Lumen",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/start.js",
+    "dev": "node scripts/start.js --dev",
+    "setup:electron": "node scripts/ensure-electron.js --install",
+    "postinstall": "node scripts/ensure-electron.js",
+    "build:host": "powershell -NoProfile -ExecutionPolicy Bypass -File native/build-windows-host.ps1",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.lumen.wallpaper",
+    "productName": "Lumen Wallpaper",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "wallpapers",
+        "to": "bundled-wallpapers"
+      },
+      {
+        "from": "native/bin",
+        "to": "native/bin"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "流光壁纸"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.entertainment",
+      "icon": "assets/icon.png",
+      "extraResources": [
+        {
+          "from": "wallpapers",
+          "to": "bundled-wallpapers"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,172 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:;">
+<title>流光壁纸 · Lumen</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="titlebar" id="titlebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><span></span></span>
+      <span class="brand-name">流光</span>
+      <span class="brand-en">LUMEN</span>
+    </div>
+    <div class="titlebar-center">
+      <span class="tiny-dot"></span>
+      LOCAL WALLPAPER ENGINE
+    </div>
+    <div class="window-controls" id="windowControls">
+      <button class="wc" id="winMinimize" aria-label="最小化" title="最小化">
+        <svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg>
+      </button>
+      <button class="wc" id="winMaximize" aria-label="最大化" title="最大化">
+        <svg viewBox="0 0 12 12"><rect x="2.2" y="2.2" width="7.6" height="7.6" rx="0.6"/></svg>
+      </button>
+      <button class="wc close" id="winClose" aria-label="关闭到托盘" title="关闭到托盘">
+        <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="scroll" id="scroll">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pulse"></span> SINGLE-FILE HTML · WINDOWS / macOS</p>
+        <h1>让桌面，<em>流动</em>起来。</h1>
+        <p class="lede">把一段 HTML 变成真正的桌面壁纸。全部本地运行，不联网，不上传，也不需要额外插件。</p>
+        <div class="hero-meta">
+          <span id="countLabel">正在读取壁纸…</span>
+          <span class="sep"></span>
+          <span>单文件渲染</span>
+          <span class="sep"></span>
+          <span>自动保存选择</span>
+        </div>
+      </div>
+
+      <aside class="now-card" id="nowCard" aria-live="polite">
+        <div class="now-bg" id="nowBg"></div>
+        <div class="now-content">
+          <div class="now-head">
+            <span class="now-label">DESKTOP</span>
+            <span class="now-status" id="nowStatus"><i></i> 待机</span>
+          </div>
+          <div class="now-main" id="nowMain">
+            <p class="now-kicker">还没有应用壁纸</p>
+            <h2>选一幅，点亮桌面。</h2>
+            <p class="now-desc">点击任意壁纸的「应用」，它会替换系统桌面；关闭窗口后仍会在托盘里继续播放。</p>
+          </div>
+          <div class="now-actions" id="nowActions"></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="toolbar">
+      <div class="tag-chips" id="tagChips"></div>
+      <div class="toolbar-right">
+        <label class="search" for="searchInput">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.6" cy="8.6" r="5.4"/><path d="M12.8 12.8L17 17"/></svg>
+          <input id="searchInput" type="search" placeholder="搜索壁纸或标签" autocomplete="off" spellcheck="false">
+          <kbd id="searchKbd">/</kbd>
+        </label>
+        <button class="btn ghost icon-text" id="openFolderBtn" title="打开壁纸目录">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 6.5A1.5 1.5 0 0 1 4 5h4l1.6 2H16a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 16 15H4a1.5 1.5 0 0 1-1.5-1.5z"/></svg>
+          <span>壁纸目录</span>
+        </button>
+        <button class="btn gold" id="addBtn">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+          <span>添加壁纸</span>
+        </button>
+        <button class="icon-btn" id="refreshBtn" title="重新扫描壁纸目录" aria-label="刷新">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 6.5A6.5 6.5 0 1 0 16.4 12"/><path d="M16.5 3v4h-4"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <section class="grid" id="grid" aria-label="壁纸列表"></section>
+
+    <section class="empty" id="empty" hidden>
+      <div class="empty-orb"><span></span></div>
+      <h2 id="emptyTitle">还没有壁纸</h2>
+      <p id="emptyText">把包含 wallpaper.html 与 preview.png 的文件夹放进壁纸目录，列表会自动出现。</p>
+      <button class="btn gold" id="emptyOpenFolder">打开壁纸目录</button>
+    </section>
+
+    <footer class="foot">
+      <div class="foot-left">
+        <span class="foot-mark"></span>
+        <span>流光壁纸 · 所有内容都在本机运行</span>
+      </div>
+      <div class="foot-right" id="footRight">
+        <button class="link" id="footAdd">如何添加壁纸？</button>
+        <span class="sep"></span>
+        <span id="platformLabel">desktop</span>
+      </div>
+    </footer>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="addModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+    <button class="modal-close" id="addClose" aria-label="关闭">
+      <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button>
+    <p class="eyebrow"><span class="pulse"></span> ADD A WALLPAPER</p>
+    <h2 id="addTitle">添加一幅动态壁纸</h2>
+    <p class="modal-lede">不需要改代码，也不需要打包。把准备好的文件夹放进壁纸目录，引擎会自动发现它。</p>
+
+    <div class="steps">
+      <div class="step">
+        <span class="step-no">01</span>
+        <div>
+          <h3>新建一个文件夹</h3>
+          <p>名字会作为壁纸 ID，建议使用英文或拼音，例如 <code>my-wallpaper</code>。</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-no">02</span>
+        <div>
+          <h3>放入两个文件</h3>
+          <p><code>wallpaper.html</code> 是壁纸本体，<code>preview.png</code> 是列表里显示的预览图。</p>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-no">03</span>
+        <div>
+          <h3>回到这里</h3>
+          <p>列表会自动刷新；如果没有，点右上角的刷新按钮。可选的 <code>meta.json</code> 能补充标题、描述与标签。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tree-wrap">
+      <div class="tree-head">
+        <span>目录结构</span>
+        <button class="link small" id="copyPathBtn">
+          <svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.2"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>
+          复制路径
+        </button>
+      </div>
+      <pre class="tree"><span class="tree-root">wallpapers/</span>
+└─ my-wallpaper/
+   ├─ wallpaper.html   <i>壁纸内容</i>
+   ├─ preview.png      <i>预览图</i>
+   └─ meta.json        <i>可选</i></pre>
+      <code class="path-line" id="pathLine">…</code>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn ghost" id="addOpenFolder">打开壁纸目录</button>
+      <button class="btn gold" id="addDone">我知道了</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

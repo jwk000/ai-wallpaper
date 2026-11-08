@@ -1,0 +1,12 @@
+{
+  "title": "热核",
+  "subtitle": "HYDROGEN",
+  "description": "程序化核爆：火球、蘑菇云、冲击波，以及逐栋崩塌的城市。",
+  "tags": [
+    "WebGL 2",
+    "粒子",
+    "毁灭"
+  ],
+  "accent": "#ff9a6b",
+  "order": 8
+}
