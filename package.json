@@ -1,7 +1,7 @@
 {
   "name": "lumen-wallpaper",
   "productName": "Lumen Wallpaper",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "流光壁纸 · 一个跨平台的单文件 HTML 动态壁纸引擎",
   "main": "src/main/index.js",
   "author": "Lumen",
