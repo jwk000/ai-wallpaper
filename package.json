@@ -1,7 +1,7 @@
 {
   "name": "lumen-wallpaper",
   "productName": "Lumen Wallpaper",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "流光壁纸 · 一个跨平台的单文件 HTML 动态壁纸引擎",
   "main": "src/main/index.js",
   "author": "Lumen",
@@ -21,7 +21,10 @@
     "setup:electron": "node scripts/ensure-electron.js --install",
     "postinstall": "node scripts/ensure-electron.js",
     "build:host": "powershell -NoProfile -ExecutionPolicy Bypass -File native/build-windows-host.ps1",
+    "release:notes": "node scripts/release-notes.js --out release-notes.md",
+    "prebuild:win": "npm run release:notes",
     "build:win": "electron-builder --win",
+    "release:win": "npm run build:win -- --publish always",
     "build:mac": "electron-builder --mac"
   },
   "devDependencies": {
@@ -47,6 +50,17 @@
         "to": "native/bin"
       }
     ],
+    "releaseInfo": {
+      "releaseNotesFile": "release-notes.md"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jwk000",
+        "repo": "ai-wallpaper",
+        "releaseType": "release"
+      }
+    ],
     "win": {
       "target": [
         "nsis",
@@ -62,7 +76,8 @@
     },
     "mac": {
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "category": "public.app-category.entertainment",
       "icon": "assets/icon.png",
@@ -73,5 +88,8 @@
         }
       ]
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

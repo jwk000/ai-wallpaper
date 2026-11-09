@@ -1,6 +1,7 @@
 node_modules/
 dist/
 native/webview2/
+release-notes.md
 *.log
 *.err
 .DS_Store

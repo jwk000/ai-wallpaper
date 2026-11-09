@@ -1,0 +1,1210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#030a0c">
+<title>螺钿 · Nacre Mandelbrot</title>
+<style>
+  :root {
+    --paper: #efe5d1;
+    --paper-dim: rgba(239, 229, 209, 0.54);
+    --paper-faint: rgba(239, 229, 209, 0.26);
+    --jade: #9fd2c2;
+    --gold: #d9b98b;
+    --rose: #c99c91;
+    --line: rgba(214, 232, 222, 0.16);
+    --pad: clamp(24px, 3.6vw, 62px);
+    --mono: "SFMono-Regular", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+    --sans: "Helvetica Neue", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --serif: "Songti SC", "STSong", "Noto Serif SC", "SimSun", "Times New Roman", serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #030a0c;
+  }
+
+  body {
+    color: var(--paper);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+    user-select: none;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    opacity: 0;
+    transition: opacity 2.4s cubic-bezier(.22, 1, .36, 1);
+    cursor: default;
+    touch-action: none;
+  }
+
+  body.ready #stage { opacity: 1; }
+
+  .atmosphere {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 46%, transparent 38%, rgba(2, 8, 9, 0.22) 66%, rgba(2, 7, 8, 0.72) 100%),
+      radial-gradient(ellipse at 0% 100%, rgba(2, 8, 9, 0.66) 0%, rgba(2, 8, 9, 0.26) 30%, transparent 58%),
+      radial-gradient(ellipse at 100% 100%, rgba(2, 8, 9, 0.62) 0%, rgba(2, 8, 9, 0.24) 28%, transparent 56%),
+      linear-gradient(180deg, rgba(2, 7, 8, 0.52) 0%, transparent 16%, transparent 78%, rgba(2, 7, 8, 0.58) 100%);
+  }
+
+  .grain {
+    position: fixed;
+    inset: -40%;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.055;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.72'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
+    animation: grain-shift 1.4s steps(2) infinite;
+  }
+
+  @keyframes grain-shift {
+    0% { transform: translate3d(0, 0, 0); }
+    25% { transform: translate3d(-1.2%, 0.8%, 0); }
+    50% { transform: translate3d(0.9%, -1.1%, 0); }
+    75% { transform: translate3d(-0.5%, -0.6%, 0); }
+    100% { transform: translate3d(0, 0, 0); }
+  }
+
+  .hud {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 1.1s ease, transform 1.1s ease;
+  }
+
+  body.ready .hud {
+    opacity: 1;
+    transform: none;
+  }
+
+  body.idle .hud {
+    opacity: 0.22;
+    transition: opacity 2.4s ease;
+  }
+
+  body.paused .signal {
+    color: var(--gold);
+  }
+
+  /* ---------- top marks ---------- */
+
+  .masthead {
+    position: fixed;
+    top: var(--pad);
+    left: var(--pad);
+    right: var(--pad);
+    z-index: 4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    color: var(--paper-dim);
+    font-size: 9px;
+    line-height: 1;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.75);
+  }
+
+  .mark,
+  .signal {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mark-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 12px rgba(217, 185, 139, 0.75);
+  }
+
+  .signal {
+    justify-content: flex-end;
+    text-align: right;
+    letter-spacing: 0.2em;
+    transition: color 1.2s ease;
+  }
+
+  .pulse {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--jade);
+    box-shadow: 0 0 14px rgba(159, 210, 194, 0.85);
+    animation: pulse 3.8s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.32; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
+  /* ---------- identity ---------- */
+
+  .identity {
+    position: fixed;
+    left: var(--pad);
+    bottom: clamp(44px, 8.4vh, 112px);
+    z-index: 4;
+    pointer-events: none;
+    max-width: min(360px, 31vw);
+  }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    color: var(--paper-dim);
+    font-size: 8px;
+    line-height: 1;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55);
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 26px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--gold), transparent);
+    opacity: 0.9;
+  }
+
+  h1 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: clamp(58px, 7.2vw, 148px);
+    font-weight: 400;
+    line-height: 0.92;
+    letter-spacing: 0.1em;
+    color: #f2e7d4;
+    text-shadow:
+      0 0 42px rgba(217, 185, 139, 0.12),
+      0 2px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .subtitle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 17px;
+    color: var(--jade);
+    font-size: clamp(8px, 0.7vw, 11px);
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: 0.46em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-shadow: 0 1px 16px rgba(0, 0, 0, 0.55);
+  }
+
+  .subtitle i {
+    font-style: normal;
+    color: var(--paper-faint);
+    letter-spacing: 0;
+  }
+
+  .note {
+    max-width: 300px;
+    margin: 26px 0 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    color: var(--paper-dim);
+    font-size: 10.5px;
+    font-weight: 300;
+    line-height: 2.05;
+    letter-spacing: 0.08em;
+    text-shadow: 0 1px 16px rgba(0, 0, 0, 0.55);
+  }
+
+  .note em {
+    font-style: normal;
+    color: var(--paper);
+    opacity: 0.88;
+  }
+
+  /* ---------- readout ---------- */
+
+  .readout {
+    position: fixed;
+    right: var(--pad);
+    bottom: clamp(44px, 8.4vh, 112px);
+    z-index: 4;
+    width: min(430px, 34vw);
+    pointer-events: none;
+    text-align: right;
+    text-shadow: 0 1px 16px rgba(0, 0, 0, 0.6);
+    isolation: isolate;
+  }
+
+  .readout::before {
+    content: "";
+    position: absolute;
+    inset: -46px -54px -34px -100px;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 78% 56%, rgba(2, 8, 9, 0.62) 0%, rgba(2, 8, 9, 0.30) 46%, transparent 74%);
+  }
+
+  .readout-top {
+    display: flex;
+    justify-content: flex-end;
+    gap: clamp(24px, 3vw, 52px);
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .metric span,
+  .coord span,
+  .meta span {
+    display: block;
+    color: rgba(239, 229, 209, 0.58);
+    font-size: 8px;
+    line-height: 1.6;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.72);
+  }
+
+  .metric b {
+    display: block;
+    margin-top: 4px;
+    color: #f3e8d6;
+    font-family: var(--mono);
+    font-size: clamp(17px, 1.38vw, 24px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 24px rgba(217, 185, 139, 0.18);
+  }
+
+  .coord {
+    margin-top: 15px;
+  }
+
+  .coord b {
+    display: block;
+    margin-top: 5px;
+    color: rgba(242, 231, 212, 0.84);
+    font-family: var(--mono);
+    font-size: clamp(9px, 0.66vw, 11px);
+    font-weight: 400;
+    line-height: 1.6;
+    letter-spacing: 0.015em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .meta {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    margin-top: 19px;
+    color: var(--paper-faint);
+  }
+
+  .meta span {
+    display: inline;
+    font-size: 7px;
+    letter-spacing: 0.2em;
+  }
+
+  /* ---------- depth gauge ---------- */
+
+  .depth {
+    position: fixed;
+    right: calc(var(--pad) * 0.72);
+    top: 50%;
+    z-index: 3;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    pointer-events: none;
+    color: var(--paper-faint);
+    filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.65));
+  }
+
+  .depth-label {
+    font-size: 7px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--paper-faint);
+  }
+
+  .depth-value {
+    color: #f0dcb8;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+  }
+
+  .depth-body {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    height: clamp(150px, 31vh, 310px);
+  }
+
+  .depth-ticks {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    color: rgba(239, 229, 209, 0.34);
+    font-family: var(--mono);
+    font-size: 7px;
+    line-height: 1;
+  }
+
+  .depth-track {
+    position: relative;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(217, 185, 139, 0.55), rgba(159, 210, 194, 0.16) 55%, transparent);
+  }
+
+  .depth-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 0%;
+    background: linear-gradient(180deg, rgba(217, 185, 139, 0.8), rgba(159, 210, 194, 0.5));
+    box-shadow: 0 0 10px rgba(159, 210, 194, 0.35);
+  }
+
+  .depth-dot {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 7px;
+    height: 7px;
+    margin-left: -3px;
+    margin-top: -3px;
+    border-radius: 50%;
+    background: #f1dfbf;
+    box-shadow: 0 0 0 1px rgba(217, 185, 139, 0.36), 0 0 18px rgba(217, 185, 139, 0.7);
+  }
+
+  /* ---------- overlays ---------- */
+
+  .iris {
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    opacity: 1;
+    background:
+      radial-gradient(circle at 50% 48%, rgba(217, 185, 139, 0.10) 0%, rgba(8, 24, 25, 0.97) 34%, #030a0c 72%);
+  }
+
+  .fallback {
+    position: fixed;
+    inset: 0;
+    z-index: 7;
+    display: none;
+    place-items: center;
+    padding: 10vw;
+    background:
+      radial-gradient(circle at 50% 40%, #16302d 0%, #071416 42%, #030a0c 100%);
+    color: var(--paper-dim);
+    text-align: center;
+    font-size: 11px;
+    line-height: 2;
+    letter-spacing: 0.16em;
+  }
+
+  body.no-gl .fallback { display: grid; }
+  body.no-gl .hud { display: none; }
+  body.no-gl .grain { display: none; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 34px;
+    z-index: 5;
+    transform: translate(-50%, 8px);
+    padding: 9px 16px;
+    border: 1px solid rgba(217, 185, 139, 0.18);
+    background: rgba(4, 13, 15, 0.55);
+    backdrop-filter: blur(8px);
+    color: var(--paper-dim);
+    font-size: 8px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .45s ease, transform .45s ease;
+  }
+
+  body.paused .toast {
+    opacity: 0.9;
+    transform: translate(-50%, 0);
+  }
+
+  /* ---------- responsive ---------- */
+
+  @media (max-aspect-ratio: 3/2), (max-width: 1040px) {
+    .depth { display: none; }
+    .identity { max-width: 46vw; }
+    .readout { width: 40vw; }
+    .note { display: none; }
+    h1 { font-size: clamp(48px, 8.6vw, 92px); }
+  }
+
+  @media (max-width: 760px) {
+    :root { --pad: 22px; }
+    .masthead { font-size: 7px; letter-spacing: 0.18em; }
+    .signal { display: none; }
+    .identity {
+      bottom: 132px;
+      max-width: 82vw;
+    }
+    .eyebrow { margin-bottom: 14px; font-size: 7px; }
+    h1 { font-size: clamp(44px, 15vw, 74px); }
+    .subtitle { margin-top: 12px; font-size: 8px; letter-spacing: 0.3em; }
+    .readout {
+      left: var(--pad);
+      right: var(--pad);
+      bottom: 28px;
+      width: auto;
+      text-align: left;
+    }
+    .readout-top,
+    .meta { display: none; }
+    .coord { margin-top: 0; }
+    .coord b { font-size: 7px; letter-spacing: 0; }
+    .toast { bottom: 96px; }
+  }
+
+  @media (max-height: 650px) {
+    .identity { bottom: 30px; }
+    .note { display: none; }
+    .readout { bottom: 30px; }
+    .masthead { top: 18px; }
+    .depth { display: none; }
+    h1 { font-size: clamp(38px, 6.2vw, 74px); }
+  }
+
+  body.clean .hud,
+  body.clean .depth,
+  body.clean .toast {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .grain { animation: none; }
+    .pulse { animation: none; opacity: .5; }
+  }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="曼德勃罗分形以贝壳珠母纹理呈现，镜头沿集合边界持续放大。"></canvas>
+<div class="atmosphere" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="masthead hud" aria-hidden="true">
+  <div class="mark"><span class="mark-dot"></span> LUMEN / NACRE</div>
+  <div class="signal"><span class="pulse"></span> INFINITE ZOOM</div>
+</header>
+
+<aside class="depth hud" aria-hidden="true">
+  <div class="depth-label">Depth</div>
+  <div class="depth-value" id="depthValue">10⁰</div>
+  <div class="depth-body">
+    <div class="depth-ticks">
+      <span>10⁰</span>
+      <span>10²</span>
+      <span>10⁴</span>
+      <span>10⁶</span>
+      <span>10⁸</span>
+    </div>
+    <div class="depth-track">
+      <div class="depth-fill" id="depthFill"></div>
+      <div class="depth-dot" id="depthDot"></div>
+    </div>
+  </div>
+</aside>
+
+<main class="identity hud">
+  <div class="eyebrow">Mandelbrot · Nacre Study</div>
+  <h1>螺钿</h1>
+  <div class="subtitle">Nacre <i>/</i> Infinite</div>
+  <p class="note">沿曼德勃罗集的边界，向一点无限下沉。<br>珠母层的虹彩，藏在<em>轨道、距离与生长纹</em>里。</p>
+</main>
+
+<footer class="readout hud">
+  <div class="readout-top">
+    <div class="metric"><span>Magnification</span><b id="mag">×1.00</b></div>
+    <div class="metric"><span>Iterations</span><b id="iter">1400</b></div>
+  </div>
+  <div class="coord"><span>Center</span><b id="coord">0.00000000000000 + 0.00000000000000i</b></div>
+  <div class="meta"><span>WebGL 2</span><span>Mandelbrot</span><span>Space Pause · H HUD</span></div>
+</footer>
+
+<div class="toast" aria-live="polite">Paused · 空格继续</div>
+<div class="iris" id="iris" aria-hidden="true"></div>
+<div class="fallback">This wallpaper needs WebGL 2.<br><span style="opacity:.5">请使用支持 WebGL 2 的浏览器或 WebView2。</span></div>
+
+<script>
+'use strict';
+(() => {
+  const TAU = Math.PI * 2;
+  const TARGET = [-0.7436438870371587, 0.1318259042053119];
+  const REF_MAX = 2048;
+  const MAX_ITER = 1400;
+  const LOOP_SECONDS = 210;
+  const INTRO_SECONDS = 12;
+  const START_SCALE = 1.65;
+  const HANDOFF_SCALE = 0.085;
+  const END_SCALE = 1.15e-8;
+  const ZOOM_RATE = Math.log(HANDOFF_SCALE / END_SCALE) / (LOOP_SECONDS - INTRO_SECONDS);
+  const ROTATE_RATE = 0.00042;
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const canvas = document.getElementById('stage');
+  const iris = document.getElementById('iris');
+  const magEl = document.getElementById('mag');
+  const iterEl = document.getElementById('iter');
+  const coordEl = document.getElementById('coord');
+  const depthFill = document.getElementById('depthFill');
+  const depthDot = document.getElementById('depthDot');
+  const depthValue = document.getElementById('depthValue');
+
+  const gl = canvas.getContext('webgl2', {
+    alpha: false,
+    antialias: false,
+    depth: false,
+    stencil: false,
+    preserveDrawingBuffer: false,
+    powerPreference: 'high-performance'
+  });
+
+  if (!gl) {
+    document.body.classList.add('no-gl');
+    document.body.classList.add('ready');
+    return;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* reference orbit: critical orbit of the zoom target, double precision */
+  /* ------------------------------------------------------------------ */
+
+  const refHi = new Float32Array(REF_MAX * 2);
+  const refLo = new Float32Array(REF_MAX * 2);
+  const refDer = new Float32Array(REF_MAX * 2);
+
+  let zr = 0, zi = 0, dr = 0, di = 0;
+  for (let i = 0; i < REF_MAX; i++) {
+    const hr = Math.fround(zr);
+    const hi = Math.fround(zi);
+    refHi[i * 2] = hr;
+    refHi[i * 2 + 1] = hi;
+    refLo[i * 2] = Math.fround(zr - hr);
+    refLo[i * 2 + 1] = Math.fround(zi - hi);
+    refDer[i * 2] = Math.fround(dr);
+    refDer[i * 2 + 1] = Math.fround(di);
+
+    const ndr = 2 * (zr * dr - zi * di) + 1;
+    const ndi = 2 * (zr * di + zi * dr);
+    const nr = zr * zr - zi * zi + TARGET[0];
+    zi = 2 * zr * zi + TARGET[1];
+    zr = nr;
+    dr = ndr;
+    di = ndi;
+
+    if (zr * zr + zi * zi > 1e30) {
+      for (let j = i + 1; j < REF_MAX; j++) {
+        refHi[j * 2] = 1e20;
+        refHi[j * 2 + 1] = 1e20;
+      }
+      break;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* shaders                                                            */
+  /* ------------------------------------------------------------------ */
+
+  const vertexSource = `#version 300 es
+  void main() {
+    vec2 p = vec2(
+      (gl_VertexID == 1) ? 3.0 : -1.0,
+      (gl_VertexID == 2) ? 3.0 : -1.0
+    );
+    gl_Position = vec4(p, 0.0, 1.0);
+  }`;
+
+  const fragmentSource = `#version 300 es
+  precision highp float;
+  precision highp int;
+
+  out vec4 fragColor;
+
+  uniform vec2 uRes;
+  uniform vec2 uCenter;
+  uniform float uScale;
+  uniform float uRot;
+  uniform float uTime;
+  uniform int uMax;
+  uniform sampler2D uRefHi;
+  uniform sampler2D uRefLo;
+  uniform sampler2D uRefDer;
+
+  const float TAU = 6.283185307179586;
+  const float BAIL = 65536.0;
+
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  vec3 nacreRamp(float t) {
+    const vec3 c0 = vec3(0.006, 0.020, 0.024);
+    const vec3 c1 = vec3(0.022, 0.095, 0.092);
+    const vec3 c2 = vec3(0.120, 0.310, 0.278);
+    const vec3 c3 = vec3(0.420, 0.585, 0.515);
+    const vec3 c4 = vec3(0.890, 0.850, 0.725);
+    const vec3 c5 = vec3(0.775, 0.545, 0.500);
+    const vec3 c6 = vec3(0.860, 0.675, 0.390);
+    const vec3 c7 = vec3(0.390, 0.315, 0.465);
+    t = clamp(t, 0.0, 1.0);
+    if (t < 0.20) return mix(c0, c1, smoothstep(0.00, 0.20, t));
+    if (t < 0.40) return mix(c1, c2, smoothstep(0.20, 0.40, t));
+    if (t < 0.58) return mix(c2, c3, smoothstep(0.40, 0.58, t));
+    if (t < 0.74) return mix(c3, c4, smoothstep(0.58, 0.74, t));
+    if (t < 0.86) return mix(c4, c5, smoothstep(0.74, 0.86, t));
+    if (t < 0.94) return mix(c5, c6, smoothstep(0.86, 0.94, t));
+    return mix(c6, c7, smoothstep(0.94, 1.00, t));
+  }
+
+  void main() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+    float ca = cos(uRot);
+    float sa = sin(uRot);
+    uv = mat2(ca, -sa, sa, ca) * uv;
+
+    vec2 dc = uv * (2.0 * uScale) + uCenter;
+    vec2 d = dc;
+    vec2 dd = vec2(1.0, 0.0);
+    vec2 z = dc;
+    vec2 zEsc = dc;
+    vec2 zpEsc = vec2(1.0, 0.0);
+
+    int n = 0;
+    bool escaped = false;
+
+    for (int i = 0; i < 2048; i++) {
+      if (i >= uMax) break;
+
+      vec2 rh = texelFetch(uRefHi, ivec2(i, 0), 0).rg;
+      vec2 rl = texelFetch(uRefLo, ivec2(i, 0), 0).rg;
+      vec2 rd = texelFetch(uRefDer, ivec2(i, 0), 0).rg;
+
+      z = rh + d;
+      if (dot(z, z) > BAIL) {
+        escaped = true;
+        n = i;
+        zEsc = z;
+        zpEsc = rd + dd;
+        break;
+      }
+
+      float ar = rh.x * d.x - rh.y * d.y;
+      float ai = rh.x * d.y + rh.y * d.x;
+      float br = rl.x * d.x - rl.y * d.y;
+      float bi = rl.x * d.y + rl.y * d.x;
+
+      float cr = rd.x * d.x - rd.y * d.y
+               + rh.x * dd.x - rh.y * dd.y
+               + d.x * dd.x - d.y * dd.y;
+      float ci = rd.x * d.y + rd.y * d.x
+               + rh.x * dd.y + rh.y * dd.x
+               + d.x * dd.y + d.y * dd.x;
+      dd = vec2(2.0 * cr + 1.0, 2.0 * ci);
+
+      d = vec2(
+        2.0 * (ar + br) + (d.x * d.x - d.y * d.y) + dc.x,
+        2.0 * (ai + bi) + (2.0 * d.x * d.y) + dc.y
+      );
+      n = i + 1;
+    }
+
+    float m = length(zEsc);
+    float mu = escaped ? (float(n) + 1.0 - log2(log(m) / log(BAIL))) : float(uMax);
+    mu = max(mu, 0.0);
+
+    float de = escaped ? (m * log(m) / max(length(zpEsc), 1e-20)) : 0.0;
+    float px = 2.0 * uScale / uRes.y;
+    float dp = max(de / px, 0.0);
+    float near = smoothstep(80.0, 0.0, dp);
+    float rim = exp(-dp * 1.35);
+    float ang = atan(uv.y, uv.x);
+
+    vec3 deep = vec3(0.004, 0.014, 0.018);
+    vec3 pearl = vec3(0.91, 0.885, 0.79);
+    vec3 rose = vec3(0.74, 0.45, 0.44);
+    vec3 gold = vec3(0.92, 0.70, 0.36);
+
+    vec3 col;
+
+    if (escaped) {
+      float zone = clamp(
+        log(1.0 + mu) * 0.118
+        + 0.022 * sin(mu * 0.017 + 1.2)
+        + 0.010 * sin(ang * 2.5 + 0.7),
+        0.0, 1.0
+      );
+
+      col = nacreRamp(zone);
+
+      /* fine growth striae */
+      float ringPhase = mu * 0.085 + 0.35 * sin(mu * 0.011);
+      float strip = 0.5 + 0.5 * cos(TAU * ringPhase);
+      float aa = 1.0 - smoothstep(0.28, 0.68, fwidth(ringPhase));
+      strip = mix(0.5, strip, aa);
+      float ring = pow(strip, 2.8);
+
+      col *= 0.78 + 0.28 * ring;
+      col += gold * pow(ring, 8.0) * 0.10;
+
+      /* a second, distance-spaced set of shell ridges */
+      float gPhase = dp * 0.52 + 0.02 * mu;
+      float gLine = 0.5 + 0.5 * cos(TAU * gPhase);
+      float gAA = 1.0 - smoothstep(0.30, 0.70, fwidth(gPhase));
+      gLine = mix(0.5, gLine, gAA);
+      col *= 0.955 + 0.075 * gLine * near;
+
+      /* pearly rim exactly on the boundary */
+      col = mix(col, pearl, pow(rim, 4.0) * 0.24);
+
+      /* thin-film nacre */
+      vec3 film = 0.5 + 0.5 * cos(TAU * (vec3(0.0, 0.31, 0.62) + zone * 1.1 + ang * 0.06));
+      film = mix(vec3(0.5), film, 0.58);
+      col += film * pow(rim, 4.0) * 0.10;
+      col = mix(col, col * 0.66 + film * 0.46, 0.10 + 0.14 * rim);
+
+      /* broad pearlescent wash across the shell body */
+      vec3 wash = 0.5 + 0.5 * cos(TAU * (vec3(0.0, 0.33, 0.67) + zone * 1.65 + ang * 0.18));
+      wash = mix(vec3(0.5), wash, 0.46);
+      col = mix(col, col * 0.78 + wash * 0.22, 0.16);
+
+      /* embossed relief from the distance field */
+      float h = log(1.0 + dp);
+      vec2 g = clamp(vec2(dFdx(h), dFdy(h)), -3.5, 3.5);
+      vec3 nrm = normalize(vec3(-g * 0.62, 1.0));
+      vec3 L = normalize(vec3(-0.46, 0.64, 0.61));
+      float diff = 0.38 + 0.72 * max(dot(nrm, L), 0.0);
+      float spec = pow(max(dot(reflect(-L, nrm), vec3(0.0, 0.0, 1.0)), 0.0), 26.0);
+      float ao = 1.0 - 0.24 * smoothstep(0.0, 3.0, length(g));
+      col *= diff * ao;
+      col += pearl * spec * 0.26;
+
+      /* rose-gold veins */
+      col = mix(col, rose, smoothstep(0.62, 1.0, ring) * rim * 0.20);
+      col += gold * smoothstep(0.92, 1.0, ring) * near * 0.06;
+
+      /* a barely-there nautilus chamber rhythm, kept near the shell edge */
+      float shellPhase = ang * 11.0 + log(length(uv) + 0.10) * 9.0 - uTime * 0.022;
+      float shell = 0.5 + 0.5 * cos(shellPhase);
+      col *= 0.972 + 0.045 * shell * (0.25 + 0.75 * near);
+      col += vec3(0.10, 0.07, 0.03) * pow(shell, 12.0) * 0.12 * near;
+
+      /* cool nacre flash on grazing angles */
+      float fres = pow(1.0 - clamp(nrm.z, 0.0, 1.0), 3.0);
+      vec3 flash = 0.5 + 0.5 * cos(TAU * (vec3(0.0, 0.33, 0.67) + zone * 1.6 + ang * 0.10));
+      col += flash * fres * 0.14;
+    } else {
+      vec3 inner = vec3(0.006, 0.020, 0.024);
+      float r = length(uv);
+      float chamber = 0.5 + 0.5 * sin(ang * 9.0 - log(r + 0.04) * 10.0 - uTime * 0.018);
+      inner = mix(inner, vec3(0.026, 0.071, 0.074), 0.30 + 0.22 * chamber);
+      inner = mix(inner, vec3(0.095, 0.120, 0.125), smoothstep(0.9, 0.1, r) * 0.22);
+      inner += vec3(0.050, 0.085, 0.083) * smoothstep(0.9, 0.0, r) * 0.52;
+      inner += vec3(0.018, 0.034, 0.034) * chamber * smoothstep(1.0, 0.05, r) * 0.7;
+      col = inner;
+    }
+
+    /* deep vignette, slow grain, and a soft exposure lift */
+    float vig = smoothstep(1.34, 0.30, length(uv * vec2(0.82, 1.0)));
+    col *= 0.62 + 0.38 * vig;
+    float grain = hash21(gl_FragCoord.xy * 1.7 + floor(uTime * 8.0) * 17.0) - 0.5;
+    col += grain * 0.010;
+    col = max(col, vec3(0.0));
+    col *= 1.07;
+    col = pow(col, vec3(0.94));
+    col += (hash21(gl_FragCoord.xy) - 0.5) / 255.0;
+
+    fragColor = vec4(col, 1.0);
+  }`;
+
+  function compile(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(shader) || 'shader compile failed');
+    }
+    return shader;
+  }
+
+  let program;
+  try {
+    program = gl.createProgram();
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(program) || 'program link failed');
+    }
+  } catch (error) {
+    console.error('[Nacre]', error);
+    document.body.classList.add('no-gl');
+    document.body.classList.add('ready');
+    return;
+  }
+
+  gl.useProgram(program);
+
+  const U = {
+    res: gl.getUniformLocation(program, 'uRes'),
+    center: gl.getUniformLocation(program, 'uCenter'),
+    scale: gl.getUniformLocation(program, 'uScale'),
+    rot: gl.getUniformLocation(program, 'uRot'),
+    time: gl.getUniformLocation(program, 'uTime'),
+    max: gl.getUniformLocation(program, 'uMax'),
+    refHi: gl.getUniformLocation(program, 'uRefHi'),
+    refLo: gl.getUniformLocation(program, 'uRefLo'),
+    refDer: gl.getUniformLocation(program, 'uRefDer')
+  };
+
+  function makeRefTexture(data) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, REF_MAX, 1, 0, gl.RG, gl.FLOAT, data);
+    return texture;
+  }
+
+  const refHiTexture = makeRefTexture(refHi);
+  const refLoTexture = makeRefTexture(refLo);
+  const refDerTexture = makeRefTexture(refDer);
+
+  /* ------------------------------------------------------------------ */
+  /* viewport                                                           */
+  /* ------------------------------------------------------------------ */
+
+  let W = 0;
+  let H = 0;
+  let cssW = 0;
+  let cssH = 0;
+
+  function resize() {
+    cssW = Math.max(1, innerWidth);
+    cssH = Math.max(1, innerHeight);
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const budget = 2.4e6;
+    const natural = cssW * cssH * dpr * dpr;
+    const scale = Math.min(1, Math.max(0.30, Math.sqrt(budget / Math.max(1, natural))));
+
+    W = Math.max(320, Math.round(cssW * dpr * scale));
+    H = Math.max(200, Math.round(cssH * dpr * scale));
+
+    /* never let an extreme display demand an unbounded fragment budget */
+    if (W * H > 5.2e6) {
+      const k = Math.sqrt(5.2e6 / (W * H));
+      W = Math.max(320, Math.round(W * k));
+      H = Math.max(200, Math.round(H * k));
+    }
+
+    canvas.width = W;
+    canvas.height = H;
+    gl.viewport(0, 0, W, H);
+  }
+
+  resize();
+
+  /* ------------------------------------------------------------------ */
+  /* camera                                                             */
+  /* ------------------------------------------------------------------ */
+
+  const startScale = START_SCALE;
+
+  function smootherstep(x) {
+    x = Math.min(1, Math.max(0, x));
+    return x * x * x * (x * (x * 6 - 15) + 10);
+  }
+
+  function cameraAt(time) {
+    const t = ((time % LOOP_SECONDS) + LOOP_SECONDS) % LOOP_SECONDS;
+
+    if (t < INTRO_SECONDS) {
+      const u = smootherstep(t / INTRO_SECONDS);
+      const scale = Math.exp(
+        Math.log(startScale) * (1 - u) + Math.log(HANDOFF_SCALE) * u
+      );
+      return {
+        t,
+        center: [TARGET[0] * u, TARGET[1] * u],
+        scale,
+        rot: 0,
+        intro: true
+      };
+    }
+
+    const dt = t - INTRO_SECONDS;
+    return {
+      t,
+      center: TARGET,
+      scale: HANDOFF_SCALE * Math.exp(-ZOOM_RATE * dt),
+      rot: dt * ROTATE_RATE,
+      intro: false
+    };
+  }
+
+  function draw(camera) {
+    gl.useProgram(program);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, refHiTexture);
+    gl.uniform1i(U.refHi, 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, refLoTexture);
+    gl.uniform1i(U.refLo, 1);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, refDerTexture);
+    gl.uniform1i(U.refDer, 2);
+
+    gl.uniform2f(U.res, W, H);
+    gl.uniform2f(U.center, camera.center[0] - TARGET[0], camera.center[1] - TARGET[1]);
+    gl.uniform1f(U.scale, camera.scale);
+    gl.uniform1f(U.rot, camera.rot);
+    gl.uniform1f(U.time, camera.t);
+    gl.uniform1i(U.max, MAX_ITER);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* hud                                                                */
+  /* ------------------------------------------------------------------ */
+
+  function formatMagnification(value) {
+    if (value < 10) return '×' + value.toFixed(2);
+    if (value < 1000) return '×' + Math.round(value).toLocaleString('en-US');
+    const exponent = Math.floor(Math.log10(value));
+    const mantissa = value / Math.pow(10, exponent);
+    return '×' + mantissa.toFixed(2) + 'e' + exponent;
+  }
+
+  function formatCoord(value) {
+    return value.toFixed(14).replace('-', '−');
+  }
+
+  let lastHud = 0;
+
+  function updateHud(camera, force) {
+    if (!force && camera.t - lastHud < 0.08 && camera.t > lastHud) return;
+    lastHud = camera.t;
+
+    const mag = startScale / camera.scale;
+    magEl.textContent = formatMagnification(mag);
+    iterEl.textContent = String(MAX_ITER);
+
+    const re = formatCoord(camera.center[0]);
+    const im = Math.abs(camera.center[1]).toFixed(14);
+    coordEl.textContent = re + (camera.center[1] >= 0 ? ' + ' : ' − ') + im + 'i';
+
+    const exponent = Math.min(9, Math.max(0, Math.log10(mag)));
+    const p = Math.min(1, exponent / 8.4);
+    const percent = (p * 100).toFixed(2) + '%';
+    depthFill.style.height = percent;
+    depthDot.style.top = percent;
+    depthValue.textContent = '10^' + exponent.toFixed(1);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* loop                                                               */
+  /* ------------------------------------------------------------------ */
+
+  let virtualTime = REDUCED ? 80 : 0;
+  let lastNow = 0;
+  let paused = REDUCED;
+  let needsDraw = true;
+  let idleTimer = 0;
+
+  function updateIris(camera) {
+    const t = camera.t;
+    const fadeIn = 1.8;
+    const fadeOut = 1.5;
+    let opacity = 0;
+
+    if (camera.intro) {
+      opacity = 1 - smootherstep(t / fadeIn);
+    } else if (t > LOOP_SECONDS - fadeOut) {
+      opacity = smootherstep((t - (LOOP_SECONDS - fadeOut)) / fadeOut);
+    }
+
+    iris.style.opacity = Math.max(0, Math.min(1, opacity)).toFixed(3);
+  }
+
+  function tick(now) {
+    requestAnimationFrame(tick);
+
+    if (!lastNow) lastNow = now;
+    const dt = Math.min(0.12, Math.max(0, (now - lastNow) / 1000));
+    lastNow = now;
+
+    if (!paused) {
+      virtualTime += dt;
+      needsDraw = true;
+    }
+
+    const camera = cameraAt(virtualTime);
+    updateIris(camera);
+
+    if (needsDraw) {
+      draw(camera);
+      updateHud(camera, false);
+      needsDraw = false;
+      if (!document.body.classList.contains('ready')) {
+        document.body.classList.add('ready');
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* interaction                                                        */
+  /* ------------------------------------------------------------------ */
+
+  function wake() {
+    document.body.classList.remove('idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (!paused) document.body.classList.add('idle');
+    }, 24000);
+  }
+
+  addEventListener('pointermove', wake, { passive: true });
+  addEventListener('pointerdown', wake, { passive: true });
+  addEventListener('keydown', (event) => {
+    if (event.code === 'Space') {
+      event.preventDefault();
+      paused = !paused;
+      document.body.classList.toggle('paused', paused);
+      if (!paused) {
+        lastNow = performance.now();
+        needsDraw = true;
+        wake();
+      }
+    } else if (event.key === 'h' || event.key === 'H') {
+      document.body.classList.toggle('clean');
+    } else if (event.key === 'r' || event.key === 'R') {
+      virtualTime = 0;
+      lastNow = performance.now();
+      paused = false;
+      document.body.classList.remove('paused');
+      needsDraw = true;
+      wake();
+    }
+  });
+
+  addEventListener('resize', () => {
+    resize();
+    needsDraw = true;
+  });
+
+  canvas.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    document.body.classList.add('no-gl');
+  });
+
+  canvas.addEventListener('webglcontextrestored', () => {
+    location.reload();
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* public debug / preview api                                         */
+  /* ------------------------------------------------------------------ */
+
+  window.__NACRE__ = {
+    pause() {
+      paused = true;
+      document.body.classList.add('paused');
+      return virtualTime;
+    },
+    resume() {
+      paused = false;
+      document.body.classList.remove('paused');
+      lastNow = performance.now();
+      needsDraw = true;
+      return virtualTime;
+    },
+    setTime(seconds) {
+      virtualTime = Math.max(0, Number(seconds) || 0);
+      lastNow = performance.now();
+      needsDraw = true;
+      const camera = cameraAt(virtualTime);
+      updateIris(camera);
+      draw(camera);
+      updateHud(camera, true);
+      if (!document.body.classList.contains('ready')) document.body.classList.add('ready');
+      return camera;
+    },
+    getTime() { return virtualTime; },
+    read() {
+      return {
+        time: virtualTime,
+        paused,
+        loop: LOOP_SECONDS,
+        maxIter: MAX_ITER,
+        canvas: [W, H],
+        css: [cssW, cssH],
+        glError: gl.getError()
+      };
+    }
+  };
+
+  updateHud(cameraAt(virtualTime), true);
+  requestAnimationFrame(tick);
+  wake();
+})();
+</script>
+</body>
+</html>

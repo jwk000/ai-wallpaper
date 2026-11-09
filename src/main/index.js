@@ -9,6 +9,7 @@ const {
   dialog,
   ipcMain,
   nativeImage,
+  net,
   screen,
   shell,
 } = require('electron');
@@ -16,8 +17,15 @@ const fs = require('fs');
 const path = require('path');
 const { ConfigStore } = require('./config');
 const { scanWallpapers, seedWallpapers } = require('./library');
+const {
+  CATALOG_CACHE_TTL,
+  fetchOnlineCatalog,
+  installOnlineWallpaper,
+  siteUrl: getOnlineSiteUrl,
+} = require('./online');
 const { WindowsWallpaperHost } = require('./host-windows');
 const { MacWallpaperHost } = require('./host-macos');
+const { createUpdater, RELEASES_URL } = require('./updater');
 
 const PRODUCT_NAME = '流光壁纸';
 const isDev = process.argv.includes('--dev');
@@ -48,6 +56,22 @@ let shuttingDown = false;
 let isQuitting = false;
 let trayHintShown = false;
 
+let updater = null;
+let updateTimer = null;
+let updateInterval = null;
+const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000;
+
+let onlineCatalogCache = null;
+let onlineCatalogFetchedAt = 0;
+let onlineCatalogPromise = null;
+const onlineDownloadJobs = new Map();
+
+if (process.env.LUMEN_USER_DATA_DIR) {
+  const userDataDir = path.resolve(process.env.LUMEN_USER_DATA_DIR);
+  fs.mkdirSync(userDataDir, { recursive: true });
+  app.setPath('userData', userDataDir);
+}
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -76,8 +100,18 @@ function wallpapersDirectory() {
     process.resourcesPath,
     'bundled-wallpapers',
   );
-  seedWallpapers(target, bundled);
+  const removed = Array.isArray(config.get('removedBundled')) ? config.get('removedBundled') : [];
+  seedWallpapers(target, bundled, removed);
   return target;
+}
+
+function isBundledWallpaper(id) {
+  if (!app.isPackaged) return false;
+  try {
+    return fs.existsSync(path.join(process.resourcesPath, 'bundled-wallpapers', id));
+  } catch {
+    return false;
+  }
 }
 
 function scan(announce = false) {
@@ -445,6 +479,55 @@ async function stopWallpaper() {
   return { ok: true, state: stateSnapshot() };
 }
 
+async function deleteWallpaper(id) {
+  if (typeof id !== 'string' || !id) {
+    return { ok: false, error: '无效的壁纸 ID。', state: stateSnapshot() };
+  }
+  const item = wallpapers.find((entry) => entry.id === id);
+  if (!item) {
+    return { ok: false, error: '没有找到这幅壁纸，可能已经被删除。', state: stateSnapshot() };
+  }
+
+  const root = path.resolve(wallpapersDir);
+  const folder = path.resolve(item.folderPath);
+  if (path.dirname(folder) !== root || path.basename(folder) !== item.id) {
+    return { ok: false, error: '这个壁纸目录不在壁纸库内，已取消删除。', state: stateSnapshot() };
+  }
+
+  if (previewItemId === id) closePreview();
+
+  const wasCurrent = currentId === id;
+  if (wasCurrent) {
+    await stopWallpaper();
+  }
+
+  try {
+    await shell.trashItem(folder);
+  } catch (error) {
+    if (wasCurrent) {
+      try {
+        await applyWallpaper(id);
+      } catch {}
+    }
+    return {
+      ok: false,
+      error: '无法删除壁纸文件夹：' + (error.message || String(error)),
+      state: stateSnapshot(),
+    };
+  }
+
+  // A deleted built-in wallpaper must not be re-copied on the next launch.
+  if (isBundledWallpaper(id)) {
+    const removed = new Set(Array.isArray(config.get('removedBundled')) ? config.get('removedBundled') : []);
+    removed.add(id);
+    config.set('removedBundled', Array.from(removed));
+  }
+
+  scan(false);
+  broadcast();
+  return { ok: true, state: stateSnapshot(), title: item.title };
+}
+
 function startWatcher() {
   try {
     watcher = fs.watch(wallpapersDir, { recursive: true }, () => {
@@ -591,8 +674,149 @@ function closePreview() {
   }
 }
 
+function sendUpdateState(snapshot) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.webContents.send('update:state', snapshot);
+  } catch {}
+}
+
+async function prepareForUpdateInstall() {
+  // Skip the normal async before-quit dance: quitAndInstall() is about to call
+  // app.quit() and the installer must be able to overwrite the exe immediately.
+  shuttingDown = true;
+  isQuitting = true;
+  await cleanup();
+}
+
+function clearUpdateSchedule() {
+  if (updateTimer) {
+    clearTimeout(updateTimer);
+    updateTimer = null;
+  }
+  if (updateInterval) {
+    clearInterval(updateInterval);
+    updateInterval = null;
+  }
+}
+
+function scheduleAutoUpdateCheck() {
+  clearUpdateSchedule();
+  if (!updater || !config || config.get('autoCheckUpdates') === false) return;
+  updateTimer = setTimeout(() => {
+    updateTimer = null;
+    if (updater) updater.check({ manual: false }).catch(() => {});
+    updateInterval = setInterval(() => {
+      if (updater && config.get('autoCheckUpdates') !== false) {
+        updater.check({ manual: false }).catch(() => {});
+      }
+    }, UPDATE_CHECK_INTERVAL);
+  }, 8000);
+}
+
+async function getOnlineCatalog(force = false) {
+  const fresh = onlineCatalogCache && Date.now() - onlineCatalogFetchedAt < CATALOG_CACHE_TTL;
+  if (!force && fresh) {
+    return {
+      ...onlineCatalogCache,
+      fetchedAt: onlineCatalogFetchedAt,
+      cached: true,
+      stale: false,
+    };
+  }
+  if (onlineCatalogPromise) return onlineCatalogPromise;
+
+  onlineCatalogPromise = (async () => {
+    try {
+      const catalog = await fetchOnlineCatalog((url, options) => net.fetch(url, options));
+      onlineCatalogCache = catalog;
+      onlineCatalogFetchedAt = Date.now();
+      return { ...catalog, fetchedAt: onlineCatalogFetchedAt, cached: false, stale: false };
+    } catch (error) {
+      if (onlineCatalogCache) {
+        return {
+          ...onlineCatalogCache,
+          fetchedAt: onlineCatalogFetchedAt,
+          cached: true,
+          stale: true,
+          warning: error.message || String(error),
+        };
+      }
+      throw error;
+    }
+  })();
+
+  try {
+    return await onlineCatalogPromise;
+  } finally {
+    onlineCatalogPromise = null;
+  }
+}
+
+async function downloadOnlineWallpaper(id) {
+  if (typeof id !== 'string' || !id) {
+    return { ok: false, error: '无效的在线壁纸 ID。', state: stateSnapshot() };
+  }
+  if (onlineDownloadJobs.has(id)) return onlineDownloadJobs.get(id);
+
+  const job = (async () => {
+    try {
+      const catalog = onlineCatalogCache || (await getOnlineCatalog(false));
+      const item = catalog.items.find((entry) => entry.id === id);
+      if (!item) {
+        return { ok: false, error: '在线壁纸不存在，可能已经从壁纸馆移除。', state: stateSnapshot() };
+      }
+
+      const result = await installOnlineWallpaper(item, {
+        rootDir: wallpapersDir,
+        fetchImpl: (url, options) => net.fetch(url, options),
+      });
+      scan(true);
+      return {
+        ok: true,
+        localId: result.localId,
+        already: result.already,
+        item,
+        state: stateSnapshot(),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error.message || String(error),
+        state: stateSnapshot(),
+      };
+    }
+  })();
+
+  onlineDownloadJobs.set(id, job);
+  try {
+    return await job;
+  } finally {
+    onlineDownloadJobs.delete(id);
+  }
+}
+
 function registerIpc() {
   ipcMain.handle('app:get-state', () => stateSnapshot());
+
+  ipcMain.handle('online:get-catalog', async (event, options = {}) => {
+    try {
+      const catalog = await getOnlineCatalog(Boolean(options && options.force));
+      return { ok: true, ...catalog };
+    } catch (error) {
+      let fallbackSiteUrl = '';
+      try {
+        fallbackSiteUrl = getOnlineSiteUrl();
+      } catch {}
+      return {
+        ok: false,
+        error: error.message || String(error),
+        siteUrl: fallbackSiteUrl,
+      };
+    }
+  });
+
+  ipcMain.handle('online:download', async (event, id) => downloadOnlineWallpaper(id));
 
   ipcMain.handle('wallpapers:refresh', () => {
     scan(true);
@@ -605,6 +829,8 @@ function registerIpc() {
   });
 
   ipcMain.handle('wallpapers:stop', async () => stopWallpaper());
+
+  ipcMain.handle('wallpapers:delete', (event, id) => deleteWallpaper(id));
 
   ipcMain.handle('wallpapers:preview', (event, id) => {
     if (typeof id !== 'string') return { ok: false, error: '无效的壁纸 ID。' };
@@ -648,6 +874,37 @@ function registerIpc() {
     return { ok: true };
   });
 
+  ipcMain.handle('app:open-external', async (event, url) => {
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      return { ok: false, error: '只能打开 http/https 链接。' };
+    }
+    try {
+      await shell.openExternal(url);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('update:get-state', () => (updater ? updater.snapshot() : null));
+  ipcMain.handle('update:check', () => (updater ? updater.check({ manual: true }) : null));
+  ipcMain.handle('update:install', () => (updater ? updater.install() : { ok: false, error: '更新器尚未就绪。' }));
+  ipcMain.handle('update:open-release', async (event, url) => {
+    if (updater) return updater.openReleasePage(url);
+    try {
+      await shell.openExternal(RELEASES_URL);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  });
+  ipcMain.handle('update:set-auto-check', (event, enabled) => {
+    if (!updater) return { ok: false, state: null };
+    const snapshot = updater.setAutoCheck(Boolean(enabled));
+    scheduleAutoUpdateCheck();
+    return { ok: true, state: snapshot };
+  });
+
   ipcMain.handle('window:minimize', () => mainWindow && mainWindow.minimize());
   ipcMain.handle('window:toggle-maximize', () => {
     if (!mainWindow) return false;
@@ -664,6 +921,11 @@ function registerIpc() {
 async function cleanup() {
   stopWatcher();
   closePreview();
+  clearUpdateSchedule();
+  if (displayTimer) {
+    clearTimeout(displayTimer);
+    displayTimer = null;
+  }
   if (restartTimer) {
     clearTimeout(restartTimer);
     restartTimer = null;
@@ -708,6 +970,8 @@ app.whenReady().then(async () => {
   config = new ConfigStore(path.join(app.getPath('userData'), 'config.json'), {
     current: null,
     windowBounds: null,
+    autoCheckUpdates: true,
+    removedBundled: [],
   });
   wallpapersDir = wallpapersDirectory();
   scan(false);
@@ -722,10 +986,16 @@ app.whenReady().then(async () => {
   }
 
   host = createHost();
+  updater = createUpdater({
+    config,
+    onState: sendUpdateState,
+    onBeforeInstall: prepareForUpdateInstall,
+  });
   registerIpc();
   createMainWindow();
   createTray();
   startWatcher();
+  scheduleAutoUpdateCheck();
 
   screen.on('display-metrics-changed', scheduleDisplayRestart);
   screen.on('display-added', scheduleDisplayRestart);

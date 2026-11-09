@@ -163,14 +163,16 @@ function scanWallpapers(rootDir) {
   return { wallpapers, problems };
 }
 
-function seedWallpapers(targetDir, bundledDir) {
+function seedWallpapers(targetDir, bundledDir, skipIds = []) {
   if (!bundledDir || path.resolve(targetDir) === path.resolve(bundledDir)) return;
+  const skip = new Set(Array.isArray(skipIds) ? skipIds.filter((id) => typeof id === 'string') : []);
   try {
     fs.mkdirSync(targetDir, { recursive: true });
     if (!fs.existsSync(bundledDir)) return;
     const entries = fs.readdirSync(bundledDir, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      if (skip.has(entry.name)) continue;
       const destination = path.join(targetDir, entry.name);
       if (!fs.existsSync(destination)) {
         fs.cpSync(path.join(bundledDir, entry.name), destination, { recursive: true });

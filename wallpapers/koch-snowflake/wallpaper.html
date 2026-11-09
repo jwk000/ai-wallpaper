@@ -1,0 +1,1338 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#030b0f">
+<title>科赫雪花 · Koch Snowflake</title>
+<style>
+  :root {
+    --ice: #e8fdff;
+    --ice-soft: rgba(221, 249, 253, 0.74);
+    --muted: rgba(199, 235, 241, 0.46);
+    --faint: rgba(199, 235, 241, 0.19);
+    --ghost: rgba(199, 235, 241, 0.10);
+    --accent: #93f1ff;
+    --mint: #8fffd8;
+    --gold: #f0d7a1;
+    --line: rgba(157, 226, 236, 0.15);
+    --pad: clamp(22px, 3.4vw, 56px);
+    --mono: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --sans: "Helvetica Neue", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #030b0f;
+  }
+
+  body {
+    position: relative;
+    color: var(--ice);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+    user-select: none;
+    cursor: default;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* atmosphere                                                          */
+  /* ------------------------------------------------------------------ */
+
+  .sky {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 116% 92% at 60% 42%, rgba(15, 55, 66, 0.76) 0%, rgba(6, 22, 28, 0.58) 42%, rgba(3, 11, 15, 0) 73%),
+      radial-gradient(ellipse 88% 82% at 12% 96%, rgba(6, 33, 36, 0.82) 0%, rgba(3, 14, 17, 0.24) 48%, rgba(3, 11, 15, 0) 72%),
+      radial-gradient(ellipse 74% 64% at 100% 4%, rgba(20, 43, 58, 0.42) 0%, rgba(3, 11, 15, 0) 66%),
+      linear-gradient(148deg, #030b0f 0%, #06151b 46%, #02080b 100%);
+  }
+
+  .aura {
+    position: fixed;
+    z-index: 0;
+    pointer-events: none;
+    border-radius: 50%;
+    will-change: transform;
+  }
+
+  .aura-a {
+    left: 26%;
+    top: -38%;
+    width: 106vmax;
+    height: 106vmax;
+    background: radial-gradient(circle, rgba(60, 170, 190, 0.09) 0%, rgba(23, 92, 108, 0.035) 36%, rgba(3, 11, 15, 0) 66%);
+    animation: aura-a 46s cubic-bezier(.45, 0, .55, 1) infinite alternate;
+  }
+
+  .aura-b {
+    left: -32%;
+    bottom: -46%;
+    width: 96vmax;
+    height: 96vmax;
+    background: radial-gradient(circle, rgba(42, 126, 112, 0.075) 0%, rgba(14, 62, 62, 0.025) 40%, rgba(3, 11, 15, 0) 68%);
+    animation: aura-b 58s cubic-bezier(.45, 0, .55, 1) infinite alternate;
+  }
+
+  .aura-c {
+    right: -30%;
+    top: 22%;
+    width: 64vmax;
+    height: 64vmax;
+    background: radial-gradient(circle, rgba(95, 137, 180, 0.045) 0%, rgba(3, 11, 15, 0) 64%);
+    animation: aura-c 39s cubic-bezier(.45, 0, .55, 1) infinite alternate;
+  }
+
+  @keyframes aura-a {
+    from { transform: translate3d(-2.4%, -1.2%, 0) scale(0.94); }
+    to   { transform: translate3d(2.8%, 2.4%, 0) scale(1.06); }
+  }
+
+  @keyframes aura-b {
+    from { transform: translate3d(1.2%, 2.2%, 0) scale(1.02); }
+    to   { transform: translate3d(-3.2%, -1.8%, 0) scale(0.92); }
+  }
+
+  @keyframes aura-c {
+    from { transform: translate3d(2%, -1.6%, 0) scale(0.96); }
+    to   { transform: translate3d(-2.4%, 2.8%, 0) scale(1.05); }
+  }
+
+  .vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 70% 62% at 55% 48%, transparent 34%, rgba(1, 6, 8, 0.16) 66%, rgba(1, 5, 7, 0.54) 100%),
+      linear-gradient(180deg, rgba(1, 5, 7, 0.34) 0%, transparent 15%, transparent 76%, rgba(1, 5, 7, 0.48) 100%);
+  }
+
+  .grain {
+    position: fixed;
+    inset: -35%;
+    z-index: 3;
+    pointer-events: none;
+    opacity: 0.042;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
+    animation: grain-shift 1.8s steps(2) infinite;
+  }
+
+  @keyframes grain-shift {
+    0%   { transform: translate3d(0, 0, 0); }
+    25%  { transform: translate3d(-1.1%, 0.7%, 0); }
+    50%  { transform: translate3d(0.8%, -1%, 0); }
+    75%  { transform: translate3d(-0.4%, -0.6%, 0); }
+    100% { transform: translate3d(0, 0, 0); }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* canvas                                                              */
+  /* ------------------------------------------------------------------ */
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: block;
+    opacity: 0;
+    transition: opacity 2.6s cubic-bezier(.22, 1, .36, 1);
+    pointer-events: none;
+  }
+
+  body.ready #scene { opacity: 1; }
+
+  /* ------------------------------------------------------------------ */
+  /* shared interface                                                    */
+  /* ------------------------------------------------------------------ */
+
+  .hud {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 1.4s ease, transform 1.4s cubic-bezier(.22, 1, .36, 1);
+  }
+
+  body.ready .hud {
+    opacity: 1;
+    transform: none;
+  }
+
+  .masthead {
+    position: absolute;
+    top: var(--pad);
+    left: var(--pad);
+    right: var(--pad);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 9px;
+    line-height: 1;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-shadow: 0 1px 12px rgba(0, 0, 0, 0.7);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 1px;
+  }
+
+  .brand-line {
+    width: 26px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(147, 241, 255, 0.82), rgba(147, 241, 255, 0.05));
+  }
+
+  .brand-num {
+    display: inline-flex;
+    align-items: center;
+    height: 15px;
+    padding: 0 5px;
+    border: 1px solid rgba(147, 241, 255, 0.2);
+    color: rgba(218, 252, 255, 0.62);
+    font-size: 8px;
+    letter-spacing: 0.08em;
+  }
+
+  .status {
+    min-width: 172px;
+    text-align: right;
+  }
+
+  .status-line {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 9px;
+    color: rgba(220, 250, 255, 0.7);
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    transition: color 1s ease;
+  }
+
+  .status-dot {
+    width: 4px;
+    height: 4px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--mint);
+    box-shadow: 0 0 12px rgba(143, 255, 216, 0.9);
+    animation: pulse 3.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.32; transform: scale(0.72); }
+    50%      { opacity: 1; transform: scale(1); }
+  }
+
+  .status-zh {
+    margin-top: 8px;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 9px;
+    line-height: 1;
+    letter-spacing: 0.32em;
+    transition: color 1s ease;
+  }
+
+  body.is-apex .status-line { color: var(--gold); }
+  body.is-apex .status-dot {
+    background: var(--gold);
+    box-shadow: 0 0 14px rgba(240, 215, 161, 0.9);
+  }
+  body.is-apex .status-zh { color: rgba(240, 215, 161, 0.72); }
+
+  body.is-restoring .status-dot {
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(147, 241, 255, 0.85);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* identity — lower left                                               */
+  /* ------------------------------------------------------------------ */
+
+  .identity {
+    position: absolute;
+    left: var(--pad);
+    bottom: clamp(48px, 8.6vh, 104px);
+    width: min(460px, 38vw);
+  }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 8px;
+    line-height: 1;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 28px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent), rgba(147, 241, 255, 0));
+    opacity: 0.7;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(52px, 5.55vw, 94px);
+    font-weight: 200;
+    line-height: 0.96;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+    color: #effeff;
+    text-shadow:
+      0 0 42px rgba(147, 241, 255, 0.12),
+      0 2px 34px rgba(0, 0, 0, 0.55);
+  }
+
+  .title-en {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    margin-top: 15px;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: clamp(8px, 0.72vw, 10px);
+    line-height: 1.4;
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+  }
+
+  .title-en::after {
+    content: "";
+    width: 36px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(147, 241, 255, 0.34), rgba(147, 241, 255, 0));
+  }
+
+  .note {
+    max-width: 310px;
+    margin: 24px 0 0;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 300;
+    line-height: 2.05;
+    letter-spacing: 0.09em;
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.6);
+  }
+
+  .note b {
+    color: rgba(226, 251, 255, 0.8);
+    font-weight: 400;
+  }
+
+  .meta-tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 17px;
+    margin-top: 22px;
+    padding-top: 13px;
+    border-top: 1px solid var(--ghost);
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 8px;
+    line-height: 1.4;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .meta-tags span + span::before {
+    content: "·";
+    margin-right: 17px;
+    color: rgba(147, 241, 255, 0.28);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* recursion metrics — lower right                                     */
+  /* ------------------------------------------------------------------ */
+
+  .metrics {
+    position: absolute;
+    right: var(--pad);
+    bottom: clamp(48px, 8.6vh, 104px);
+    width: clamp(228px, 18.2vw, 286px);
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.7);
+  }
+
+  .metrics-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 8px;
+    line-height: 1;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .metrics-head span:last-child {
+    color: var(--faint);
+    letter-spacing: 0.13em;
+  }
+
+  .depth {
+    display: flex;
+    align-items: flex-end;
+    gap: 9px;
+    margin-top: 10px;
+    height: 54px;
+  }
+
+  .depth-value {
+    display: inline-block;
+    color: var(--ice);
+    font-family: var(--mono);
+    font-size: 48px;
+    font-weight: 300;
+    line-height: 0.92;
+    letter-spacing: -0.055em;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.8s ease, text-shadow 0.8s ease;
+  }
+
+  .depth-total {
+    padding-bottom: 5px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+  }
+
+  .depth-total i {
+    margin-right: 2px;
+    color: var(--faint);
+    font-style: normal;
+  }
+
+  .depth-value.tick {
+    animation: depth-tick 0.72s cubic-bezier(.2, .8, .2, 1);
+  }
+
+  @keyframes depth-tick {
+    0%   { opacity: 0.32; transform: translateY(5px); filter: blur(1px); }
+    100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  }
+
+  .ladder {
+    display: flex;
+    gap: 4px;
+    height: 2px;
+    margin: 13px 0 17px;
+  }
+
+  .ladder i {
+    flex: 1 1 0;
+    height: 2px;
+    background: rgba(170, 230, 240, 0.10);
+    transition: background 0.7s ease, box-shadow 0.7s ease, opacity 0.7s ease;
+  }
+
+  .ladder i.on {
+    background: rgba(147, 241, 255, 0.52);
+    box-shadow: 0 0 8px rgba(147, 241, 255, 0.22);
+  }
+
+  .ladder i.current {
+    background: var(--ice);
+    box-shadow: 0 0 12px rgba(147, 241, 255, 0.6);
+  }
+
+  .metrics.reached .ladder i.on {
+    background: rgba(240, 215, 161, 0.62);
+    box-shadow: 0 0 9px rgba(240, 215, 161, 0.2);
+  }
+
+  .metrics.reached .ladder i.current {
+    background: var(--gold);
+    box-shadow: 0 0 14px rgba(240, 215, 161, 0.62);
+  }
+
+  .readouts {
+    border-top: 1px solid var(--ghost);
+  }
+
+  .readout {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0 8px;
+    border-bottom: 1px solid var(--ghost);
+  }
+
+  .readout-label {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 300;
+    letter-spacing: 0.16em;
+    white-space: nowrap;
+  }
+
+  .readout-value {
+    color: rgba(229, 253, 255, 0.86);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    transition: color 0.8s ease;
+  }
+
+  .readout-value em {
+    margin-left: 3px;
+    color: var(--faint);
+    font-family: var(--sans);
+    font-size: 8px;
+    font-style: normal;
+    letter-spacing: 0.06em;
+  }
+
+  .metrics.reached .readout-value.edge {
+    color: var(--gold);
+    text-shadow: 0 0 14px rgba(240, 215, 161, 0.24);
+  }
+
+  .threshold {
+    margin-top: 15px;
+  }
+
+  .threshold-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 7px;
+    line-height: 1;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .threshold-head span:last-child {
+    color: rgba(199, 235, 241, 0.38);
+    transition: color 0.7s ease;
+  }
+
+  .metrics.reached .threshold-head span:last-child {
+    color: var(--gold);
+  }
+
+  .threshold-track {
+    position: relative;
+    height: 2px;
+    margin-top: 8px;
+    background: rgba(170, 230, 240, 0.08);
+    overflow: hidden;
+  }
+
+  .threshold-fill {
+    display: block;
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(147, 241, 255, 0.16), rgba(147, 241, 255, 0.76));
+    box-shadow: 0 0 12px rgba(147, 241, 255, 0.35);
+    transition: width 0.9s cubic-bezier(.22, 1, .36, 1), background 0.8s ease;
+  }
+
+  .metrics.reached .threshold-fill {
+    background: linear-gradient(90deg, rgba(240, 215, 161, 0.18), rgba(240, 215, 161, 0.92));
+    box-shadow: 0 0 14px rgba(240, 215, 161, 0.4);
+  }
+
+  .threshold-notch {
+    position: absolute;
+    top: -3px;
+    right: 0;
+    width: 1px;
+    height: 8px;
+    background: rgba(240, 215, 161, 0.52);
+  }
+
+  .formula {
+    margin-top: 12px;
+    color: rgba(199, 235, 241, 0.24);
+    font-family: var(--mono);
+    font-size: 7px;
+    line-height: 1.5;
+    letter-spacing: 0.12em;
+    text-align: right;
+  }
+
+  .formula sup {
+    font-size: 6px;
+    vertical-align: super;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* responsive                                                          */
+  /* ------------------------------------------------------------------ */
+
+  @media (max-width: 1120px) {
+    .identity { width: min(400px, 42vw); }
+    .note { display: none; }
+    .metrics { width: 220px; }
+    .meta-tags { margin-top: 18px; }
+  }
+
+  @media (max-width: 820px), (max-height: 560px) {
+    .metrics { display: none; }
+    .meta-tags { display: none; }
+    .identity { width: 60vw; }
+    h1 { font-size: clamp(44px, 9vw, 70px); }
+  }
+
+  @media (max-width: 560px) {
+    .status { min-width: 0; }
+    .status-zh { display: none; }
+    .brand span:nth-child(2) { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="sky" aria-hidden="true"></div>
+  <div class="aura aura-a" aria-hidden="true"></div>
+  <div class="aura aura-b" aria-hidden="true"></div>
+  <div class="aura aura-c" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <canvas id="scene" aria-hidden="true"></canvas>
+
+  <div class="hud">
+    <header class="masthead">
+      <div class="brand">
+        <span class="brand-line"></span>
+        <span>LUMEN · 分形档案</span>
+        <span class="brand-num">08</span>
+      </div>
+      <div class="status" aria-live="off">
+        <div class="status-line">
+          <span class="status-dot"></span>
+          <span id="phase-en">CONSTRUCTING</span>
+        </div>
+        <div class="status-zh" id="phase-zh">分形构造</div>
+      </div>
+    </header>
+
+    <section class="identity">
+      <div class="eyebrow">1904 · HELGE VON KOCH</div>
+      <h1>科赫雪花</h1>
+      <div class="title-en">KOCH SNOWFLAKE</div>
+      <p class="note">
+        每条边在三分之一处折起，一分为四。轮廓越折越长，也越折越细，直到最短的折线不足一个屏幕像素；然后，雪沿着折痕<b>一层层退回</b>最初的三角形。
+      </p>
+      <div class="meta-tags">
+        <span>CANVAS 2D</span>
+        <span>递归分形</span>
+        <span>无限循环</span>
+      </div>
+    </section>
+
+    <aside class="metrics" id="metrics" aria-label="科赫雪花递归参数">
+      <div class="metrics-head">
+        <span>递归层级</span>
+        <span>RECURSION DEPTH</span>
+      </div>
+      <div class="depth">
+        <span class="depth-value" id="depth-value">00</span>
+        <span class="depth-total"><i>/</i><span id="depth-total">06</span></span>
+      </div>
+      <div class="ladder" id="ladder" aria-hidden="true"></div>
+      <div class="readouts">
+        <div class="readout">
+          <span class="readout-label">最小折线</span>
+          <span class="readout-value edge"><span id="min-edge">615.00</span><em>px</em></span>
+        </div>
+        <div class="readout">
+          <span class="readout-label">折线段数</span>
+          <span class="readout-value" id="segments">3</span>
+        </div>
+      </div>
+      <div class="threshold">
+        <div class="threshold-head">
+          <span>像素极限 / 1 PX</span>
+          <span id="threshold-state">未抵达</span>
+        </div>
+        <div class="threshold-track">
+          <span class="threshold-fill" id="threshold-fill"></span>
+          <i class="threshold-notch"></i>
+        </div>
+      </div>
+      <div class="formula">min edge = side / 3<sup>n</sup></div>
+    </aside>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  const TAU = Math.PI * 2;
+  const ROOT3 = Math.sqrt(3);
+  const NORMAL = ROOT3 / 6;
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+
+  const els = {
+    body: document.body,
+    metrics: document.getElementById('metrics'),
+    depth: document.getElementById('depth-value'),
+    depthTotal: document.getElementById('depth-total'),
+    ladder: document.getElementById('ladder'),
+    minEdge: document.getElementById('min-edge'),
+    segments: document.getElementById('segments'),
+    thresholdState: document.getElementById('threshold-state'),
+    thresholdFill: document.getElementById('threshold-fill'),
+    phaseEn: document.getElementById('phase-en'),
+    phaseZh: document.getElementById('phase-zh')
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* deterministic dust                                                  */
+  /* ------------------------------------------------------------------ */
+
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  const dustRand = mulberry32(0x9e3779b9);
+  const dust = Array.from({ length: 92 }, () => {
+    const warm = dustRand() < 0.14;
+    return {
+      x: dustRand(),
+      y: dustRand(),
+      r: 0.35 + dustRand() * 1.05,
+      phase: dustRand() * TAU,
+      speed: 0.08 + dustRand() * 0.34,
+      drift: 2 + dustRand() * 11,
+      alpha: 0.06 + dustRand() * 0.24,
+      warm
+    };
+  });
+
+  const layout = {
+    width: 0,
+    height: 0,
+    dpr: 1,
+    dprFull: 1,
+    cx: 0,
+    cy: 0,
+    radius: 0,
+    side: 0,
+    maxLevel: 6,
+    geometries: [],
+    paths: [],
+    phases: [],
+    cycle: 0
+  };
+
+  const ui = {
+    level: -1,
+    phase: '',
+    maxLevel: -1,
+    reached: null,
+    ladderLevel: -1,
+    edge: '',
+    segments: ''
+  };
+
+  let elapsed = 0;
+  let warm = 0;
+  let paused = false;
+  let lastFrame = 0;
+  let ready = false;
+
+  const PHASES = {
+    origin: { en: 'ORIGIN', zh: '初始三角形' },
+    grow: { en: 'CONSTRUCTING', zh: '分形构造' },
+    fold: { en: 'FOLDING', zh: '连续折叠' },
+    apex: { en: 'PIXEL FLOOR', zh: '像素极限' },
+    restore: { en: 'RESTORING', zh: '逐层还原' },
+    unfold: { en: 'UNFOLDING', zh: '连续展开' }
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* geometry                                                            */
+  /* ------------------------------------------------------------------ */
+
+  function triangle(R) {
+    const angles = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6];
+    const out = new Float64Array(6);
+    for (let i = 0; i < 3; i++) {
+      out[i * 2] = Math.cos(angles[i]) * R;
+      out[i * 2 + 1] = Math.sin(angles[i]) * R;
+    }
+    return out;
+  }
+
+  function subdivide(prev) {
+    const segments = prev.length / 2;
+    const out = new Float64Array(segments * 8);
+    let o = 0;
+
+    for (let i = 0; i < segments; i++) {
+      const j = (i + 1) % segments;
+      const ax = prev[i * 2];
+      const ay = prev[i * 2 + 1];
+      const bx = prev[j * 2];
+      const by = prev[j * 2 + 1];
+      const dx = bx - ax;
+      const dy = by - ay;
+
+      out[o++] = ax + dx / 3;
+      out[o++] = ay + dy / 3;
+      out[o++] = ax + dx * 0.5 + dy * NORMAL;
+      out[o++] = ay + dy * 0.5 - dx * NORMAL;
+      out[o++] = ax + dx * (2 / 3);
+      out[o++] = ay + dy * (2 / 3);
+      out[o++] = bx;
+      out[o++] = by;
+    }
+
+    return out;
+  }
+
+  function pathFrom(geo) {
+    const path = new Path2D();
+    path.moveTo(geo[0], geo[1]);
+    for (let i = 2; i < geo.length; i += 2) {
+      path.lineTo(geo[i], geo[i + 1]);
+    }
+    path.closePath();
+    return path;
+  }
+
+  function traceMorph(geo, t) {
+    const segments = geo.length / 2;
+    const lift = NORMAL * t;
+    ctx.beginPath();
+    ctx.moveTo(geo[0], geo[1]);
+
+    for (let i = 0; i < segments; i++) {
+      const j = (i + 1) % segments;
+      const ax = geo[i * 2];
+      const ay = geo[i * 2 + 1];
+      const bx = geo[j * 2];
+      const by = geo[j * 2 + 1];
+      const dx = bx - ax;
+      const dy = by - ay;
+
+      ctx.lineTo(ax + dx / 3, ay + dy / 3);
+      ctx.lineTo(ax + dx * 0.5 + dy * lift, ay + dy * 0.5 - dx * lift);
+      ctx.lineTo(ax + dx * (2 / 3), ay + dy * (2 / 3));
+      ctx.lineTo(bx, by);
+    }
+
+    ctx.closePath();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* timeline                                                            */
+  /* ------------------------------------------------------------------ */
+
+  function buildTimeline(maxLevel) {
+    const phases = [];
+    let cursor = 0;
+
+    function add(kind, duration, data) {
+      phases.push(Object.assign({ kind, duration, start: cursor }, data));
+      cursor += duration;
+    }
+
+    add('origin', 2.8, { level: 0 });
+
+    for (let n = 0; n < maxLevel; n++) {
+      add('fold', 1.5, { from: n, to: n + 1 });
+      if (n < maxLevel - 1) add('grow', 0.7, { level: n + 1 });
+    }
+
+    add('apex', 3.1, { level: maxLevel });
+
+    for (let n = maxLevel; n > 0; n--) {
+      add('restore', 0.5, { level: n });
+      add('unfold', 1.2, { from: n, to: n - 1 });
+    }
+
+    add('origin', 2.8, { level: 0 });
+
+    layout.phases = phases;
+    layout.cycle = cursor;
+  }
+
+  function sampleAt(time) {
+    const cycle = layout.cycle;
+    if (!cycle) {
+      return { kind: 'origin', u: 0, level: 0, from: 0, to: 0, local: 0 };
+    }
+
+    let t = time % cycle;
+    if (t < 0) t += cycle;
+
+    const phases = layout.phases;
+    for (let i = 0; i < phases.length; i++) {
+      const p = phases[i];
+      if (t < p.start + p.duration) {
+        const u = Math.min(1, Math.max(0, (t - p.start) / p.duration));
+        return {
+          kind: p.kind,
+          u,
+          local: t - p.start,
+          level: p.level !== undefined ? p.level : p.from,
+          from: p.from,
+          to: p.to
+        };
+      }
+    }
+
+    return { kind: 'origin', u: 0, level: 0, from: 0, to: 0, local: 0 };
+  }
+
+  function easeInOutCubic(t) {
+    return t < 0.5
+      ? 4 * t * t * t
+      : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function targetWarm(sample) {
+    if (sample.kind === 'apex') return 1;
+    if (sample.kind === 'restore' || sample.kind === 'unfold') return 0.16;
+    return 0;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* layout                                                              */
+  /* ------------------------------------------------------------------ */
+
+  function buildLadder() {
+    els.ladder.innerHTML = '';
+    for (let i = 0; i <= layout.maxLevel; i++) {
+      const tick = document.createElement('i');
+      tick.dataset.level = String(i);
+      els.ladder.appendChild(tick);
+    }
+    ui.ladderLevel = -1;
+  }
+
+  function rebuildGeometry() {
+    const geometries = [triangle(layout.radius)];
+    for (let i = 1; i <= layout.maxLevel; i++) {
+      geometries.push(subdivide(geometries[i - 1]));
+    }
+    layout.geometries = geometries;
+    layout.paths = geometries.map(pathFrom);
+  }
+
+  function resize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const dprFull = window.devicePixelRatio || 1;
+    const dpr = Math.min(dprFull, 2);
+
+    layout.width = width;
+    layout.height = height;
+    layout.dpr = dpr;
+    layout.dprFull = dprFull;
+
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(height * dpr));
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+
+    const wide = width / height > 1.35;
+    layout.cx = width * (wide && width >= 1100 ? 0.55 : 0.5);
+    layout.cy = height * 0.5;
+    layout.radius = Math.min(height * 0.355, width * (wide ? 0.30 : 0.31));
+    if (width < 1120) layout.radius *= 0.9;
+    layout.side = layout.radius * ROOT3;
+
+    let maxLevel = 0;
+    while (maxLevel < 8 && (layout.side * dprFull) / Math.pow(3, maxLevel) >= 1) {
+      maxLevel++;
+    }
+    layout.maxLevel = Math.max(1, maxLevel);
+
+    rebuildGeometry();
+    buildTimeline(layout.maxLevel);
+    buildLadder();
+
+    if (elapsed >= layout.cycle) elapsed %= layout.cycle;
+    ui.maxLevel = -1;
+    ui.level = -1;
+    updateInterface(sampleAt(elapsed));
+    draw();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* interface                                                           */
+  /* ------------------------------------------------------------------ */
+
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function edgeAt(level) {
+    return (layout.side * layout.dprFull) / Math.pow(3, level);
+  }
+
+  function updateInterface(sample) {
+    const level = sample.level;
+    const maxLevel = layout.maxLevel;
+    const edge = edgeAt(level);
+    const reached = edge < 1;
+    const info = PHASES[sample.kind] || PHASES.origin;
+
+    if (ui.maxLevel !== maxLevel) {
+      els.depthTotal.textContent = pad2(maxLevel);
+      ui.maxLevel = maxLevel;
+    }
+
+    if (ui.level !== level) {
+      els.depth.textContent = pad2(level);
+      els.depth.classList.remove('tick');
+      void els.depth.offsetWidth;
+      els.depth.classList.add('tick');
+      ui.level = level;
+    }
+
+    if (ui.phase !== sample.kind) {
+      els.phaseEn.textContent = info.en;
+      els.phaseZh.textContent = info.zh;
+      els.body.classList.toggle('is-apex', sample.kind === 'apex');
+      els.body.classList.toggle('is-restoring', sample.kind === 'restore' || sample.kind === 'unfold');
+      ui.phase = sample.kind;
+    }
+
+    if (ui.reached !== reached) {
+      els.metrics.classList.toggle('reached', reached);
+      els.thresholdState.textContent = reached ? '低于 1 PX' : '未抵达';
+      ui.reached = reached;
+    }
+
+    if (ui.ladderLevel !== level) {
+      const ticks = els.ladder.children;
+      for (let i = 0; i < ticks.length; i++) {
+        ticks[i].classList.toggle('on', i <= level);
+        ticks[i].classList.toggle('current', i === level);
+      }
+      els.thresholdFill.style.width = ((level / maxLevel) * 100).toFixed(2) + '%';
+      ui.ladderLevel = level;
+    }
+
+    const edgeText = edge >= 100 ? edge.toFixed(1) : edge.toFixed(2);
+    if (ui.edge !== edgeText) {
+      els.minEdge.textContent = edgeText;
+      ui.edge = edgeText;
+    }
+
+    const segmentCount = 3 * Math.pow(4, level);
+    const segmentText = segmentCount.toLocaleString('en-US');
+    if (ui.segments !== segmentText) {
+      els.segments.textContent = segmentText;
+      ui.segments = segmentText;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* painting                                                            */
+  /* ------------------------------------------------------------------ */
+
+  function paintAtmosphere(time, sample) {
+    const { width, height, cx, cy, radius, dpr } = layout;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const breathe = 0.5 + 0.5 * Math.sin(time * 0.7);
+    const apex = sample.kind === 'apex' ? 1 : 0;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    const halo = ctx.createRadialGradient(cx, cy, radius * 0.04, cx, cy, radius * 1.72);
+    halo.addColorStop(0, 'rgba(110, 238, 246, ' + (0.068 + 0.014 * breathe + 0.028 * warm) + ')');
+    halo.addColorStop(0.30, 'rgba(54, 174, 192, ' + (0.030 + 0.008 * breathe) + ')');
+    halo.addColorStop(0.64, 'rgba(24, 90, 105, 0.014)');
+    halo.addColorStop(1, 'rgba(3, 15, 18, 0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx - radius * 2.1, cy - radius * 2.1, radius * 4.2, radius * 4.2);
+
+    if (apex) {
+      const gold = ctx.createRadialGradient(cx, cy, radius * 0.62, cx, cy, radius * 1.42);
+      gold.addColorStop(0, 'rgba(240, 215, 161, 0)');
+      gold.addColorStop(0.66, 'rgba(240, 215, 161, ' + (0.018 + 0.012 * breathe) + ')');
+      gold.addColorStop(1, 'rgba(240, 215, 161, 0)');
+      ctx.fillStyle = gold;
+      ctx.fillRect(cx - radius * 1.6, cy - radius * 1.6, radius * 3.2, radius * 3.2);
+    }
+
+    ctx.restore();
+  }
+
+  function paintDust(time) {
+    const { width, height } = layout;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let i = 0; i < dust.length; i++) {
+      const p = dust[i];
+      const driftX = Math.sin(time * 0.028 + p.phase) * p.drift;
+      const driftY = Math.cos(time * 0.019 + p.phase * 1.7) * p.drift * 0.62;
+      const x = ((p.x * width + driftX) % width + width) % width;
+      const y = ((p.y * height + driftY) % height + height) % height;
+      const twinkle = 0.55 + 0.45 * Math.sin(time * p.speed + p.phase * 2.3);
+      const alpha = p.alpha * twinkle;
+
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.fillStyle = p.warm ? 'rgba(246, 222, 175, 0.9)' : 'rgba(198, 245, 252, 0.9)';
+      ctx.beginPath();
+      ctx.arc(x, y, p.r, 0, TAU);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  function strokePath(path) {
+    if (path) ctx.stroke(path);
+    else ctx.stroke();
+  }
+
+  function fillPath(path) {
+    if (path) ctx.fill(path);
+    else ctx.fill();
+  }
+
+  function paintSnowflake(time, sample) {
+    const { radius } = layout;
+    const level = sample.level;
+    let path = null;
+
+    ctx.save();
+    ctx.translate(layout.cx, layout.cy + Math.sin(time * 0.23) * 1.2);
+    ctx.rotate(Math.sin(time * 0.055) * 0.017);
+
+    const heartbeat = 0.5 + 0.5 * Math.sin(time * 0.8);
+    const apex = sample.kind === 'apex' ? 1 : 0;
+    const zoom = 1 + 0.0032 * Math.sin(time * 0.44) + 0.0045 * apex * heartbeat;
+    ctx.scale(zoom, zoom);
+
+    if (sample.kind === 'fold') {
+      traceMorph(layout.geometries[sample.from], easeInOutCubic(sample.u));
+    } else if (sample.kind === 'unfold') {
+      traceMorph(layout.geometries[sample.to], 1 - easeInOutCubic(sample.u));
+    } else {
+      path = layout.paths[level];
+    }
+
+    /* translucent body */
+    const body = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 1.02);
+    body.addColorStop(0, 'rgba(88, 196, 211, 0.035)');
+    body.addColorStop(0.54, 'rgba(72, 170, 190, 0.028)');
+    body.addColorStop(0.88, 'rgba(111, 225, 236, 0.018)');
+    body.addColorStop(1, 'rgba(111, 225, 236, 0)');
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = body;
+    fillPath(path);
+
+    /* luminous edge */
+    const pulse = 0.5 + 0.5 * Math.sin(time * 0.92);
+    const coreWidth = Math.max(0.72, 1.7 - level * 0.135);
+
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    ctx.strokeStyle = 'rgba(78, 208, 232, ' + (0.016 + 0.007 * pulse + 0.018 * warm) + ')';
+    ctx.lineWidth = 9.5;
+    strokePath(path);
+
+    ctx.strokeStyle = 'rgba(146, 244, 255, ' + (0.040 + 0.012 * pulse + 0.012 * warm) + ')';
+    ctx.lineWidth = 3.35;
+    strokePath(path);
+
+    if (warm > 0.015) {
+      ctx.strokeStyle = 'rgba(246, 211, 150, ' + (0.055 * warm + 0.022 * warm * pulse) + ')';
+      ctx.lineWidth = 2.2;
+      strokePath(path);
+    }
+
+    const core = ctx.createLinearGradient(0, -radius, 0, radius);
+    core.addColorStop(0, 'rgba(247, 255, 255, ' + (0.92 + 0.06 * pulse).toFixed(3) + ')');
+    core.addColorStop(0.42, 'rgba(203, 250, 255, ' + (0.86 + 0.08 * pulse).toFixed(3) + ')');
+    core.addColorStop(0.78, 'rgba(139, 230, 245, 0.79)');
+    core.addColorStop(1, 'rgba(103, 206, 228, 0.70)');
+    ctx.strokeStyle = core;
+    ctx.lineWidth = coreWidth;
+    strokePath(path);
+
+    /* a slow splinter of light travelling along the curve */
+    const sweep = ((time * 0.041) % 1.55) / 1.55;
+    const span = radius * 2.9;
+    const sx = -radius * 1.45 + sweep * span;
+    const shine = ctx.createLinearGradient(sx - radius * 0.56, -radius * 0.5, sx + radius * 0.56, radius * 0.5);
+    shine.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    shine.addColorStop(0.46, 'rgba(235, 255, 255, 0.02)');
+    shine.addColorStop(0.5, 'rgba(255, 255, 255, 0.22)');
+    shine.addColorStop(0.54, 'rgba(235, 255, 255, 0.02)');
+    shine.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.strokeStyle = shine;
+    ctx.lineWidth = coreWidth * 2.4;
+    strokePath(path);
+
+    /* apex: a single warm breath at the pixel floor */
+    if (apex && warm > 0.02) {
+      const glow = 0.5 + 0.5 * Math.sin(time * 1.7);
+      ctx.strokeStyle = 'rgba(244, 216, 164, ' + (0.055 + 0.05 * glow) * warm + ')';
+      ctx.lineWidth = 5.5;
+      strokePath(path);
+    }
+
+    ctx.restore();
+  }
+
+  function draw() {
+    const sample = sampleAt(elapsed);
+    updateInterface(sample);
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const time = elapsed;
+    paintAtmosphere(time, sample);
+    paintDust(time);
+    paintSnowflake(time, sample);
+
+    if (!ready) {
+      ready = true;
+      requestAnimationFrame(() => els.body.classList.add('ready'));
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* loop                                                                */
+  /* ------------------------------------------------------------------ */
+
+  function frame(now) {
+    if (!lastFrame) lastFrame = now;
+    const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
+    lastFrame = now;
+
+    if (!paused) {
+      elapsed += dt;
+      if (elapsed >= layout.cycle) elapsed %= layout.cycle;
+      const sample = sampleAt(elapsed);
+      warm += (targetWarm(sample) - warm) * Math.min(1, dt * 2.4);
+      draw();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* debug hooks                                                         */
+  /* ------------------------------------------------------------------ */
+
+  window.__KOCH__ = {
+    get ready() { return ready; },
+    read() {
+      const sample = sampleAt(elapsed);
+      return {
+        ready,
+        width: layout.width,
+        height: layout.height,
+        maxLevel: layout.maxLevel,
+        level: sample.level,
+        kind: sample.kind,
+        phaseProgress: sample.u,
+        elapsed: elapsed % (layout.cycle || 1),
+        cycle: layout.cycle,
+        minEdge: edgeAt(sample.level),
+        devicePixelRatio: layout.dprFull,
+        segments: 3 * Math.pow(4, sample.level)
+      };
+    },
+    plan() {
+      return layout.phases.map((p) => ({
+        kind: p.kind,
+        start: p.start,
+        duration: p.duration,
+        level: p.level,
+        from: p.from,
+        to: p.to
+      }));
+    },
+    setTime(seconds) {
+      elapsed = ((seconds % layout.cycle) + layout.cycle) % layout.cycle;
+      const sample = sampleAt(elapsed);
+      warm = targetWarm(sample);
+      draw();
+    },
+    pause(value = true) {
+      paused = !!value;
+      lastFrame = 0;
+    }
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* boot                                                                */
+  /* ------------------------------------------------------------------ */
+
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resize, 100);
+  });
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

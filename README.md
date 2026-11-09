@@ -8,15 +8,61 @@
 
 ---
 
+## 在线壁纸馆（GitHub Pages）
+
+仓库里的 [`site/`](site/) 是一个独立的壁纸发布站：浏览、筛选、收藏、下载原图，以及上传投稿。它使用原生 HTML/CSS/JS，没有构建步骤，可直接由 GitHub Pages 托管。
+
+桌面版官方介绍与下载页也在同一个站点：[`site/app.html`](site/app.html)。它会自动读取最新 GitHub Release、显示 Windows 安装包，并提供仓库入口与 Star 按钮。
+
+![流光壁纸在线壁纸馆](docs/site/desktop.jpg)
+
+- 本地预览：`python -m http.server 4173 -d site`
+- 部署：推送 `main` 后，GitHub Actions 会自动发布 `site/`；首次使用需在 **Settings → Pages → Source** 选择 **GitHub Actions**。
+- 投稿：访客生成 ZIP 投稿包并提交 GitHub Issue；维护者可在「发布设置」中填入 Fine-grained Token 直接发布。
+
+完整说明见 [`site/README.md`](site/README.md)。
+
+### 在引擎里浏览与下载
+
+主窗口新增了「在线壁纸馆」入口。引擎会读取站点发布的 `data/wallpapers.json`，显示远端预览图、作者、标签和尺寸；可以直接查看大图，或下载到本机。
+
+![引擎里的在线壁纸馆](docs/screenshots/online-library.jpg)
+
+下载后会生成一个完全离线的壁纸文件夹：
+
+```text
+wallpapers/online-ink-lotus/
+├─ wallpaper.html   ← 自动生成的全屏图片壁纸
+├─ wallpaper.jpg    ← 下载的原图
+├─ preview.webp     ← 列表预览
+└─ meta.json        ← 标题、作者、来源与授权
+```
+
+之后它就和本机壁纸一样，可以预览、应用、在桌面播放，也可以从回收站删除。
+
+默认站点地址是 `https://jwk000.github.io/ai-wallpaper/`。本地开发或自托管时，可以指定自己的站点根地址：
+
+```powershell
+$env:LUMEN_SITE_URL = "http://127.0.0.1:4173/"
+npm start
+```
+
+> 在线标签按需联网；断网或站点尚未部署时，本地壁纸不受影响，在线区域会给出重试提示。
+
+---
+
 ## 特性
 
 - **壁纸库**：自动扫描壁纸目录，用 `preview.png` 生成预览，读取 HTML `<title>` 或可选的 `meta.json` 作为标题、描述与标签。
+- **在线壁纸馆**：直接浏览托管在 GitHub Pages 上的作品，查看大图、下载到本机；下载后自动生成可离线运行的 HTML 壁纸。
 - **播放预览**：全屏打开壁纸 HTML 的真实效果，`Esc` 退出，预览悬浮条里可以直接「应用壁纸」。
 - **应用到桌面**：替换系统桌面壁纸，关闭壁纸库窗口后仍会在托盘里继续播放。
+- **删除壁纸**：卡片右上角的删除按钮会把壁纸文件夹移到系统回收站；删除正在播放的壁纸会先停止播放并恢复桌面。
+- **自动更新**：通过 GitHub Releases 检查新版本、在后台自动下载、展示更新日志，重启后静默覆盖安装。
 - **自动发现**：往目录里新增一个文件夹，列表会自动刷新；不需要重启引擎。
 - **托盘常驻**：打开壁纸库、停止动态壁纸、退出；关闭主窗口默认收进托盘。
 - **记忆选择**：重启后自动恢复上一次应用的壁纸。
-- **完全本地**：没有网络请求、没有上传、没有外部 CDN；壁纸 HTML 自己就是全部内容。
+- **本地优先**：壁纸运行时没有网络请求，已下载作品离线可用；只有「在线壁纸馆」与「检查更新」会按需访问网络。
 - **跨平台**：Windows 10/11 与 macOS。Windows 使用原生 WebView2 桌面层；macOS 使用 Electron `type: 'desktop'` 窗口。
 
 ### 播放预览
@@ -70,8 +116,8 @@ npm install
 
 构建完成后，Windows 产物会生成在 `dist/` 下：
 
-- 免安装版：`dist/Lumen Wallpaper 1.0.0.exe`
-- 安装版：`dist/Lumen Wallpaper Setup 1.0.0.exe`
+- 免安装版：`dist/Lumen Wallpaper 1.1.0.exe`
+- 安装版：`dist/Lumen Wallpaper Setup 1.1.0.exe`
 
 ### macOS
 
@@ -127,6 +173,50 @@ wallpapers/
 
 如果不想写 `meta.json`，引擎会从 HTML 的 `<title>` 自动提取，例如 `墨荷游鱼 · Ink Lotus Pond` 会拆成标题与副标题。
 
+### 删除壁纸
+
+把鼠标移到任意壁纸卡片上，点击右上角的删除图标，确认后：
+
+- 整个壁纸文件夹会被移到系统回收站，需要时可以从回收站还原。
+- 如果删除的是正在桌面播放的壁纸，引擎会先停止播放并恢复原来的桌面。
+- 删除内置壁纸后，下次启动不会再次自动复制回来（记录在用户配置里）。
+
+---
+
+## 自动更新
+
+引擎内置基于 [electron-updater](https://www.electron.build/auto-update) 的更新器，更新源是 [GitHub Releases](https://github.com/jwk000/ai-wallpaper/releases)：
+
+- 启动 8 秒后自动检查一次，之后每 6 小时检查一次；也可以点击页脚的「检查更新」手动检查。
+- 发现新版本后自动在后台下载，页脚和更新弹窗会实时显示下载进度。
+- 下载完成后点击「重启并安装」，应用会先停止桌面壁纸宿主，再静默运行 NSIS 安装包并自动重新启动，完成覆盖安装。
+- 更新弹窗会展示本次 Release 的更新日志，支持 Markdown 列表、链接与代码；更新日志来自 `CHANGELOG.md`。
+- 可以在更新弹窗底部关闭「启动时自动检查更新」。
+
+**首次从 1.0.0 升级**：1.0.0 还没有更新器，需要手动下载并安装一次 1.1.0；从 1.1.0 开始后续版本才会自动更新。
+
+**免安装版**：portable exe 不支持覆盖安装，只会检查并提示新版本，请下载安装版更新。macOS 自动更新需要签名后的 `.app` 和 zip 产物，目前主要在 Windows 上验证。
+
+### 发布新版本
+
+推送一个 `v*` 标签即可通过 GitHub Actions 自动构建并发布：
+
+1. 在 `CHANGELOG.md` 中新增对应版本的小节，例如 `## [1.2.0] - 2026-12-01`。
+2. 运行 `npm version minor`（或 `patch` / `major`），它会更新 `package.json` 并创建标签。
+3. 推送提交和标签：`git push --follow-tags`。
+4. `.github/workflows/release.yml` 会执行 `npm run build:win -- --publish always`，生成安装包、`latest.yml` 与 blockmap，并发布 GitHub Release。
+
+`release-notes.md` 由 `scripts/release-notes.js` 从 `CHANGELOG.md` 生成，构建时会写进 `latest.yml` 和应用内更新弹窗。本地发布需要 `GH_TOKEN`：
+
+```powershell
+$env:GH_TOKEN = "<具有 repo 权限的 GitHub token>"
+npm run release:win
+```
+
+工作流使用内置 `GITHUB_TOKEN` 与 `contents: write` 权限；打包前会校验标签与 `package.json` 版本一致。
+
+> 本次改动已经把 `package.json` 设为 `1.1.0`。首次发布可直接提交并打标签：`git tag v1.1.0 && git push origin v1.1.0`；之后的版本再使用 `npm version`。
+
 ---
 
 ## 内置壁纸
@@ -135,6 +225,7 @@ wallpapers/
 
 | 目录 | 标题 | 技术 |
 | --- | --- | --- |
+| `mechanical-clock` | 机芯 · Skeleton Clock | Canvas 2D / 陀飞轮 / 月相 / 实时时钟 |
 | `ink-lotus` | 墨荷游鱼 · Ink Lotus Pond | Canvas 2D / 水墨 / Boids |
 | `moonlit-fireworks` | 月夜 · 焰火 · Moonlit Fireworks | Canvas 2D / 粒子 / 夜景 |
 | `liquid-sphere` | 液态球 · Liquid Sphere | WebGL 2 / 流体粒子 |
@@ -143,6 +234,13 @@ wallpapers/
 | `brick-hero` | 积木超人 · Brick Hero | WebGL 2 / 积木 / 夜航 |
 | `ascii-rain` | 数字雨 · ASCII Rain // 3D | WebGL 2 / 3D |
 | `hydrogen` | 热核 · HYDROGEN | WebGL 2 / 粒子 / 核爆 |
+| `hilbert-curve` | 希尔伯特曲线 · Hilbert Curve 3D | WebGL 2 / 3D / HSV / 逐段分形 |
+| `nacre-mandelbrot` | 螺钿 · Nacre Mandelbrot | WebGL 2 / Mandelbrot / 无限缩放 / 贝壳纹理 |
+| `koch-snowflake` | 科赫雪花 · Koch Snowflake | Canvas 2D / 递归分形 / 连续折叠 |
+
+`nacre-mandelbrot` 把 Mandelbrot 边界渲染成珠母层：迭代次数生成生长纹，距离场生成浮雕与虹彩，镜头用 210 秒从全集飞入海马谷，放大到约 `1.4×10^8` 倍后以珠光淡出循环。
+
+`koch-snowflake` 从等边三角形开始，每条边逐层折成四段；当最短折线小于一个屏幕像素后，动画再沿折痕一层层展开回三角形，约 31 秒完成一次循环。
 
 所有壁纸都是单文件、无外部资源、离线可用。
 
@@ -199,9 +297,10 @@ new BrowserWindow({ type: 'desktop', frame: false, focusable: false, ... })
 ```text
 ai-wallpaper/
 ├─ src/
-│  ├─ main/          Electron 主进程：扫描、配置、托盘、窗口、宿主管理
+│  ├─ main/          Electron 主进程：扫描、配置、托盘、窗口、宿主、在线目录、更新器
 │  ├─ preload/       壁纸库 / 预览窗口的受限桥接
 │  └─ renderer/      壁纸库 UI（原生 HTML/CSS/JS）
+├─ site/             GitHub Pages 壁纸馆（数据清单、图片与上传站）
 ├─ native/
 │  ├─ LumenWallpaperHost.cs        Windows WebView2 宿主源码
 │  ├─ build-windows-host.ps1       一键编译宿主
@@ -209,17 +308,22 @@ ai-wallpaper/
 ├─ wallpapers/       内置壁纸（每个文件夹一个壁纸）
 ├─ assets/           图标与托盘图标
 ├─ docs/screenshots/ README 截图
-└─ scripts/          启动与 Electron 二进制下载辅助
+├─ scripts/          启动、Electron 下载与 release notes 生成
+├─ .github/workflows/release.yml  标签发布工作流
+├─ CHANGELOG.md      更新日志（发布时自动写入 Release）
+└─ package.json      版本、electron-builder 与 GitHub publish 配置
 ```
 
 ### 常用命令
 
 ```bash
-npm start          # 启动
-npm run dev        # 启动（带 --dev 标记）
-npm run build:host # 重新编译 Windows WebView2 宿主（Windows）
-npm run build:win  # 打包 Windows（electron-builder）
-npm run build:mac  # 打包 macOS（需要在 macOS 上运行）
+npm start           # 启动
+npm run dev         # 启动（带 --dev 标记）
+npm run build:host  # 重新编译 Windows WebView2 宿主（Windows）
+npm run build:win   # 打包 Windows（electron-builder）
+npm run release:win # 打包并发布到 GitHub Releases（需要 GH_TOKEN）
+npm run release:notes # 从 CHANGELOG.md 生成 release-notes.md
+npm run build:mac   # 打包 macOS（需要在 macOS 上运行）
 ```
 
 `build:host` 第一次运行会从 NuGet 下载 WebView2 SDK 到 `native/webview2/`，然后编译到 `native/bin/`。仓库里已经带了编译好的宿主，直接 `npm start` 不需要这一步。
@@ -227,7 +331,8 @@ npm run build:mac  # 打包 macOS（需要在 macOS 上运行）
 ### 打包说明
 
 - Windows 打包产物在 `dist/`，默认生成 NSIS 安装包与 portable exe。
-- macOS 的 `.dmg` 必须在 macOS 上构建；`assets/icon.png` 会由 electron-builder 转换为 `.icns`。
+- 启用自动更新后，electron-builder 还会生成 `latest.yml`、`*.blockmap`，并写入 `resources/app-update.yml`；这些文件由 CI 自动上传，不要手动修改。
+- macOS 的 `.dmg` / `.zip` 必须在 macOS 上构建；`assets/icon.png` 会由 electron-builder 转换为 `.icns`。macOS 自动更新还要求签名。
 - 打包时 `wallpapers/` 会复制到 `resources/bundled-wallpapers`，首次运行再复制到用户目录；`native/bin` 会复制到 `resources/native/bin`。
 - 未签名的 exe 可能触发 SmartScreen；属于正常现象。
 
@@ -235,6 +340,7 @@ npm run build:mac  # 打包 macOS（需要在 macOS 上运行）
 
 - **Windows 多显示器**：当前桌面宿主只覆盖主显示器；macOS 会为每个显示器创建窗口。
 - **macOS 真机验证**：代码路径已实现，但本仓库在 Windows 环境完成主要开发与测试；macOS 上的桌面层级、全屏 Space 行为可能因系统版本而异。
+- **自动更新**：Windows 的 NSIS 安装版支持静默覆盖安装；portable 免安装版不支持。macOS 自动更新需要签名与 zip 产物，尚未真机验证。
 - **HDR / 动态刷新率**：没有做专门适配，按系统默认合成。
 - **电池 / 全屏应用**：当前不会自动暂停壁纸渲染；可以手动在托盘中停止。
 
@@ -250,6 +356,11 @@ npm run build:mac  # 打包 macOS（需要在 macOS 上运行）
 | 关闭窗口后找不到应用 | 应用默认收进系统托盘；点击托盘图标或再次启动 exe 即可打开。 |
 | 打包后壁纸目录是空的 | 打包版本会从 `resources/bundled-wallpapers` 复制；确认 `npm run build:win` 成功并检查 `resources/`。 |
 | Electron 下载失败 | `npm run setup:electron`，或设置 `ELECTRON_MIRROR` 后重新 `npm install`。 |
+| 检查更新提示「还没有发布可用的版本」 | 先在 GitHub 发布 `v*` 标签触发的 Release；在此之前更新器没有可读取的 `latest.yml`。 |
+| 更新下载完成但无法覆盖安装 | 确认使用的是 NSIS 安装版而不是 portable 免安装版；安装到只读目录时可能需要管理员权限。 |
+| 删除壁纸后桌面还在播放 | 稍等目录监听刷新，或在「正在桌面播放」卡片点「停止」；文件可从系统回收站还原。 |
+| 在线壁纸馆提示无法连接 | 确认 `site/` 已部署到 Pages，或设置 `LUMEN_SITE_URL` 指向实际站点根地址；刷新在线目录重试。 |
+| 在线下载失败 | 检查网络和图片大小限制；下载失败不会影响已有本地壁纸。 |
 
 ---
 

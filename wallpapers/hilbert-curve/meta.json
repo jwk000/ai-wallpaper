@@ -1,0 +1,15 @@
+{
+  "title": "希尔伯特曲线",
+  "subtitle": "Hilbert Curve · 3D",
+  "description": "从 2×2×2 开始逐段分形，HSV 渐变贯穿整条曲线与像素立方体；每一层向内收缩，直到单段投影小于 1 像素。",
+  "tags": [
+    "WebGL 2",
+    "3D",
+    "分形",
+    "HSV",
+    "像素着色",
+    "逐段变形"
+  ],
+  "accent": "#8fffe0",
+  "order": 9
+}
