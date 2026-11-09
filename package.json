@@ -20,6 +20,8 @@
     "dev": "node scripts/start.js --dev",
     "setup:electron": "node scripts/ensure-electron.js --install",
     "postinstall": "node scripts/ensure-electron.js",
+    "build:site": "node scripts/build-site.js",
+    "preview:site": "node scripts/build-site.js --serve",
     "build:host": "powershell -NoProfile -ExecutionPolicy Bypass -File native/build-windows-host.ps1",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac"

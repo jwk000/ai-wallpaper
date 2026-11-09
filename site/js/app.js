@@ -48,6 +48,11 @@ const dom = {
   detailLicense: $("#detail-license"),
   detailTags: $("#detail-tags"),
   detailDownload: $("#detail-download"),
+  detailDownloadLabel: $("#detail-download-label"),
+  detailLiveDownload: $("#detail-live-download"),
+  detailLive: $("#detail-live"),
+  detailPlay: $("#detail-play"),
+  detailPlayLabel: $("#detail-play-label"),
   detailFavorite: $("#detail-favorite"),
   detailShare: $("#detail-share"),
   detailCounter: $("#detail-counter"),
@@ -105,6 +110,8 @@ const state = {
   sort: "curated",
   favorites: loadFavorites(),
   activeId: null,
+  activeLive: "",
+  livePlaying: false,
   token: loadToken(),
   tokenInfo: null,
   upload: {
@@ -263,6 +270,8 @@ function getVisibleWallpapers() {
 
   if (state.category === "收藏") {
     items = items.filter((item) => state.favorites.has(item.id));
+  } else if (state.category === "动效") {
+    items = items.filter((item) => item.live);
   } else if (state.category !== "全部") {
     items = items.filter((item) => item.category === state.category);
   }
@@ -314,11 +323,18 @@ function renderGallery() {
   if (!items.length) {
     dom.gallery.replaceChildren();
     dom.empty.hidden = false;
-    dom.emptyTitle.textContent = state.category === "收藏" ? "还没有收藏。" : "没有找到这幅画面。";
+    dom.emptyTitle.textContent =
+      state.category === "收藏"
+        ? "还没有收藏。"
+        : state.category === "动效"
+          ? "还没有可播放的动效。"
+          : "没有找到这幅画面。";
     dom.emptyCopy.textContent =
       state.category === "收藏"
         ? "在喜欢的作品上点一下心形，它会留在这里。"
-        : "换一个关键词，或者回到全部作品。";
+        : state.category === "动效"
+          ? "这类作品暂时只有静图，换一个筛选看看。"
+          : "换一个关键词，或者回到全部作品。";
     dom.resetFilters.textContent = "清除筛选";
     syncBodyLock();
     return;
@@ -361,6 +377,7 @@ function renderGallery() {
     titleLink.textContent = item.title;
     $(".wall-subtitle", card).textContent = item.subtitle || "";
     $(".wall-category", card).textContent = item.category || "未分类";
+    $(".wall-live", card).hidden = !item.live;
     $(".wall-size", card).textContent =
       item.width && item.height ? `${item.width} × ${item.height}` : item.format || "";
 
@@ -600,6 +617,7 @@ function bindDetailEvents() {
     if (event.target === dom.detail) closeDetail();
   });
   dom.detail.addEventListener("close", () => {
+    stopDetailLive();
     state.activeId = null;
     syncBodyLock();
     if (location.hash.startsWith("#/wallpaper/")) {
@@ -617,6 +635,11 @@ function bindDetailEvents() {
 
   dom.detailPrev.addEventListener("click", () => navigateDetail(-1));
   dom.detailNext.addEventListener("click", () => navigateDetail(1));
+
+  dom.detailPlay.addEventListener("click", () => {
+    if (state.livePlaying) stopDetailLive();
+    else startDetailLive();
+  });
 
   document.addEventListener("keydown", (event) => {
     if (!dom.detail.open) return;
@@ -665,6 +688,7 @@ function applyRoute() {
 }
 
 function renderDetail(item) {
+  stopDetailLive();
   state.activeId = item.id;
   dom.detailCategory.textContent = item.category || "未分类";
   dom.detailNo.textContent = `NO. ${item.no || "—"}`;
@@ -684,9 +708,26 @@ function renderDetail(item) {
     })
   );
 
+  state.activeLive = item.live || "";
+  dom.detailPlay.hidden = !state.activeLive;
+  dom.detailPlay.setAttribute("aria-pressed", "false");
+  dom.detailPlayLabel.textContent = "播放动效";
+  dom.detailLiveDownload.hidden = !state.activeLive;
+
   dom.detailDownload.href = item.download;
   dom.detailDownload.download = item.downloadName || "";
-  dom.detailDownload.setAttribute("aria-label", `下载《${item.title}》原图`);
+  if (state.activeLive) {
+    dom.detailDownloadLabel.textContent = "下载静帧";
+    dom.detailDownload.setAttribute("aria-label", `下载《${item.title}》静帧图片`);
+    dom.detailLiveDownload.href = state.activeLive;
+    dom.detailLiveDownload.download = `lumen-${item.id}.html`;
+    dom.detailLiveDownload.setAttribute("aria-label", `下载《${item.title}》可播放的 HTML 壁纸`);
+  } else {
+    dom.detailDownloadLabel.textContent = "下载原图";
+    dom.detailDownload.setAttribute("aria-label", `下载《${item.title}》原图`);
+    dom.detailLiveDownload.removeAttribute("href");
+    dom.detailLiveDownload.removeAttribute("download");
+  }
 
   const isFav = state.favorites.has(item.id);
   dom.detailFavorite.dataset.favId = item.id;
@@ -719,6 +760,46 @@ function renderDetail(item) {
 function markDetailImageReady() {
   dom.detailMedia.classList.remove("is-loading");
   dom.detailMedia.classList.add("is-ready");
+}
+
+function startDetailLive() {
+  if (state.livePlaying || !state.activeLive) return;
+  const item = state.all.find((entry) => entry.id === state.activeId);
+  if (!item) return;
+
+  const frame = document.createElement("iframe");
+  frame.className = "detail-live-frame";
+  frame.src = state.activeLive;
+  frame.title = `${item.title} · 动效预览`;
+  frame.loading = "eager";
+  frame.allow = "autoplay; fullscreen";
+  frame.setAttribute("allowfullscreen", "");
+  frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-pointer-lock");
+  frame.addEventListener(
+    "load",
+    () => {
+      if (state.livePlaying) dom.detailMedia.classList.add("is-live-ready");
+    },
+    { once: true }
+  );
+
+  dom.detailLive.replaceChildren(frame);
+  dom.detailLive.hidden = false;
+  dom.detailMedia.classList.add("is-live");
+  dom.detailMedia.classList.remove("is-live-ready");
+  state.livePlaying = true;
+  dom.detailPlay.setAttribute("aria-pressed", "true");
+  dom.detailPlayLabel.textContent = "停止动效";
+}
+
+function stopDetailLive() {
+  if (!state.livePlaying) return;
+  state.livePlaying = false;
+  dom.detailLive.replaceChildren();
+  dom.detailLive.hidden = true;
+  dom.detailMedia.classList.remove("is-live", "is-live-ready");
+  dom.detailPlay.setAttribute("aria-pressed", "false");
+  dom.detailPlayLabel.textContent = "播放动效";
 }
 
 function navigateDetail(direction) {
