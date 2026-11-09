@@ -275,10 +275,26 @@ function showMainWindow() {
   mainWindow.focus();
 }
 
+function createTrayIcon() {
+  const assetDir = path.join(app.getAppPath(), 'assets');
+  if (process.platform !== 'darwin') {
+    return nativeImage.createFromPath(path.join(assetDir, 'tray.png'));
+  }
+
+  // 18pt template icon; the @2x sibling keeps it sharp on Retina displays.
+  const image = nativeImage.createFromPath(path.join(assetDir, 'trayTemplate.png'));
+  if (image.isEmpty()) return image;
+
+  const retina = nativeImage.createFromPath(path.join(assetDir, 'trayTemplate@2x.png'));
+  if (!retina.isEmpty() && !image.getScaleFactors().includes(2)) {
+    image.addRepresentation({ scaleFactor: 2, buffer: retina.toPNG() });
+  }
+  image.setTemplateImage(true);
+  return image;
+}
+
 function createTray() {
-  const iconFile = process.platform === 'darwin' ? 'trayTemplate.png' : 'tray.png';
-  let image = nativeImage.createFromPath(path.join(app.getAppPath(), 'assets', iconFile));
-  if (process.platform === 'darwin') image.setTemplateImage(true);
+  let image = createTrayIcon();
   if (image.isEmpty()) {
     image = nativeImage.createFromPath(path.join(app.getAppPath(), 'assets', 'icon.png'));
     image = image.resize({ width: 16, height: 16 });
