@@ -1,5 +1,6 @@
 node_modules/
 dist/
+_site/
 native/webview2/
 release-notes.md
 *.log
@@ -8,3 +9,7 @@ release-notes.md
 Thumbs.db
 .vscode/
 .idea/
+
+# 屏幕保护程序构建产物
+screensaver/build/
+screensaver/.build/

@@ -2,6 +2,7 @@
   "name": "lumen-wallpaper",
   "productName": "Lumen Wallpaper",
   "version": "1.1.0",
+  "version": "0.1.0",
   "description": "流光壁纸 · 一个跨平台的单文件 HTML 动态壁纸引擎",
   "main": "src/main/index.js",
   "author": "Lumen",
@@ -20,12 +21,17 @@
     "dev": "node scripts/start.js --dev",
     "setup:electron": "node scripts/ensure-electron.js --install",
     "postinstall": "node scripts/ensure-electron.js",
+    "build:site": "node scripts/build-site.js",
+    "preview:site": "node scripts/build-site.js --serve",
     "build:host": "powershell -NoProfile -ExecutionPolicy Bypass -File native/build-windows-host.ps1",
     "release:notes": "node scripts/release-notes.js --out release-notes.md",
     "prebuild:win": "npm run release:notes",
     "build:win": "electron-builder --win",
     "release:win": "npm run build:win -- --publish always",
-    "build:mac": "electron-builder --mac"
+    "build:mac": "electron-builder --mac",
+    "saver": "node screensaver/build.js",
+    "saver:install": "node screensaver/build.js --install",
+    "saver:test": "node screensaver/build.js --test"
   },
   "devDependencies": {
     "electron": "^45.2.3",

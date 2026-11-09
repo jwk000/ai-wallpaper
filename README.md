@@ -51,6 +51,28 @@ npm start
 
 ---
 
+## 下载安装
+
+当前版本 **v0.1**，安装包见 [Releases](https://github.com/jwk000/ai-wallpaper/releases/tag/v0.1)。
+
+### macOS（Apple Silicon）
+
+下载 `Lumen.Wallpaper-0.1.0-arm64.dmg`，打开后把 **Lumen Wallpaper** 拖进「应用程序」。
+
+安装包使用 ad-hoc 签名、暂未做 Apple 公证，首次打开会被 Gatekeeper 拦截。右键点击应用选择「打开」，或执行：
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Lumen Wallpaper.app"
+```
+
+> Intel / Universal 包暂未提供；如有需要，可在对应架构的 Mac 上执行 `npm run build:mac` 自行构建。
+
+### Windows
+
+暂未提供预编译安装包。可在 Windows 10/11 x64 上按下方「快速开始」自行构建（需要 Microsoft Edge WebView2 Runtime）。
+
+---
+
 ## 特性
 
 - **壁纸库**：自动扫描壁纸目录，用 `preview.png` 生成预览，读取 HTML `<title>` 或可选的 `meta.json` 作为标题、描述与标签。
@@ -116,12 +138,29 @@ npm install
 
 构建完成后，Windows 产物会生成在 `dist/` 下：
 
-- 免安装版：`dist/Lumen Wallpaper 1.1.0.exe`
-- 安装版：`dist/Lumen Wallpaper Setup 1.1.0.exe`
+- 免安装版：`dist/Lumen Wallpaper 0.1.0.exe`
+- 安装版：`dist/Lumen Wallpaper Setup 0.1.0.exe`
 
 ### macOS
 
-macOS 的逻辑已经在代码中实现，但本项目主要在 Windows 上开发和验证；macOS 分支使用 Electron 的 `type: 'desktop'` 桌面级窗口，尚未在真机上做完整回归。若在 macOS 上遇到问题，优先查看终端输出与系统日志。
+macOS 使用 Electron 的 `type: 'desktop'` 桌面级窗口，已在本项目的 macOS 26（Apple Silicon）环境完成打包、签名与启动验证。桌面层级、全屏 Space 与多显示器行为仍可能随系统版本变化；遇到问题请优先查看终端输出与系统日志。
+
+构建 macOS 安装包：
+
+```bash
+npm run build:mac
+```
+
+若机器上没有 Developer ID 证书，electron-builder 会跳过签名，而 Apple Silicon 上未签名的 app 无法启动。发布前需要对 `.app` 做 ad-hoc 签名再重新封装 DMG：
+
+```bash
+codesign --force --deep --sign - "dist/mac-arm64/Lumen Wallpaper.app"
+./node_modules/.bin/electron-builder --mac dmg \
+  --prepackaged "dist/mac-arm64/Lumen Wallpaper.app" \
+  -c.mac.identity=null
+```
+
+产物为 `dist/Lumen Wallpaper-0.1.0-arm64.dmg`。如需分发到其他机器并消除 Gatekeeper 提示，需要 Apple Developer ID 证书并完成 notarization。
 
 ---
 
@@ -229,11 +268,8 @@ npm run release:win
 | `ink-lotus` | 墨荷游鱼 · Ink Lotus Pond | Canvas 2D / 水墨 / Boids |
 | `moonlit-fireworks` | 月夜 · 焰火 · Moonlit Fireworks | Canvas 2D / 粒子 / 夜景 |
 | `liquid-sphere` | 液态球 · Liquid Sphere | WebGL 2 / 流体粒子 |
-| `lotus-fish` | 荷间 · Lotus Fish | Canvas 2D / 水墨 / Boids |
 | `menger-sponge` | 门格海绵 · Menger Sponge | WebGL 2 / SDF 分形 |
-| `brick-hero` | 积木超人 · Brick Hero | WebGL 2 / 积木 / 夜航 |
 | `ascii-rain` | 数字雨 · ASCII Rain // 3D | WebGL 2 / 3D |
-| `hydrogen` | 热核 · HYDROGEN | WebGL 2 / 粒子 / 核爆 |
 | `hilbert-curve` | 希尔伯特曲线 · Hilbert Curve 3D | WebGL 2 / 3D / HSV / 逐段分形 |
 | `nacre-mandelbrot` | 螺钿 · Nacre Mandelbrot | WebGL 2 / Mandelbrot / 无限缩放 / 贝壳纹理 |
 | `koch-snowflake` | 科赫雪花 · Koch Snowflake | Canvas 2D / 递归分形 / 连续折叠 |
@@ -243,6 +279,34 @@ npm run release:win
 `koch-snowflake` 从等边三角形开始，每条边逐层折成四段；当最短折线小于一个屏幕像素后，动画再沿折痕一层层展开回三角形，约 31 秒完成一次循环。
 
 所有壁纸都是单文件、无外部资源、离线可用。
+
+---
+
+## macOS 屏幕保护程序
+
+同一个壁纸还可以直接变成系统屏保，不用另外录视频。`screensaver/` 里有一个
+基于 `ScreenSaver.framework` + `WKWebView` 的原生宿主，每个壁纸生成一个
+`.saver`：
+
+```bash
+npm run saver:install
+```
+
+然后打开 **系统设置 → 墙纸 → 屏幕保护程序…**，在列表底部选择
+「流光 · 墨荷游鱼」等任意一个即可。
+
+```bash
+npm run saver        # 只构建到 screensaver/build/
+npm run saver:test   # 渲染自检：逐张截图 + JS 探针
+```
+
+- 每个 `.saver` 内嵌一个 `wallpaper.html`，不依赖原目录，沙盒里也能加载。
+- 屏保中会隐藏 HUD、操作提示和光标，只保留画面。
+- 多显示器会为每块屏幕各创建一个实例；退出屏保时暂停渲染。
+- 详细说明与限制见 [screensaver/README.md](screensaver/README.md)。
+
+> 系统屏保依旧使用 macOS 的 `legacyScreenSaver` 进程加载 `.saver`；
+> macOS 26 的入口在「墙纸」面板里的「屏幕保护程序…」按钮。
 
 ---
 
@@ -333,13 +397,14 @@ npm run build:mac   # 打包 macOS（需要在 macOS 上运行）
 - Windows 打包产物在 `dist/`，默认生成 NSIS 安装包与 portable exe。
 - 启用自动更新后，electron-builder 还会生成 `latest.yml`、`*.blockmap`，并写入 `resources/app-update.yml`；这些文件由 CI 自动上传，不要手动修改。
 - macOS 的 `.dmg` / `.zip` 必须在 macOS 上构建；`assets/icon.png` 会由 electron-builder 转换为 `.icns`。macOS 自动更新还要求签名。
-- 打包时 `wallpapers/` 会复制到 `resources/bundled-wallpapers`，首次运行再复制到用户目录；`native/bin` 会复制到 `resources/native/bin`。
-- 未签名的 exe 可能触发 SmartScreen；属于正常现象。
+- 打包时 `wallpapers/` 会复制到 `resources/bundled-wallpapers`，首次运行再复制到用户目录；Windows 包还会把 `native/bin` 复制到 `resources/native/bin`。
+- 未签名的 exe 可能触发 SmartScreen，属于正常现象。
+- macOS 包在没有 Developer ID 证书时为 ad-hoc 签名，首次打开需要右键「打开」或在「隐私与安全性」中放行。
 
 ### 已知限制
 
 - **Windows 多显示器**：当前桌面宿主只覆盖主显示器；macOS 会为每个显示器创建窗口。
-- **macOS 真机验证**：代码路径已实现，但本仓库在 Windows 环境完成主要开发与测试；macOS 上的桌面层级、全屏 Space 行为可能因系统版本而异。
+- **macOS 桌面层级**：已在 macOS 26 / Apple Silicon 验证打包与基本使用；桌面图标层、全屏 Space 行为可能因系统版本而异。
 - **自动更新**：Windows 的 NSIS 安装版支持静默覆盖安装；portable 免安装版不支持。macOS 自动更新需要签名与 zip 产物，尚未真机验证。
 - **HDR / 动态刷新率**：没有做专门适配，按系统默认合成。
 - **电池 / 全屏应用**：当前不会自动暂停壁纸渲染；可以手动在托盘中停止。

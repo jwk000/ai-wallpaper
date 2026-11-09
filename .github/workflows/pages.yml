@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - "site/**"
+      - "wallpapers/**/wallpaper.html"
+      - "scripts/build-site.js"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -34,10 +36,19 @@ jobs:
         with:
           enablement: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # site/ 只保存一份源码；壁纸 HTML 在构建时从 wallpapers/ 复制进产物。
+      - name: Build static site
+        run: node scripts/build-site.js --out _site
+
       - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./site
+          path: ./_site
 
       - name: Deploy
         id: deployment

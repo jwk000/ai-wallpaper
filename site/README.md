@@ -1,6 +1,6 @@
 # 流光壁纸 · Lumen Archive
 
-一个可以直接部署到 **GitHub Pages** 的壁纸发布站。它没有服务器、没有数据库，也不需要构建步骤：画廊内容是一份 JSON 清单，图片放在仓库里，上传与发布由 GitHub API 完成。
+一个可以直接部署到 **GitHub Pages** 的壁纸发布站。它没有服务器、没有数据库，也没有前端打包：画廊内容是一份 JSON 清单，图片放在仓库里，上传与发布由 GitHub API 完成。唯一的一次构建发生在部署前——[`scripts/build-site.js`](../scripts/build-site.js) 把壁纸 HTML 复制进 Pages 产物。
 
 ![流光壁纸桌面版](../docs/site/desktop.jpg)
 
@@ -18,28 +18,57 @@
 
 应用页会通过 GitHub API 读取当前 Star 数与最新 Release：有构建产物时直接换成 Windows / macOS 下载按钮；还没有 Release 时会回退到源码运行说明和 Releases 页面。
 
-- **前台**：编辑式画廊、主题筛选、搜索、收藏、作品详情、原图下载。
+- **前台**：编辑式画廊、主题 / 动效筛选、搜索、收藏、作品详情、原图下载。
+- **动效预览**：详情里点「播放动效」，直接在 iframe 里运行真实的壁纸 HTML，并可下载可播放的 HTML 文件。
 - **投稿**：拖入图片，填写信息，生成一个包含原图、预览图和 `meta.json` 的 ZIP 投稿包。
 - **维护者发布**：在「发布设置」中填入 Fine-grained Token，即可直接把作品与清单原子提交到仓库，GitHub Pages 随后自动部署。
 - **零依赖**：原生 HTML / CSS / JavaScript，没有 CDN、外部字体或打包工具。
 
 ---
 
-## 本地预览
+## 动效预览与单一来源
 
-浏览器的 `fetch` 不能读取 `file://` 下的 JSON，请在项目根目录启动一个本地 HTTP 服务：
+`wallpapers/<id>/` 下带 `wallpaper.html` 的作品，详情页会出现「播放动效」按钮。点击后站点按需创建 iframe，加载 `assets/wallpapers/<id>/live.html`；关闭详情或切换作品时立即销毁，不在画廊页预加载。
 
-```powershell
-python -m http.server 4173 -d site
+仓库里每套壁纸的 HTML 只有一份，位于：
+
+```text
+wallpapers/<id>/wallpaper.html
 ```
 
-然后打开 <http://localhost:4173>。
-
-如果使用 Node.js，也可以：
+`site/` 下没有第二份副本。部署或本地预览前运行：
 
 ```bash
-npx serve site
+node scripts/build-site.js
 ```
+
+脚本会：
+
+1. 把 `site/` 复制到 `_site/`；
+2. 为存在 `wallpaper.html` 的作品生成 `_site/assets/wallpapers/<id>/live.html`；
+3. 在 `_site/data/wallpapers.json` 里给这些作品补上 `live` 字段；
+4. 其余作品保持静图，详情页不显示播放按钮。
+
+`_site/` 是构建产物，已加入 `.gitignore`，不要提交。新增作品时把 HTML 放进 `wallpapers/<id>/`，站点和桌面引擎共用这一份；不要复制到 `site/`。
+
+---
+
+## 本地预览
+
+在仓库根目录运行：
+
+```bash
+npm run preview:site
+```
+
+它会先构建 `_site/`，再启动 <http://127.0.0.1:4173>。也可以只构建，然后用任意静态服务器托管 `_site/`：
+
+```bash
+npm run build:site
+npx serve _site
+```
+
+> 直接托管 `site/` 只能看到静图，因为 `live.html` 和 `live` 字段是构建时生成的。
 
 部署到 GitHub Pages 后，站点路径通常是：
 
@@ -51,7 +80,7 @@ https://<username>.github.io/ai-wallpaper/
 
 ## 部署到 GitHub Pages
 
-仓库里已经包含 [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)，它会将 `site/` 目录发布到 Pages。
+仓库里已经包含 [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)，它会在部署前运行 `node scripts/build-site.js --out _site`，然后发布构建产物。`site/` 不再直接上传。
 
 1. 提交并推送 `site/`、`.github/workflows/pages.yml` 与 `.github/ISSUE_TEMPLATE/`。
 2. 打开仓库的 **Settings → Pages**。
@@ -59,7 +88,7 @@ https://<username>.github.io/ai-wallpaper/
 4. 向 `main` 分支推送一次，或在 **Actions → Deploy wallpaper site → Run workflow** 手动运行。
 5. 部署完成后，在 Actions 的运行结果里可以看到站点地址。
 
-之后只要 `site/` 下的文件发生变化，Pages 都会自动重新部署。上传的作品通过 GitHub API 提交到同一个分支，因此也会触发部署。
+之后只要 `site/` 或 `wallpapers/*/wallpaper.html` 发生变化，Pages 都会自动重新部署。上传的作品通过 GitHub API 提交到同一个分支，因此也会触发部署。
 
 桌面引擎的「在线壁纸馆」也直接读取同一个 `data/wallpapers.json` 和图片资源；部署完成后，引擎里点开在线标签就能浏览并下载这些作品，下载时会自动生成离线 HTML 壁纸。
 
@@ -113,29 +142,35 @@ site/data/wallpapers.json                         作品清单
 ## 内容结构
 
 ```text
-site/
-├─ index.html                  画廊、详情、上传与设置界面
-├─ app.html                    桌面应用官方介绍与下载页
-├─ styles.css                  共享样式（含响应式和 reduced-motion）
-├─ app.css                     应用页专属布局
-├─ config.js                   仓库与投稿配置（可公开）
-├─ data/
-│  └─ wallpapers.json          作品清单
-├─ assets/
-│  ├─ app/library.jpg          桌面应用截图
-│  ├─ wallpapers/<id>/         预览 WebP + 可下载原图
-│  ├─ favicon.svg
-│  ├─ apple-touch-icon.png
-│  └─ og-cover.jpg
-├─ js/
-│  ├─ app.js                   画廊、筛选、收藏、上传、ZIP 打包
-│  ├─ app-page.js              应用页 Star 数、Release 与复制命令
-│  ├─ github.js                GitHub Git Data API 发布
-│  └─ zip.js                   零依赖 ZIP 写入器
-├─ manifest.webmanifest
-├─ 404.html
-└─ .nojekyll
+ai-wallpaper/
+├─ wallpapers/<id>/wallpaper.html   壁纸本体（唯一一份，站点与桌面引擎共用）
+├─ scripts/
+│  └─ build-site.js                 生成 _site：复制 HTML、注入 live 字段
+└─ site/
+   ├─ index.html                    画廊、详情、上传与设置界面
+   ├─ app.html                      桌面应用官方介绍与下载页
+   ├─ styles.css                    共享样式（含响应式和 reduced-motion）
+   ├─ app.css                       应用页专属布局
+   ├─ config.js                     仓库与投稿配置（可公开）
+   ├─ data/
+   │  └─ wallpapers.json            作品清单
+   ├─ assets/
+   │  ├─ app/library.jpg            桌面应用截图
+   │  ├─ wallpapers/<id>/           预览 WebP + 可下载原图（不含 HTML）
+   │  ├─ favicon.svg
+   │  ├─ apple-touch-icon.png
+   │  └─ og-cover.jpg
+   ├─ js/
+   │  ├─ app.js                     画廊、筛选、收藏、动效预览、上传、ZIP 打包
+   │  ├─ app-page.js                应用页 Star 数、Release 与复制命令
+   │  ├─ github.js                  GitHub Git Data API 发布
+   │  └─ zip.js                     零依赖 ZIP 写入器
+   ├─ manifest.webmanifest
+   ├─ 404.html
+   └─ .nojekyll
 ```
+
+构建产物 `_site/` 的结构与 `site/` 相同，额外包含 `assets/wallpapers/<id>/live.html` 和带 `live` 字段的清单。
 
 ### 一件作品的数据
 
@@ -154,6 +189,7 @@ site/
   "preview": "assets/wallpapers/ink-lotus/preview.webp",
   "download": "assets/wallpapers/ink-lotus/ink-lotus-1920x1080.jpg",
   "downloadName": "lumen-ink-lotus-1920x1080.jpg",
+  "live": "assets/wallpapers/ink-lotus/live.html",
   "width": 1920,
   "height": 1080,
   "format": "JPG",
@@ -166,6 +202,7 @@ site/
 
 - `preview` 用于画廊，建议宽度 1440–1600，WebP 质量 80–85。
 - `download` 是原图，建议保留原始分辨率，JPG 质量 90 左右。
+- `live` 由构建脚本注入，指向产物里的 `live.html`；不要在源清单里手写，也不要提交 `_site/`。
 - `blur` 是 20–30px 的模糊图，用 data URL 内联，避免图片加载前的空白。
 - `featured: true` 的作品会出现在首页主视觉。
 - `category` 决定筛选分组；当前使用 自然 / 抽象 / 科幻 / 机械。
@@ -184,12 +221,21 @@ site/assets/wallpapers/my-work/
 
 然后在 `site/data/wallpapers.json` 的 `wallpapers` 数组里加入条目。画廊会按数组顺序显示；「最新发布」会按 `createdAt` 排序。
 
-删除作品时，同时删除目录和清单条目即可。
+如果要让作品可播放动效，再把壁纸 HTML 放到唯一的位置：
+
+```text
+wallpapers/my-work/wallpaper.html
+```
+
+构建时会自动复制为产物里的 `live.html`，并在清单里补上 `live`；不需要改 `site/` 下的任何 HTML。
+
+删除作品时，同时删除 `site/` 下的图片目录、`wallpapers/` 下的 HTML 目录和清单条目即可。
 
 ---
 
 ## 已知边界
 
+- 动效预览依赖 `wallpapers/<id>/wallpaper.html`。只有静图的作品仍会正常展示，只是详情里没有「播放动效」按钮。
 - GitHub Pages 是纯静态托管，不能接收任意访客的服务端上传。公开投稿走 GitHub Issue，维护者发布走 Token，这是静态站点的取舍。
 - GitHub Contents API 单文件限制较宽，但站点主动限制为 15MB，保证移动网络下的成功率。
 - Token 拥有仓库写入权限，请只在自己的浏览器中使用；不要在公共电脑上保存。

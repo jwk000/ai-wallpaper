@@ -1,6 +1,6 @@
 {
   "title": "流光壁纸 · Lumen Archive",
-  "updatedAt": "2026-11-08",
+  "updatedAt": "2026-11-09",
   "wallpapers": [
     {
       "id": "mechanical-clock",
@@ -119,35 +119,6 @@
       "no": "04"
     },
     {
-      "id": "lotus-fish",
-      "title": "荷间",
-      "subtitle": "Lotus Fish",
-      "category": "自然",
-      "author": "Lumen Studio",
-      "createdAt": "2026-11-02",
-      "tags": [
-        "水墨",
-        "游鱼",
-        "生态"
-      ],
-      "description": "荷间游鱼，疏密有致的荷叶与鱼群，留出一片可以呼吸的水面。",
-      "license": "CC BY-NC 4.0",
-      "rank": 5,
-      "featured": false,
-      "preview": "assets/wallpapers/lotus-fish/preview.webp",
-      "download": "assets/wallpapers/lotus-fish/lotus-fish-1600x1000.jpg",
-      "downloadName": "lumen-lotus-fish-1600x1000.jpg",
-      "width": 1600,
-      "height": 1000,
-      "format": "JPG",
-      "bytes": 130220,
-      "blur": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAABwAgCdASoYAA8AAsBMJZQAD42NAAOwSBMcixyAAP7XLs2MA7LLuDD8EDiX72SlIJa7ZMojsnC+AEHYFe+ETP8Beje9hg3U33f6dCsvb6UUxVWXBWo8NH/Q2jAMGIMR/6d1NYhefzdVeAAA",
-      "color": "#d8d8cc",
-      "aspect": 1.6,
-      "path": "assets/wallpapers/lotus-fish/lotus-fish-1600x1000.jpg",
-      "no": "05"
-    },
-    {
       "id": "menger-sponge",
       "title": "门格海绵",
       "subtitle": "Menger Sponge",
@@ -161,7 +132,7 @@
       ],
       "description": "无限递归的门格海绵在深空光场中缓慢旋转，全部由 SDF 光线步进绘制。",
       "license": "CC BY-NC 4.0",
-      "rank": 6,
+      "rank": 5,
       "featured": false,
       "preview": "assets/wallpapers/menger-sponge/preview.webp",
       "download": "assets/wallpapers/menger-sponge/menger-sponge-1440x900.jpg",
@@ -174,7 +145,7 @@
       "color": "#142421",
       "aspect": 1.6,
       "path": "assets/wallpapers/menger-sponge/menger-sponge-1440x900.jpg",
-      "no": "06"
+      "no": "05"
     },
     {
       "id": "hilbert-curve",
@@ -190,7 +161,7 @@
       ],
       "description": "三维希尔伯特曲线在深空中逐段点亮，光点沿连续路径穿行，镜头缓缓环绕这座空间填充的光之雕塑。",
       "license": "CC BY-NC 4.0",
-      "rank": 7,
+      "rank": 6,
       "featured": false,
       "preview": "assets/wallpapers/hilbert-curve/preview.webp",
       "download": "assets/wallpapers/hilbert-curve/hilbert-curve-1920x1080.jpg",
@@ -203,36 +174,7 @@
       "color": "#0e1814",
       "aspect": 1.7778,
       "path": "assets/wallpapers/hilbert-curve/hilbert-curve-1920x1080.jpg",
-      "no": "07"
-    },
-    {
-      "id": "brick-hero",
-      "title": "积木超人",
-      "subtitle": "Brick Hero",
-      "category": "科幻",
-      "author": "Lumen Studio",
-      "createdAt": "2026-10-28",
-      "tags": [
-        "积木",
-        "城市",
-        "夜航"
-      ],
-      "description": "积木超人掠过午夜城市，披风在楼宇灯光上方展开。",
-      "license": "CC BY-NC 4.0",
-      "rank": 8,
-      "featured": false,
-      "preview": "assets/wallpapers/brick-hero/preview.webp",
-      "download": "assets/wallpapers/brick-hero/brick-hero-1920x1080.jpg",
-      "downloadName": "lumen-brick-hero-1920x1080.jpg",
-      "width": 1920,
-      "height": 1080,
-      "format": "JPG",
-      "bytes": 226511,
-      "blur": "data:image/webp;base64,UklGRnAAAABXRUJQVlA4IGQAAACwAwCdASoYAA4APtFUo0uoJKMhsAgBABoJZwAAVME78E8G3GuegAD+9FR9+3UKXRluX/r7k80QFhUr07tjJZYJPJg3AX5bQpkLc3GIm4exfTnwu7mUbJfHz9Qahv4xA0A3MAAA",
-      "color": "#2a2231",
-      "aspect": 1.7778,
-      "path": "assets/wallpapers/brick-hero/brick-hero-1920x1080.jpg",
-      "no": "08"
+      "no": "06"
     },
     {
       "id": "ascii-rain",
@@ -248,7 +190,7 @@
       ],
       "description": "三维数字雨在深空中持续下落，荧光字符层层堆叠，像一场没有声音的绿色暴雨。",
       "license": "CC BY-NC 4.0",
-      "rank": 9,
+      "rank": 7,
       "featured": false,
       "preview": "assets/wallpapers/ascii-rain/preview.webp",
       "download": "assets/wallpapers/ascii-rain/ascii-rain-1600x900.jpg",
@@ -261,36 +203,7 @@
       "color": "#050a07",
       "aspect": 1.7778,
       "path": "assets/wallpapers/ascii-rain/ascii-rain-1600x900.jpg",
-      "no": "09"
-    },
-    {
-      "id": "hydrogen",
-      "title": "热核",
-      "subtitle": "HYDROGEN",
-      "category": "科幻",
-      "author": "Lumen Studio",
-      "createdAt": "2026-10-25",
-      "tags": [
-        "核爆",
-        "粒子",
-        "废墟"
-      ],
-      "description": "程序化核爆：火球、蘑菇云、冲击波，以及逐栋崩塌的城市。",
-      "license": "CC BY-NC 4.0",
-      "rank": 10,
-      "featured": false,
-      "preview": "assets/wallpapers/hydrogen/preview.webp",
-      "download": "assets/wallpapers/hydrogen/hydrogen-1600x900.jpg",
-      "downloadName": "lumen-hydrogen-1600x900.jpg",
-      "width": 1600,
-      "height": 900,
-      "format": "JPG",
-      "bytes": 137508,
-      "blur": "data:image/webp;base64,UklGRnQAAABXRUJQVlA4IGgAAABQBACdASoYAA4APtFWo0uoJKMhsAgBABoJQBafoQc+AA8kzNstU6UEkTHgAP71lnrZKwXaVE3Bu2mmokcvWagdiyN6Kfi9G3Ccix1tuop/xQmbV4M19BNw2cuqN7WJIDaLp8XWmz9QAA==",
-      "color": "#352222",
-      "aspect": 1.7778,
-      "path": "assets/wallpapers/hydrogen/hydrogen-1600x900.jpg",
-      "no": "10"
+      "no": "07"
     }
   ]
 }
