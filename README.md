@@ -14,7 +14,7 @@
 
 ### macOS（Apple Silicon）
 
-下载 `Lumen Wallpaper-0.1.0-arm64.dmg`，打开后把 **Lumen Wallpaper** 拖进「应用程序」。
+下载 `Lumen.Wallpaper-0.1.0-arm64.dmg`，打开后把 **Lumen Wallpaper** 拖进「应用程序」。
 
 安装包使用 ad-hoc 签名、暂未做 Apple 公证，首次打开会被 Gatekeeper 拦截。右键点击应用选择「打开」，或执行：
 
