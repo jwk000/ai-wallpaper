@@ -184,6 +184,34 @@ wallpapers/
 
 ---
 
+## macOS 屏幕保护程序
+
+同一个壁纸还可以直接变成系统屏保，不用另外录视频。`screensaver/` 里有一个
+基于 `ScreenSaver.framework` + `WKWebView` 的原生宿主，每个壁纸生成一个
+`.saver`：
+
+```bash
+npm run saver:install
+```
+
+然后打开 **系统设置 → 墙纸 → 屏幕保护程序…**，在列表底部选择
+「流光 · 墨荷游鱼」等任意一个即可。
+
+```bash
+npm run saver        # 只构建到 screensaver/build/
+npm run saver:test   # 渲染自检：逐张截图 + JS 探针
+```
+
+- 每个 `.saver` 内嵌一个 `wallpaper.html`，不依赖原目录，沙盒里也能加载。
+- 屏保中会隐藏 HUD、操作提示和光标，只保留画面。
+- 多显示器会为每块屏幕各创建一个实例；退出屏保时暂停渲染。
+- 详细说明与限制见 [screensaver/README.md](screensaver/README.md)。
+
+> 系统屏保依旧使用 macOS 的 `legacyScreenSaver` 进程加载 `.saver`；
+> macOS 26 的入口在「墙纸」面板里的「屏幕保护程序…」按钮。
+
+---
+
 ## 原理
 
 ### 应用流程

@@ -24,7 +24,10 @@
     "preview:site": "node scripts/build-site.js --serve",
     "build:host": "powershell -NoProfile -ExecutionPolicy Bypass -File native/build-windows-host.ps1",
     "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac"
+    "build:mac": "electron-builder --mac",
+    "saver": "node screensaver/build.js",
+    "saver:install": "node screensaver/build.js --install",
+    "saver:test": "node screensaver/build.js --test"
   },
   "devDependencies": {
     "electron": "^45.2.3",

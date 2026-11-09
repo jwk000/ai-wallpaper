@@ -8,3 +8,7 @@ native/webview2/
 Thumbs.db
 .vscode/
 .idea/
+
+# 屏幕保护程序构建产物
+screensaver/build/
+screensaver/.build/
