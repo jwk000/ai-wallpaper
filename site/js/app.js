@@ -774,7 +774,7 @@ function startDetailLive() {
   frame.loading = "eager";
   frame.allow = "autoplay; fullscreen";
   frame.setAttribute("allowfullscreen", "");
-  frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-pointer-lock");
+  frame.setAttribute("sandbox", "allow-scripts allow-pointer-lock");
   frame.addEventListener(
     "load",
     () => {

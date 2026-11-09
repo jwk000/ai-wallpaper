@@ -1,0 +1,15 @@
+{
+  "title": "跃海之鲸",
+  "subtitle": "Breaching Whale · Fourier Voyage",
+  "description": "夜海之上，巨鲸从海面腾跃而起；傅里叶行星轮牵引蓝色边缘光沿鲸身游走。轮廓闭合后，整条鲸的边缘光继续悬在鲸身，直到下一轮描绘开始才缓缓熄灭。",
+  "tags": [
+    "Canvas 2D",
+    "傅里叶变换",
+    "行星轮",
+    "跃海",
+    "巨鲸",
+    "夜海"
+  ],
+  "accent": "#7da4ff",
+  "order": 13
+}

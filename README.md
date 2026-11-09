@@ -10,21 +10,24 @@
 
 ## 在线壁纸馆（GitHub Pages）
 
-仓库里的 [`site/`](site/) 是一个独立的壁纸发布站：浏览、筛选、收藏、下载原图，以及上传投稿。它使用原生 HTML/CSS/JS，没有构建步骤，可直接由 GitHub Pages 托管。
+仓库里的 [`site/`](site/) 是一个独立的壁纸发布站：浏览、筛选、收藏、下载原图，以及上传投稿。前端是原生 HTML/CSS/JS，没有打包工具；唯一的一次组装发生在部署前——[`scripts/build-site.js`](scripts/build-site.js) 会把 `site/` 复制到 `_site/`，并为 `wallpapers/<id>/wallpaper.html` 生成 `live.html` 和清单里的 `live` 字段。
 
-桌面版官方介绍与下载页也在同一个站点：[`site/app.html`](site/app.html)。它会自动读取最新 GitHub Release、显示 Windows 安装包，并提供仓库入口与 Star 按钮。
+桌面版官方介绍与下载页也在同一个站点：[`site/app.html`](site/app.html)。它会自动读取最新 GitHub Release、显示可用的安装包，并提供仓库入口与 Star 按钮。
 
 ![流光壁纸在线壁纸馆](docs/site/desktop.jpg)
 
-- 本地预览：`python -m http.server 4173 -d site`
-- 部署：推送 `main` 后，GitHub Actions 会自动发布 `site/`；首次使用需在 **Settings → Pages → Source** 选择 **GitHub Actions**。
+- 本地预览：`npm run preview:site`（先构建 `_site/`，再在 <http://127.0.0.1:4173> 启动）
+- 只构建：`npm run build:site`，产物在 `_site/`（已加入 `.gitignore`）
+- 部署：推送涉及 `site/`、`wallpapers/*/wallpaper.html` 或 `scripts/build-site.js` 的改动后，[`pages.yml`](.github/workflows/pages.yml) 会构建并发布 `_site/`；首次使用需在 **Settings → Pages → Source** 选择 **GitHub Actions**。
 - 投稿：访客生成 ZIP 投稿包并提交 GitHub Issue；维护者可在「发布设置」中填入 Fine-grained Token 直接发布。
+
+> 直接托管 `site/` 只能看到静图，因为 `live.html` 与 `live` 字段是构建时生成的。壁纸 HTML 在仓库里只保留 `wallpapers/<id>/wallpaper.html` 这一份；站点清单是独立策展的，新增作品仍需在 `site/data/wallpapers.json` 和 `site/assets/wallpapers/` 中补齐条目与图片。
 
 完整说明见 [`site/README.md`](site/README.md)。
 
 ### 在引擎里浏览与下载
 
-主窗口新增了「在线壁纸馆」入口。引擎会读取站点发布的 `data/wallpapers.json`，显示远端预览图、作者、标签和尺寸；可以直接查看大图，或下载到本机。
+主窗口有「本机壁纸 / 在线壁纸馆」两个来源标签。在线标签会读取站点发布的 `data/wallpapers.json`，显示远端预览图、作者、标签和尺寸；可以直接查看大图，或下载到本机。目录缓存 5 分钟，也可以手动刷新；断网时优先回退到上一次的结果。
 
 ![引擎里的在线壁纸馆](docs/screenshots/online-library.jpg)
 
@@ -33,8 +36,8 @@
 ```text
 wallpapers/online-ink-lotus/
 ├─ wallpaper.html   ← 自动生成的全屏图片壁纸
-├─ wallpaper.jpg    ← 下载的原图
-├─ preview.webp     ← 列表预览
+├─ wallpaper.jpg    ← 下载的原图（扩展名跟随实际格式）
+├─ preview.webp     ← 站点预览图；取不到时复制原图（扩展名跟随实际格式）
 └─ meta.json        ← 标题、作者、来源与授权
 ```
 
@@ -53,11 +56,11 @@ npm start
 
 ## 下载安装
 
-当前版本 **v0.1**，安装包见 [Releases](https://github.com/jwk000/ai-wallpaper/releases/tag/v0.1)。
+当前版本 **0.1.0**；最新的公开 Release 是 **v0.1**（macOS Apple Silicon，2026-11-09，较早的构建）。Windows 安装包尚未发布。
 
 ### macOS（Apple Silicon）
 
-下载 `Lumen.Wallpaper-0.1.0-arm64.dmg`，打开后把 **Lumen Wallpaper** 拖进「应用程序」。
+下载 [`Lumen.Wallpaper-0.1.0-arm64.dmg`](https://github.com/jwk000/ai-wallpaper/releases/download/v0.1/Lumen.Wallpaper-0.1.0-arm64.dmg)，打开后把 **Lumen Wallpaper** 拖进「应用程序」。
 
 安装包使用 ad-hoc 签名、暂未做 Apple 公证，首次打开会被 Gatekeeper 拦截。右键点击应用选择「打开」，或执行：
 
@@ -75,8 +78,8 @@ xattr -dr com.apple.quarantine "/Applications/Lumen Wallpaper.app"
 
 ## 特性
 
-- **壁纸库**：自动扫描壁纸目录，用 `preview.png` 生成预览，读取 HTML `<title>` 或可选的 `meta.json` 作为标题、描述与标签。
-- **在线壁纸馆**：直接浏览托管在 GitHub Pages 上的作品，查看大图、下载到本机；下载后自动生成可离线运行的 HTML 壁纸。
+- **壁纸库**：自动扫描壁纸目录，用 `preview.png` 生成预览，读取 HTML `<title>` 或可选的 `meta.json` 作为标题、描述与标签；支持关键词搜索与标签筛选。
+- **在线壁纸馆**：直接浏览托管在 GitHub Pages 上的作品，查看大图、下载到本机；目录缓存 5 分钟，支持手动刷新与断网回退，下载后自动生成可离线运行的 HTML 壁纸。
 - **播放预览**：全屏打开壁纸 HTML 的真实效果，`Esc` 退出，预览悬浮条里可以直接「应用壁纸」。
 - **应用到桌面**：替换系统桌面壁纸，关闭壁纸库窗口后仍会在托盘里继续播放。
 - **删除壁纸**：卡片右上角的删除按钮会把壁纸文件夹移到系统回收站；删除正在播放的壁纸会先停止播放并恢复桌面。
@@ -85,6 +88,7 @@ xattr -dr com.apple.quarantine "/Applications/Lumen Wallpaper.app"
 - **托盘常驻**：打开壁纸库、停止动态壁纸、退出；关闭主窗口默认收进托盘。
 - **记忆选择**：重启后自动恢复上一次应用的壁纸。
 - **本地优先**：壁纸运行时没有网络请求，已下载作品离线可用；只有「在线壁纸馆」与「检查更新」会按需访问网络。
+- **屏幕保护程序**：同一份壁纸也可以打包成 macOS `.saver`，不必另外录制视频。
 - **跨平台**：Windows 10/11 与 macOS。Windows 使用原生 WebView2 桌面层；macOS 使用 Electron `type: 'desktop'` 窗口。
 
 ### 播放预览
@@ -172,12 +176,12 @@ codesign --force --deep --sign - "dist/mac-arm64/Lumen Wallpaper.app"
 wallpapers/
 └─ my-wallpaper/
    ├─ wallpaper.html   ← 必需：壁纸内容
-   ├─ preview.png      ← 推荐：列表预览图（16:10 左右效果最好）
+   ├─ preview.png      ← 推荐：列表预览图（也支持 .jpg / .jpeg / .webp）
    └─ meta.json        ← 可选：标题、描述、标签
 ```
 
 - 文件夹名会成为壁纸 ID，建议使用英文、数字或拼音。
-- `wallpaper.html` 必须存在；`preview.png` 缺失时列表会显示占位图，但仍然可以应用。
+- `wallpaper.html` 必须存在；没有 `preview.*` 时列表会显示占位图，但仍然可以应用。
 - 列表会自动刷新；也可以点右上角的刷新按钮。
 - 在壁纸库右上角点击 **壁纸目录**，会直接打开当前使用的目录。
 
@@ -190,6 +194,8 @@ wallpapers/
 | 打包后的 macOS | `~/Library/Application Support/Lumen Wallpaper/wallpapers` |
 
 打包版本首次启动时，会把内置壁纸复制到用户目录；之后新增壁纸不会覆盖已有文件夹。
+
+调试时可以用环境变量覆盖：`LUMEN_WALLPAPERS_DIR` 指定壁纸目录，`LUMEN_USER_DATA_DIR` 指定配置与缓存目录，`LUMEN_SITE_URL` 指定在线壁纸馆的站点根地址。
 
 ### 可选的 `meta.json`
 
@@ -232,7 +238,7 @@ wallpapers/
 - 更新弹窗会展示本次 Release 的更新日志，支持 Markdown 列表、链接与代码；更新日志来自 `CHANGELOG.md`。
 - 可以在更新弹窗底部关闭「启动时自动检查更新」。
 
-**首次从 1.0.0 升级**：1.0.0 还没有更新器，需要手动下载并安装一次 1.1.0；从 1.1.0 开始后续版本才会自动更新。
+**从 v0.1 升级**：v0.1 的安装包还没有内置更新器；需要用当前源码重新构建并安装一次，之后的版本才能自动更新。
 
 **免安装版**：portable exe 不支持覆盖安装，只会检查并提示新版本，请下载安装版更新。macOS 自动更新需要签名后的 `.app` 和 zip 产物，目前主要在 Windows 上验证。
 
@@ -240,10 +246,12 @@ wallpapers/
 
 推送一个 `v*` 标签即可通过 GitHub Actions 自动构建并发布：
 
-1. 在 `CHANGELOG.md` 中新增对应版本的小节，例如 `## [1.2.0] - 2026-12-01`。
+1. 在 `CHANGELOG.md` 中新增对应版本的小节，例如 `## [0.2.0] - 2026-12-01`。
 2. 运行 `npm version minor`（或 `patch` / `major`），它会更新 `package.json` 并创建标签。
 3. 推送提交和标签：`git push --follow-tags`。
 4. `.github/workflows/release.yml` 会执行 `npm run build:win -- --publish always`，生成安装包、`latest.yml` 与 blockmap，并发布 GitHub Release。
+
+> `release.yml` 目前只构建 Windows 安装包；macOS 的 dmg / zip 需要在 Mac 上按上方命令构建，再手动附加到同一个 Release。
 
 `release-notes.md` 由 `scripts/release-notes.js` 从 `CHANGELOG.md` 生成，构建时会写进 `latest.yml` 和应用内更新弹窗。本地发布需要 `GH_TOKEN`：
 
@@ -254,7 +262,9 @@ npm run release:win
 
 工作流使用内置 `GITHUB_TOKEN` 与 `contents: write` 权限；打包前会校验标签与 `package.json` 版本一致。
 
-> 本次改动已经把 `package.json` 设为 `1.1.0`。首次发布可直接提交并打标签：`git tag v1.1.0 && git push origin v1.1.0`；之后的版本再使用 `npm version`。
+> Release 需要包含 `latest.yml`（以及差分下载用的 blockmap），自动更新才能识别；只上传 dmg 的 Release（例如 v0.1）不会被更新器使用。
+>
+> 当前 `package.json` 与 `package-lock.json` 都是 `0.1.0`。发布时标签必须与 package.json 完全一致；运行 `npm version patch` / `minor` / `major` 会同时更新版本并创建对应的 `v` 标签。
 
 ---
 
@@ -273,10 +283,17 @@ npm run release:win
 | `hilbert-curve` | 希尔伯特曲线 · Hilbert Curve 3D | WebGL 2 / 3D / HSV / 逐段分形 |
 | `nacre-mandelbrot` | 螺钿 · Nacre Mandelbrot | WebGL 2 / Mandelbrot / 无限缩放 / 贝壳纹理 |
 | `koch-snowflake` | 科赫雪花 · Koch Snowflake | Canvas 2D / 递归分形 / 连续折叠 |
+| `warring-states-battle` | 春秋 · 战于野 · Warring States Battlefield | Canvas 2D / 工笔长卷 / 战场模拟 |
+| `parametric-jellyfish` | 水母群 · Parametric Medusozoa | Canvas 2D / 参数方程 / 无限补群 |
+| `rubiks-cube` | 无限魔方 · Rubik's Cube | WebGL 2 / 实时 3D / 手绘玩具房 |
 
 `nacre-mandelbrot` 把 Mandelbrot 边界渲染成珠母层：迭代次数生成生长纹，距离场生成浮雕与虹彩，镜头用 210 秒从全集飞入海马谷，放大到约 `1.4×10^8` 倍后以珠光淡出循环。
 
 `koch-snowflake` 从等边三角形开始，每条边逐层折成四段；当最短折线小于一个屏幕像素后，动画再沿折痕一层层展开回三角形，约 31 秒完成一次循环。
+
+`rubiks-cube` 用 WebGL 2 实时绘制 26 个独立小块：一连串随机外层转动把魔方打散，停顿片刻后沿相反顺序逐一还原，再开始下一轮；积木、套圈、皮球、小车和蜡笔散落在玩具房的地毯上，画面不显示任何文字。
+
+`parametric-jellyfish` 的九只水母全部由参数曲线生成：钟形伞体、扇贝状缘膜、放射水管、马蹄形生殖腺与触手都随同一个流场呼吸、倾斜和漂移；每只个体拥有不同的轮廓、颜色、尺寸与生殖腺布局。它们会逐只游出画面，新的、不重复的个体随后从下方深海补上。
 
 所有壁纸都是单文件、无外部资源、离线可用。
 
@@ -286,7 +303,7 @@ npm run release:win
 
 同一个壁纸还可以直接变成系统屏保，不用另外录视频。`screensaver/` 里有一个
 基于 `ScreenSaver.framework` + `WKWebView` 的原生宿主，每个壁纸生成一个
-`.saver`：
+`.saver`。构建需要 macOS 13+ 与 Xcode Command Line Tools：
 
 ```bash
 npm run saver:install
@@ -299,6 +316,8 @@ npm run saver:install
 npm run saver        # 只构建到 screensaver/build/
 npm run saver:test   # 渲染自检：逐张截图 + JS 探针
 ```
+
+`saver:test` 的截图写到 `screensaver/.build/snapshots/`。
 
 - 每个 `.saver` 内嵌一个 `wallpaper.html`，不依赖原目录，沙盒里也能加载。
 - 屏保中会隐藏 HUD、操作提示和光标，只保留画面。
@@ -332,7 +351,7 @@ Windows 没有原生的 HTML 动态壁纸接口。这个引擎使用一个小的
 3. 宿主创建一个无边框 WebView2 窗口，把它挂到桌面壁纸层：
    - Windows 11 24H2 及更新版本（raised desktop）：优先挂到 `Progman` 下的 `WorkerW` 壁纸层；如果该层不存在，则直接挂到 `Progman` 的 `SHELLDLL_DefView` 下方。
    - 经典 Windows 10 / 11 布局：挂到桌面图标宿主后面的 `WorkerW`。
-4. 用 `SetWindowPos` 把窗口放到桌面图标下方、壁纸层上方；每 5 秒重新确认一次层级，避免被 Wallpaper Engine / Lively 等其他壁纸程序盖住。
+4. 用 `SetWindowPos` 把窗口放到桌面图标下方、壁纸层上方；每 5 秒重新确认一次层级，避免被 Wallpaper Engine / Lively 等其他壁纸程序盖住。Explorer 重启导致层级变化时会自动重新挂载；宿主也会每秒检查父进程，Electron 退出后自行关闭。
 5. 宿主退出时，下面的原始壁纸（包括 Wallpaper Engine 正在播放的内容）会重新露出来。
 
 Windows 11 新版桌面的壁纸子树使用 DirectComposition 合成，普通的 GDI/Redirection 表面不会显示；WebView2 自带的合成路径可以正常工作，所以这里用 WebView2 而不是 Electron 的普通窗口。
@@ -364,16 +383,19 @@ ai-wallpaper/
 │  ├─ main/          Electron 主进程：扫描、配置、托盘、窗口、宿主、在线目录、更新器
 │  ├─ preload/       壁纸库 / 预览窗口的受限桥接
 │  └─ renderer/      壁纸库 UI（原生 HTML/CSS/JS）
-├─ site/             GitHub Pages 壁纸馆（数据清单、图片与上传站）
+├─ site/             GitHub Pages 壁纸馆（页面、清单、图片、投稿）
 ├─ native/
 │  ├─ LumenWallpaperHost.cs        Windows WebView2 宿主源码
 │  ├─ build-windows-host.ps1       一键编译宿主
 │  └─ bin/                         已编译的 Windows 宿主 + WebView2 DLL
 ├─ wallpapers/       内置壁纸（每个文件夹一个壁纸）
+├─ screensaver/      macOS 屏幕保护程序（ScreenSaver.framework + WKWebView）
 ├─ assets/           图标与托盘图标
 ├─ docs/screenshots/ README 截图
-├─ scripts/          启动、Electron 下载与 release notes 生成
-├─ .github/workflows/release.yml  标签发布工作流
+├─ scripts/          启动、Electron 下载、站点组装与 release notes 生成
+├─ .github/workflows/
+│  ├─ release.yml    标签发布工作流
+│  └─ pages.yml      站点构建与 GitHub Pages 部署
 ├─ CHANGELOG.md      更新日志（发布时自动写入 Release）
 └─ package.json      版本、electron-builder 与 GitHub publish 配置
 ```
@@ -381,13 +403,19 @@ ai-wallpaper/
 ### 常用命令
 
 ```bash
-npm start           # 启动
-npm run dev         # 启动（带 --dev 标记）
-npm run build:host  # 重新编译 Windows WebView2 宿主（Windows）
-npm run build:win   # 打包 Windows（electron-builder）
-npm run release:win # 打包并发布到 GitHub Releases（需要 GH_TOKEN）
-npm run release:notes # 从 CHANGELOG.md 生成 release-notes.md
-npm run build:mac   # 打包 macOS（需要在 macOS 上运行）
+npm start              # 启动
+npm run dev            # 启动（带 --dev 标记）
+npm run setup:electron # 手动下载 Electron 二进制
+npm run build:site     # 组装静态站点到 _site/
+npm run preview:site   # 构建并在 4173 端口预览站点
+npm run build:host     # 重新编译 Windows WebView2 宿主（Windows）
+npm run build:win      # 打包 Windows（electron-builder）
+npm run release:win    # 打包并发布到 GitHub Releases（需要 GH_TOKEN）
+npm run release:notes  # 从 CHANGELOG.md 生成 release-notes.md
+npm run build:mac      # 打包 macOS（需要在 macOS 上运行）
+npm run saver          # 构建 macOS 屏保到 screensaver/build/
+npm run saver:install  # 构建并安装 macOS 屏保
+npm run saver:test     # 构建并运行屏保渲染自检
 ```
 
 `build:host` 第一次运行会从 NuGet 下载 WebView2 SDK 到 `native/webview2/`，然后编译到 `native/bin/`。仓库里已经带了编译好的宿主，直接 `npm start` 不需要这一步。
@@ -399,7 +427,7 @@ npm run build:mac   # 打包 macOS（需要在 macOS 上运行）
 - macOS 的 `.dmg` / `.zip` 必须在 macOS 上构建；`assets/icon.png` 会由 electron-builder 转换为 `.icns`。macOS 自动更新还要求签名。
 - 打包时 `wallpapers/` 会复制到 `resources/bundled-wallpapers`，首次运行再复制到用户目录；Windows 包还会把 `native/bin` 复制到 `resources/native/bin`。
 - 未签名的 exe 可能触发 SmartScreen，属于正常现象。
-- macOS 包在没有 Developer ID 证书时为 ad-hoc 签名，首次打开需要右键「打开」或在「隐私与安全性」中放行。
+- macOS 包若只做 ad-hoc 签名，首次打开需要右键「打开」或在「隐私与安全性」中放行。
 
 ### 已知限制
 
@@ -421,9 +449,11 @@ npm run build:mac   # 打包 macOS（需要在 macOS 上运行）
 | 关闭窗口后找不到应用 | 应用默认收进系统托盘；点击托盘图标或再次启动 exe 即可打开。 |
 | 打包后壁纸目录是空的 | 打包版本会从 `resources/bundled-wallpapers` 复制；确认 `npm run build:win` 成功并检查 `resources/`。 |
 | Electron 下载失败 | `npm run setup:electron`，或设置 `ELECTRON_MIRROR` 后重新 `npm install`。 |
-| 检查更新提示「还没有发布可用的版本」 | 先在 GitHub 发布 `v*` 标签触发的 Release；在此之前更新器没有可读取的 `latest.yml`。 |
+| 检查更新提示「还没有发布可用的版本」或「更新清单缺失」 | 需要发布带 `latest.yml` 的 Release（blockmap 用于差分下载）；只上传 dmg 的 Release（如 v0.1）不参与自动更新。 |
 | 更新下载完成但无法覆盖安装 | 确认使用的是 NSIS 安装版而不是 portable 免安装版；安装到只读目录时可能需要管理员权限。 |
 | 删除壁纸后桌面还在播放 | 稍等目录监听刷新，或在「正在桌面播放」卡片点「停止」；文件可从系统回收站还原。 |
+| 站点详情页没有「播放动效」 | 用 `npm run build:site` 构建后访问 `_site/`；直接托管 `site/` 不会生成 `live.html`。 |
+| 推送后站点没有更新 | 查看 Actions 里的 **Deploy wallpaper site**；只有 `site/`、`wallpapers/*/wallpaper.html` 或 `scripts/build-site.js` 变化才会触发。 |
 | 在线壁纸馆提示无法连接 | 确认 `site/` 已部署到 Pages，或设置 `LUMEN_SITE_URL` 指向实际站点根地址；刷新在线目录重试。 |
 | 在线下载失败 | 检查网络和图片大小限制；下载失败不会影响已有本地壁纸。 |
 
@@ -433,6 +463,7 @@ npm run build:mac   # 打包 macOS（需要在 macOS 上运行）
 
 - 壁纸原作来自同机的 `ai-fish`、`ai-fish-gpt`、`ai-firecrake`、`ai-water`、`ai-menge`、`ai-number-rain`、`ai-nuclear` 工作区，已整理为统一结构。
 - Windows 宿主基于 [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)；桌面层挂载思路参考了 Windows `WorkerW` / `Progman` 社区实践。
+- macOS 屏幕保护程序基于 `ScreenSaver.framework` 与 `WKWebView`。
 - 引擎使用 [Electron](https://www.electronjs.org/) 与 [electron-builder](https://www.electron.build/)。
 
 ## License

@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>长平 · 丹水烽烟图</title>
+<style>
+:root{color-scheme:light;--ink:#423e33;--muted:#8a806b;--line:#b9ac904d;--paper:#e9dfc8;--red:#914d3e}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Songti SC","STSong","SimSun",serif}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}canvas:active{cursor:grabbing}
+.frame{position:fixed;inset:20px;border:1px solid #796b492c;pointer-events:none;z-index:1}.frame:before,.frame:after{content:"";position:absolute;width:35px;height:35px;border:1px solid #796b4966}.frame:before{left:-4px;top:-4px;border-right:0;border-bottom:0}.frame:after{right:-4px;bottom:-4px;border-left:0;border-top:0}
+header{position:absolute;left:52px;right:52px;top:43px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;transition:opacity .7s}
+.eyebrow{font:10px/1.5 Georgia,serif;letter-spacing:4px;color:var(--muted)}h1{font-size:31px;font-weight:400;letter-spacing:9px;margin:10px 0 9px}.subtitle{font-size:11px;letter-spacing:4px;color:#8a806b}.seal{display:inline-grid;place-items:center;width:29px;height:32px;border:1px solid #9e5548;color:#9e5548;font-size:12px;letter-spacing:2px;vertical-align:middle;margin-left:9px;transform:rotate(-4deg)}
+.legend{display:flex;gap:25px;font-size:12px;letter-spacing:3px;padding-top:10px}.dot{display:inline-block;width:6px;height:6px;transform:rotate(45deg);margin-right:9px;background:#555e55}.dot.blue{background:#9a5541}.legend small{display:block;font-size:9px;letter-spacing:1px;color:var(--muted);padding:8px 0 0 16px}
+.vertical{position:absolute;right:55px;top:180px;writing-mode:vertical-rl;font-size:11px;letter-spacing:6px;color:#8b7e64;pointer-events:none;line-height:2.4;transition:opacity .7s}
+footer{position:absolute;left:52px;right:52px;bottom:42px;display:flex;justify-content:space-between;align-items:end;gap:20px;transition:opacity .7s}.caption{pointer-events:none;font-size:11px;letter-spacing:3px;color:#776d59}.caption b{font-weight:400;color:#514936}.caption small{display:block;margin-top:9px;font:9px Georgia,serif;letter-spacing:2px;color:#968a71}.toolbar{display:flex;align-items:center;gap:2px;padding:5px;background:#eee6d3df;border:1px solid #8e7a4c44;backdrop-filter:blur(8px)}
+button{font:12px "SimSun",serif;letter-spacing:1px;color:#534b3d;border:0;background:transparent;padding:10px 13px;cursor:pointer}button:hover,button:focus-visible{background:#a8926026;outline:1px solid #94815d66}button.active{color:var(--red)}.sep{width:1px;height:18px;background:var(--line);margin:0 4px}.count{padding:0 12px;font:10px Georgia,serif;color:#8a806b;min-width:74px;text-align:center}
+#settings{position:absolute;right:52px;bottom:103px;width:272px;padding:22px;background:#eee6d3f5;border:1px solid #a6936d70;box-shadow:0 8px 40px #4e41221a;font-size:12px;z-index:3}#settings[hidden]{display:none}.panel-title{font-size:16px;letter-spacing:4px;padding-bottom:17px;border-bottom:1px solid var(--line);margin-bottom:18px}.row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:17px 0}.row label{letter-spacing:2px}.row select{max-width:126px;background:#e7dcc4;border:1px solid #ae9d7b;color:#534b3d;padding:5px;font:11px serif}.row input[type=range]{width:106px;accent-color:#856849}.row input[type=checkbox]{accent-color:#856849}.note{font-size:10px;line-height:1.9;color:#97876c;border-top:1px solid var(--line);padding-top:12px}.help{font-size:10px;letter-spacing:1px;color:#8a7d64;position:absolute;bottom:20px;left:50%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;transition:opacity .7s}.pure header,.pure .vertical,.pure .caption,.pure .frame,.pure .help{opacity:0}.pure footer{opacity:0}.pure footer:hover,.pure footer:focus-within{opacity:1}.pure #settings{opacity:1}.toast{position:absolute;left:50%;top:28px;transform:translateX(-50%);background:#eee5d2ee;padding:10px 20px;border:1px solid var(--line);font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:5}.toast.show{opacity:1}
+@media(max-width:700px){.frame{inset:12px}header{left:27px;right:27px;top:30px}h1{font-size:24px;letter-spacing:5px}.eyebrow{font-size:8px;letter-spacing:2px}.subtitle{font-size:9px;letter-spacing:2px}.legend{gap:12px;font-size:10px;letter-spacing:1px}.legend small{display:none}.vertical{right:25px;top:180px}footer{left:22px;right:22px;bottom:35px;display:block}.caption{margin-bottom:16px;font-size:10px}.caption small{display:none}.toolbar{width:max-content;max-width:100%}button{padding:10px 9px;font-size:11px}.count{display:none}.help{font-size:8px;bottom:15px}#settings{right:22px;bottom:96px}}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="长平之战秦赵两军在丹水旁交战的线描动态长卷，可拖动和缩放观看"></canvas>
+<div class="frame"></div>
+<header><div><div class="eyebrow">CHANGPING · 260 BCE · A LIVING SCROLL</div><h1>丹水烽烟图<span class="seal">长<br>平</span></h1><div class="subtitle">长平秋色冷 · 丹水起烽烟</div></div><div class="legend"><div><span class="dot"></span>秦军<small>白起 · 玄甲 · 断粮合围</small></div><div><span class="dot blue"></span>赵军<small>赵括 · 赭甲 · 困阵突围</small></div></div></header>
+<div class="vertical">上党争衡　丹水鏖兵<br>长平之战 · 断粮与突围</div>
+<footer><div class="caption"><b>长平 · 前260年</b>　断粮 · 突围<small>QIN / ZHAO · THE BATTLE OF CHANGPING</small></div><div class="toolbar"><button id="pause" title="空格：暂停或继续">Ⅱ 暂停</button><button id="drift" class="active" title="开启或关闭镜头漫游">漫游</button><div class="sep"></div><button id="settingBtn" aria-expanded="false" aria-controls="settings">调卷</button><button id="hide" title="H：隐藏界面">净览</button><button id="full" title="F：全屏">全屏</button><span id="count" class="count">— 兵</span></div></footer>
+<section id="settings" hidden><div class="panel-title">观卷设置</div><div class="row"><label for="density">兵力</label><select id="density"><option value="130">疏阵 · 130</option><option value="230" selected>会战 · 230</option><option value="340">鏖战 · 340</option></select></div><div class="row"><label for="speed">时速 <span id="speedValue">1.0</span>×</label><input id="speed" type="range" min="0.3" max="1.8" step="0.1" value="1"></div><div class="row"><label for="blood">朱红血迹</label><input id="blood" type="checkbox" checked></div><div class="row"><label for="quality">画质</label><select id="quality"><option value="1">节能</option><option value="1.6" selected>细描</option><option value="2">精描</option></select></div><div class="row"><button id="reset">重新布阵 ↻</button><button id="home">还原视角 ⤢</button></div><div class="note">拖动画卷查看局部，滚轮或双指缩放。<br>空格 暂停 · H 净览 · F 全屏 · Esc 返回<br>长平之战意象；地形、旗甲与兵力为艺术化演绎。</div></section>
+<div class="help">拖动观卷　/　滚轮缩放　/　H 隐藏界面</div><div id="toast" class="toast" role="status"></div>
+<script>
+(() => {
+'use strict';
+const canvas=document.getElementById('scene'),ctx=canvas.getContext('2d',{alpha:false});
+const WORLD={w:2400,h:1320},INK='#48473b',PAPER='#e9dfc8';
+const armies=[{ink:'#393f3b',color:'#555e55',light:'#b4b19b',cloth:'#aaab93',flag:'秦'}, {ink:'#694739',color:'#9a5541',light:'#c29d79',cloth:'#c4a17b',flag:'赵'}];
+let seed=69221;
+function rand(a=0,b=1){seed=(seed*1664525+1013904223)>>>0;return a+(seed/4294967296)*(b-a)}
+function choose(a){return a[Math.floor(rand(0,a.length))]}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+let width=1,height=1,dpr=1,time=0,paused=false,speed=1,showBlood=true,drift=true,zoom=1,camX=1200,camY=660,baseScale=1,scale=1;
+let units=[],arrows=[],corpses=[],particles=[],scars=[],kills=[0,0],flags=[],camps=[],props=[],last=0,acc=0,frameMs=0;
+const stats={shots:0,hits:0,meleeHits:0,deaths:0,reinforcements:0};
+const background=document.createElement('canvas');background.width=2400;background.height=1320;const bg=background.getContext('2d');
+function line(g,pts,color=INK,lw=1){g.strokeStyle=color;g.lineWidth=lw;g.beginPath();for(let i=0;i<pts.length;i++)i?g.lineTo(...pts[i]):g.moveTo(...pts[i]);g.stroke()}
+function poly(g,pts,fill,stroke=INK,lw=1){g.beginPath();pts.forEach((p,i)=>i?g.lineTo(...p):g.moveTo(...p));g.closePath();if(fill){g.fillStyle=fill;g.fill()}if(stroke){g.strokeStyle=stroke;g.lineWidth=lw;g.stroke()}}
+function ellipse(g,x,y,rx,ry,fill,stroke=null,lw=1){g.beginPath();g.ellipse(x,y,Math.max(.1,rx),Math.max(.1,ry),0,0,Math.PI*2);if(fill){g.fillStyle=fill;g.fill()}if(stroke){g.strokeStyle=stroke;g.lineWidth=lw;g.stroke()}}
+function tree(g,x,y,size){g.save();g.translate(x,y);g.scale(size,size);line(g,[[0,0],[-3,-38],[2,-70]],'#797b62',2);line(g,[[-2,-28],[-22,-49],[-28,-63]],'#797b62',1.4);line(g,[[0,-42],[22,-61],[25,-76]],'#797b62',1.2);for(let i=0;i<10;i++){const a=rand(-30,30),b=rand(-88,-47);ellipse(g,a,b,rand(9,23),rand(6,13),'#89907825','#7d86643b',.8);for(let j=0;j<6;j++)line(g,[[a+rand(-15,15),b+rand(-7,7)],[a+rand(-15,15),b+rand(-7,7)]],'#7c826148',.7)}g.restore()}
+function paintBackground(){
+ const g=bg;g.fillStyle=PAPER;g.fillRect(0,0,2400,1320);
+ const wash=g.createLinearGradient(0,0,0,1320);wash.addColorStop(0,'#eee6d5');wash.addColorStop(.32,'#e8e0c9');wash.addColorStop(1,'#d8c9a7');g.fillStyle=wash;g.fillRect(0,0,2400,1320);
+ for(let layer=0;layer<3;layer++){let pts=[[-60,330-layer*22]];for(let x=-60;x<=2460;x+=24){let yy=225+layer*28-65*Math.sin(x*.0035+layer*1.7)-25*Math.sin(x*.012+layer)-17*Math.cos(x*.021);pts.push([x,yy])}pts.push([2460,385],[-60,385]);poly(g,pts,['#a9b2a323','#8b9b8f20','#8590801a'][layer],['#9a9f8e55','#8f9a8940','#8b957c44'][layer],1);for(let x=40;x<2400;x+=rand(40,85)){const y=280+layer*15-48*Math.sin(x*.0035+layer*1.7);line(g,[[x,y],[x-25,y+35],[x-14,y+47]],'#818b7722',.8)}}
+ for(let i=0;i<100;i++)tree(g,rand(-20,2420),rand(330,395),rand(.25,.65));
+ for(let i=0;i<21;i++)tree(g,i<10?rand(30,430):rand(2040,2380),rand(365,480),rand(.6,1.05));
+ // Dan River is a compositional backdrop, rather than a scale battle map.
+ const riverY=x=>438+22*Math.sin(x*.004)+9*Math.sin(x*.011);
+ const banks=[];for(let x=-20;x<=2420;x+=20)banks.push([x,riverY(x)]);for(let x=2420;x>=-20;x-=20)banks.push([x,riverY(x)+24]);
+ poly(g,banks,'#849e993c','#748d805a',.9);
+ for(let i=0;i<70;i++){const x=rand(0,2400),y=riverY(x)+rand(5,19);line(g,[[x,y],[x+rand(7,28),y]],'#738d8050',.7)}
+ // A narrow timber bridge and discreet landscape inscriptions.
+ poly(g,[[1520,riverY(1520)-7],[1550,riverY(1550)-7],[1550,riverY(1550)+31],[1520,riverY(1520)+31]],'#b4a17c','#756d52',1);
+ for(let i=0;i<6;i++)line(g,[[1520,riverY(1520)-5+i*7],[1550,riverY(1550)-5+i*7]],'#756d52',.7);
+ g.font='17px SimSun,serif';g.fillStyle='#687e73';g.fillText('丹 水',1110,riverY(1110)+17);g.fillStyle='#8b8068';g.font='13px SimSun,serif';g.fillText('上 党',1720,266);
+ // Thin contours connect the different depths of the plain.
+ for(let j=0;j<7;j++){let pts=[];for(let x=0;x<=2400;x+=65)pts.push([x,410+j*113+12*Math.sin(x*.006+j)]);line(g,pts,'#a8987020',.8)}
+ for(let i=0;i<2200;i++){const x=rand(0,2400),y=rand(390,1320),s=(y/1320)*rand(1,3);line(g,[[x-s,y],[x,y-s*2],[x+s,y]],'#827c5532',.7)}
+ for(let i=0;i<12500;i++){g.fillStyle=rand()>.5?'#5e4b2e08':'#fff9e518';g.fillRect(rand(0,2400),rand(0,1320),rand(.5,2),rand(.5,2))}
+ // Wagon tracks, troop paths and broken ground.
+ for(let side=0;side<2;side++)for(let j=0;j<3;j++){const x=side?2310:90;line(g,[[x,1120+j*10],[side?1900:500,940+j*10],[side?1440:960,750+j*9]],'#9e896337',1)}
+}
+function perspective(y){return .49+(y-340)/1030*.69}
+function flag(g,x,y,s,side,t,broken=false){const a=armies[side];g.save();g.translate(x,y);g.scale(s,s);if(broken)g.rotate(-1.08);line(g,[[0,0],[0,-79]],a.ink,1.6);line(g,[[-3,-80],[3,-80]],a.ink,1);const wave=Math.sin(t*2+x)*3;g.beginPath();g.moveTo(1,-77);g.bezierCurveTo(12,-81+wave,23,-72-wave,34,-77+wave);if(broken){g.lineTo(25,-67);g.lineTo(33,-62);g.lineTo(21,-54);g.lineTo(31,-49);g.lineTo(23,-40+wave)}else g.lineTo(32,-40+wave);g.bezierCurveTo(22,-35-wave,13,-44+wave,1,-39);g.closePath();g.fillStyle=a.color+'d9';g.fill();g.strokeStyle=a.ink;g.lineWidth=.8;g.stroke();g.fillStyle='#e8dbc0';g.font='19px SimSun,serif';g.textAlign='center';g.fillText(a.flag,17,-51+wave*.4);line(g,[[5,-75],[5,-42]],'#e8dbc08a',.6);if(!broken){g.fillStyle=a.ink;g.beginPath();g.moveTo(0,-87);g.lineTo(-3,-79);g.lineTo(3,-79);g.fill()}g.restore()}
+function tent(g,p){const {x,y,s,side}=p,a=armies[side];g.save();g.translate(x,y);g.scale(s,s);ellipse(g,0,3,49,10,'#6656380c');poly(g,[[-42,0],[-30,-44],[0,-65],[32,-44],[43,0]],'#d4c7a6',a.ink+'a0',1.1);poly(g,[[-30,-44],[0,-65],[32,-44],[8,-47]],a.color+'30',a.ink+'90',.8);line(g,[[0,-65],[1,-5]],a.ink+'70',.8);poly(g,[[-14,0],[0,-35],[15,0]],'#665c494a',a.ink+'60',.8);line(g,[[-32,-43],[-58,3],[-61,3]],a.ink+'70',.7);line(g,[[32,-43],[60,3],[63,3]],a.ink+'70',.7);g.restore()}
+function wheel(g,x,y,r,t,broken=false){ellipse(g,x,y,r,r,PAPER,INK,1.2);ellipse(g,x,y,2,2,'#776449');for(let i=0;i<8;i++){let a=i*Math.PI/4+t;line(g,[[x,y],[x+Math.cos(a)*r,y+Math.sin(a)*r]],INK,.75)}if(broken)line(g,[[x-r,y-r],[x+r*1.3,y+r*.6]],PAPER,3)}
+function prop(g,p,t){g.save();g.translate(p.x,p.y);g.scale(p.s,p.s);const a=armies[p.side];switch(p.kind){
+ case 'rampart':poly(g,[[-70,0],[-61,-24],[60,-24],[72,0]],'#a99b783e','#7d765d',1);line(g,[[-60,-24],[60,-24]],'#6c6d55',1.8);for(let i=-57;i<59;i+=8)line(g,[[i,-23],[i-5,-9]],'#84795760',.8);for(let i=-62;i<65;i+=12)line(g,[[i,-22],[i,-39],[i+3,-33]],a.ink,.9);break;
+ case 'marker':line(g,[[0,1],[0,-29]],a.ink,1);poly(g,[[-33,-52],[33,-52],[33,-28],[-33,-28]],'#d7c8a8',a.ink,.8);g.fillStyle=a.ink;g.textAlign='center';g.font='11px SimSun,serif';g.fillText(p.text,0,-36);break;
+ case 'barrier':for(let i=-2;i<=2;i++){let x=i*13;line(g,[[x-10,4],[x+9,-24]],'#6d634c',2);line(g,[[x+9,4],[x-8,-24]],'#6d634c',2)}line(g,[[-40,-9],[40,-9]],'#817052',2);break;
+ case 'cart':case 'wreck':{const broken=p.kind==='wreck';g.rotate(broken?-.2:0);poly(g,[[-28,-12],[-28,-36],[20,-36],[28,-20],[28,-12]],broken?'#8e78523a':'#b6a17d',INK,1);for(let x=-25;x<25;x+=8)line(g,[[x,-34],[x,-13]],'#6c604b',.7);wheel(g,-17,0,12,broken?.7:0,broken);wheel(g,24,0,12,.3);line(g,[[22,-18],[65,-10]],INK,1.8);if(!broken){ellipse(g,-9,-41,12,10,'#b5a37b',INK,.8);ellipse(g,10,-42,11,9,'#c2ad82',INK,.8)}else{line(g,[[-25,-36],[-3,-52]],INK,1);line(g,[[22,-20],[43,-35]],INK,1);wheel(g,59,5,10,1,true)}break;}
+ case 'drum':ellipse(g,0,-18,16,12,a.color,INK);poly(g,[[-16,-18],[-14,1],[14,1],[16,-18]],'#a18d64',INK);ellipse(g,0,-18,16,7,'#d1bf98',INK);for(let i=-10;i<=10;i+=5)line(g,[[i,-13],[i+2,-1]],INK,.6);line(g,[[-13,0],[-19,12]],INK,1.5);line(g,[[13,0],[19,12]],INK,1.5);break;
+ case 'weapons':line(g,[[-16,1],[27,-10]],INK,1.3);poly(g,[[27,-10],[36,-15],[30,-7]],'#9d9c85',INK,.7);poly(g,[[-20,-5],[-11,-12],[-3,-7],[-3,2],[-16,5]],a.color+'88',a.ink,.8);break;
+ case 'fire':for(let i=0;i<4;i++){line(g,[[-12+i*6,3],[9-i*7,-4]],'#5f4b37',2);let w=Math.sin(t*5+i+p.x)*3;poly(g,[[-8+i*4,-2],[-4+i*4+w,-20-i*2],[2+i*3,0]],i%2?'#b7784560':'#b9954b6b',null)}break;
+ }g.restore()}
+function horse(g,t,moving,side,armor=false){const a=armies[side],stride=moving?Math.sin(t*9):Math.sin(t*2)*.15;g.save();
+ // Four articulated legs: lifted fetlocks alternate diagonally.
+ for(let back=0;back<2;back++)for(let leg=0;leg<2;leg++){let x=leg?17:-21,phase=stride*(leg===back?1:-1),off=back?3:-2;line(g,[[x,-22],[x+phase*9+off,-11],[x-phase*10+off,0]],back?'#81755e':a.ink,1.7);line(g,[[x-phase*10+off,0],[x-phase*10+off+5,0]],a.ink,2)}
+ g.beginPath();g.moveTo(-30,-29);g.bezierCurveTo(-30,-44,-9,-45,11,-39);g.lineTo(21,-57);g.lineTo(24,-66);g.lineTo(29,-60);g.lineTo(34,-64);g.lineTo(36,-55);g.lineTo(46,-45);g.lineTo(43,-40);g.lineTo(30,-44);g.lineTo(24,-23);g.bezierCurveTo(11,-17,-10,-19,-25,-22);g.closePath();g.fillStyle=side?'#bcb79f':'#b49b79';g.fill();g.strokeStyle=a.ink;g.lineWidth=1.2;g.stroke();
+ line(g,[[21,-55],[16,-42],[12,-36]],'#5f5445',3);line(g,[[-29,-31],[-36,-28+stride*4],[-40,-13+stride*3]],a.ink,2);ellipse(g,36,-51,1,1,a.ink);line(g,[[32,-52],[29,-42],[43,-43]],a.ink,.65);
+ poly(g,[[-17,-41],[7,-39],[10,-23],[-18,-24]],a.color+'aa',a.ink,.7);line(g,[[-9,-40],[-9,-24]],'#e4d4b0',.8);if(armor){for(let i=0;i<5;i++)line(g,[[-25+i*7,-35],[-23+i*7,-24]],a.ink+'99',.6)}g.restore()}
+function soldier(g,u,t,role=u.kind){const a=armies[u.side];let moving=u.state==='march',atk=u.state==='attack',phase=u.phase||0;
+ const stride=moving?Math.sin(t*7+phase):Math.sin(t*2+phase)*.13;
+ const swing=atk?Math.sin(u.action*Math.PI):0;const hit=u.flash>0;let lean=hit?-5:atk?swing*3:0;
+ g.save();g.translate(lean,moving?Math.abs(stride)*-1.2:Math.sin(t*2+phase)*.45);
+ // Boots, under-robe and two visually different armor constructions.
+ line(g,[[-4,-13],[-5+stride*5,-5],[-6+stride*8,0]],a.ink,2);line(g,[[4,-13],[5-stride*5,-5],[7-stride*8,0]],a.ink,2);line(g,[[-7+stride*8,0],[-2+stride*8,0]],a.ink,2);line(g,[[6-stride*8,0],[11-stride*8,0]],a.ink,2);
+ poly(g,[[-7,-27],[6,-27],[9,-11],[-9,-11]],hit?'#b17560':a.cloth,a.ink,1);
+ if(u.side===0){poly(g,[[-8,-31],[6,-31],[8,-16],[-8,-16]],a.color+'bf',a.ink,.8);for(let y=-28;y<=-17;y+=4){line(g,[[-7,y],[7,y]],a.ink,.6);for(let x=-5;x<7;x+=4)line(g,[[x,y],[x,y+3]],a.ink,.5)}}else{poly(g,[[-7,-30],[5,-31],[8,-17],[-6,-14]],a.color+'aa',a.ink,.8);line(g,[[-6,-29],[7,-19]],'#dfd7bb',1.4);line(g,[[5,-29],[-5,-18]],a.ink,.6);for(let y=-25;y<-15;y+=4)line(g,[[-5,y],[6,y+1]],a.ink,.5)}
+ ellipse(g,0,-37,5,6,'#d3b992',a.ink,.8);line(g,[[3,-36],[6,-35],[3,-34]],a.ink,.6);
+ if(u.side===0){poly(g,[[-6,-38],[-6,-43],[0,-47],[6,-42],[6,-38]],'#a89c7e',a.ink,.8);line(g,[[-6,-39],[-7,-33]],a.ink,1.4);line(g,[[0,-46],[-1,-52]],a.color,1.6)}else{poly(g,[[-5,-40],[-3,-44],[4,-44],[6,-39]],a.color,a.ink,.8);ellipse(g,-1,-46,2,2,a.ink);line(g,[[-4,-41],[-10,-37+Math.sin(t*4+phase)]],a.color,1.5)}
+ const armX=8+swing*11,armY=-25-swing*7;
+ if(role==='archer'||role==='crossbow'){
+  line(g,[[-5,-27],[4,-23],[13,-27]],a.ink,1.8);line(g,[[5,-27],[-5+swing*8,-29],[8,-28]],a.ink,1.8);
+  if(role==='archer'){g.beginPath();g.moveTo(14,-43);g.quadraticCurveTo(28,-26,14,-11);g.strokeStyle=a.ink;g.lineWidth=1.1;g.stroke();line(g,[[14,-43],[8-swing*8,-28],[14,-11]],a.ink,.65);line(g,[[5,-29],[31,-29]],a.ink,.7)}else{line(g,[[2,-26],[28,-29]],a.ink,2);g.beginPath();g.moveTo(20,-40);g.quadraticCurveTo(30,-28,20,-17);g.strokeStyle=a.ink;g.lineWidth=1;g.stroke();line(g,[[20,-40],[24,-28],[20,-17]],a.ink,.7)}
+  line(g,[[-7,-27],[-11,-14]],a.ink,1.4);line(g,[[-10,-27],[-15,-41]],a.ink,2.5);for(let i=0;i<3;i++)line(g,[[-14+i*2,-34],[-17+i*2,-45]],a.ink,.6);
+ }else if(role==='drummer'){
+  line(g,[[-5,-28],[-14,-23],[-16,-32-swing*10]],a.ink,1.8);line(g,[[5,-28],[14,-22],[18,-30+swing*9]],a.ink,1.8);line(g,[[-16,-32-swing*10],[-11,-37-swing*10]],INK,1);line(g,[[18,-30+swing*9],[23,-35+swing*9]],INK,1);
+ }else{
+  line(g,[[5,-29],[10,-24],[armX,armY]],a.ink,1.8);line(g,[[-5,-28],[-12,-20],[-9,-15]],a.ink,1.7);
+  if(role==='shield'){
+   if(u.side===0){poly(g,[[-18,-28],[-5,-28],[-5,-9],[-11,-5],[-18,-9]],a.color,a.ink,1);line(g,[[-15,-24],[-8,-12]],'#cfbb91',.8);line(g,[[-8,-24],[-15,-12]],'#cfbb91',.8)}else{ellipse(g,-11,-18,9,11,a.color,a.ink,1);ellipse(g,-11,-18,3,4,a.light,a.ink,.7)}
+  }
+  g.save();g.translate(armX,armY);g.rotate(atk?-swing*.7:.12);
+  if(role==='spear'||role==='halberd'||role==='rider'||role==='chariot'){line(g,[[-18,11],[31,-45]],a.ink,1.25);poly(g,[[29,-43],[38,-56],[33,-40]],'#a8aa91',a.ink,.7);if(role==='halberd')poly(g,[[29,-43],[40,-43],[36,-37],[27,-40]],'#9b9e88',a.ink,.7)}
+  else if(role==='mace'){line(g,[[-3,5],[13,-27]],a.ink,1.8);ellipse(g,14,-29,5,7,'#918b73',a.ink,.8);for(let i=-1;i<=1;i++)line(g,[[11+i*3,-34],[12+i*3,-39]],a.ink,.8)}
+  else{g.beginPath();g.moveTo(0,1);g.quadraticCurveTo(23,-13,28,-32);g.quadraticCurveTo(27,-12,5,5);g.closePath();g.fillStyle='#b3b39a';g.fill();g.strokeStyle=a.ink;g.lineWidth=.9;g.stroke();line(g,[[-4,0],[7,6]],a.ink,1.4)}g.restore();
+ }
+ if(u.stuck){line(g,[[-12,-34],[5,-23]],'#6a5844',1);line(g,[[-12,-34],[-16,-35]],'#6a5844',1)}
+ g.restore();
+}
+function drawUnit(g,u,t){const s=perspective(u.y),a=armies[u.side];g.save();g.translate(u.x,u.y);g.scale(s,s);ellipse(g,0,1,u.kind==='chariot'?61:u.kind==='rider'?37:12,u.kind==='chariot'?8:3,'#655a3512');g.scale(u.face,1);
+ if(u.state==='dying'){g.translate(0,-3);g.rotate(-Math.min(1,u.deathTime/1.1)*1.48);g.globalAlpha=1}
+ if(u.kind==='rider'){horse(g,t+u.phase,u.state==='march',u.side,true);g.save();g.translate(-4,-36);g.scale(.83,.83);soldier(g,u,t,u.weapon);g.restore();line(g,[[2,-54],[30,-47]],a.ink,.7)}
+ else if(u.kind==='chariot'){
+  g.save();g.translate(39,-10);g.scale(.83,.83);horse(g,t+u.phase,u.state==='march',u.side);g.restore();g.save();g.translate(48,3);g.scale(.9,.9);horse(g,t+u.phase+1,u.state==='march',u.side);g.restore();
+  line(g,[[-13,-20],[51,-23]],a.ink,1.5);line(g,[[-10,-15],[47,-17]],a.ink,.8);
+  g.save();g.translate(-26,-22);g.scale(.87,.87);soldier(g,u,t,'chariot');g.translate(-17,0);soldier(g,{...u,state:'march'},t,'sword');g.restore();
+  poly(g,[[-52,-17],[-52,-33],[-18,-33],[-9,-20],[-9,-14]],a.color+'d0',a.ink,1.1);for(let x=-47;x<-14;x+=6)line(g,[[x,-30],[x,-18]],a.light,.8);wheel(g,-41,0,15,u.state==='march'?u.travel*.07:0);wheel(g,-12,-4,12,u.state==='march'?u.travel*.07:0);
+ }else soldier(g,u,t);g.restore()}
+function drawCorpse(g,c){const s=perspective(c.y);g.save();g.translate(c.x,c.y);g.scale(s*c.face,s);g.globalAlpha=clamp((c.life)/12,0,.85);if(showBlood){ellipse(g,2,1,15,4,'#8c493f25');ellipse(g,12,-2,8,3,'#8c493f35')}
+ if(c.mounted){g.save();g.translate(19,2);g.rotate(-1.55);g.scale(.85,.85);horse(g,0,false,c.side);g.restore()}g.rotate(c.rot);g.scale(.94,.94);const a=armies[c.side];ellipse(g,-19,-4,5,5,'#c1a77e',a.ink,.8);poly(g,[[-13,-10],[6,-10],[9,1],[-13,1]],a.color+'90',a.ink,.8);for(let x=-9;x<5;x+=4)line(g,[[x,-9],[x,0]],a.ink,.6);line(g,[[6,-6],[17,-2],[28,-4]],a.ink,1.8);line(g,[[6,0],[14,5],[26,5]],a.ink,1.8);line(g,[[-9,-7],[-1,-17],[10,-16]],a.ink,1.5);line(g,[[-8,-1],[-11,7],[0,10]],a.ink,1.5);if(c.arrow)line(g,[[-5,-6],[0,-24]],INK,1);g.restore()}
+function populate(){
+ seed=69221;units=[];arrows=[];corpses=[];particles=[];scars=[];kills=[0,0];flags=[];camps=[];props=[];time=0;Object.keys(stats).forEach(k=>stats[k]=0);
+ paintBackground();
+ for(let side=0;side<2;side++){
+  for(let i=0;i<9;i++){let x=side?rand(2050,2350):rand(50,350),y=rand(400,590);camps.push({x,y,s:rand(.6,1),side})}
+  for(let i=0;i<8;i++)flags.push({x:side?rand(1690,2210):rand(190,710),y:430+i*81,s:rand(.8,1.15),side});
+  for(let i=0;i<5;i++)props.push({kind:'cart',x:side?rand(2160,2330):rand(70,230),y:rand(630,1070),s:rand(.7,1),side});
+  for(let i=0;i<4;i++)props.push({kind:'barrier',x:side?rand(1740,1930):rand(470,660),y:rand(470,650),s:.7,side});
+  props.push({kind:'drum',x:side?1920:440,y:785,s:1,side});
+ }
+ // Qin's blocking position and a severed Zhao supply road.
+ for(let i=0;i<5;i++)props.push({kind:'rampart',x:370+i*155,y:565,s:.82,side:0});
+ for(let i=0;i<4;i++)props.push({kind:'rampart',x:1830+i*145,y:595,s:.82,side:1});
+ props.push({kind:'marker',x:350,y:610,s:1,side:0,text:'秦垒 · 白起'});
+ props.push({kind:'marker',x:2140,y:640,s:1,side:1,text:'赵营 · 赵括'});
+ props.push({kind:'marker',x:2080,y:800,s:1,side:0,text:'赵军粮道'});
+ for(let i=0;i<3;i++){props.push({kind:'wreck',x:2020+i*65,y:840+i*24,s:.9,side:1});props.push({kind:'fire',x:2030+i*65,y:834+i*24,s:1,side:1})}
+ flags.push({x:2170,y:880,s:1.1,side:0});flags.push({x:1930,y:920,s:1.05,side:0});
+ for(let i=0;i<32;i++)props.push({kind:i<4?'wreck':i<8?'fire':'weapons',x:rand(760,1690),y:rand(600,1240),s:rand(.65,1.2),side:i%2});
+ for(let i=0;i<9;i++)flags.push({x:rand(880,1550),y:rand(780,1250),s:rand(.7,1),side:i%2,broken:true});
+ for(let i=0;i<34;i++)corpses.push({x:rand(830,1590),y:rand(620,1260),side:i%2,face:i%2?1:-1,rot:rand(-.5,.5),life:rand(55,120),arrow:i%3===0});
+ const n=+document.getElementById('density').value;
+ for(let i=0;i<n;i++)units.push(makeUnit(i%2,i));
+ // A pair of drummers keeps time beside the large war drums.
+ [0,1].forEach(side=>units.push({id:n+side,side,kind:'drummer',weapon:'sword',x:side?1903:423,y:770,homeY:770,face:side?-1:1,hp:100,phase:rand(0,7),state:'attack',action:0,cooldown:0,flash:0,stuck:false,travel:0,speed:0}));
+}
+function makeUnit(side,id,reentry=false){const role=choose(['spear','spear','spear','spear','shield','shield','shield','shield','sword','sword','sword','halberd','halberd','archer','archer','archer','crossbow','crossbow','rider','rider','rider','chariot','mace','mace']);const ranged=role==='archer'||role==='crossbow',mounted=role==='rider'||role==='chariot';
+ const y=mounted?rand(660,1160):rand(540,1150),front=1200+Math.sin(y*.015)*65;
+ let x=ranged?(side?rand(1730,2060):rand(340,670)):(side?rand(front+25,1900):rand(480,front-25));
+ if(reentry)x=side?rand(1610,1810):rand(-20,180);
+ return {id,side,kind:role,weapon:mounted?choose(['rider','sword','mace']):role,x,y,homeY:y,face:side?-1:1,hp:mounted?150:80,phase:rand(0,7),state:'march',action:0,cooldown:rand(.3,4),flash:0,stuck:false,travel:rand(0,100),speed:mounted?rand(22,32):rand(9,17),deathTime:0,target:null,raid:side===0&&mounted&&id%3===0,waypoint:0};
+}
+function damage(u,amount,arrow=false){if(!u||u.state==='dying'||u.kind==='drummer')return;u.hp-=amount;u.flash=.3;u.stuck=u.stuck||arrow;stats.hits++;if(!arrow)stats.meleeHits++;
+ if(showBlood)for(let i=0;i<5;i++)particles.push({x:u.x,y:u.y-24*perspective(u.y),vx:rand(-22,22),vy:rand(-27,-5),life:rand(.25,.65),max:.65,type:'blood'});
+ if(u.hp<=0){u.state='dying';u.deathTime=0;kills[1-u.side]++;stats.deaths++;u.target=null}
+}
+function nearest(u,list){let target=null,best=Infinity;for(const v of list){if(v.side===u.side||v.state==='dying'||v.kind==='drummer')continue;const dx=v.x-u.x,dy=v.y-u.y,lane=v.y-u.homeY;const d=dx*dx+dy*dy*6+lane*lane*12;if(d<best){best=d;target=v}}return {target,d:Math.sqrt(best)}}
+function launch(u,target){if(!target)return;let duration=rand(1.15,1.85),startY=u.y-35*perspective(u.y);arrows.push({x0:u.x,y0:startY,x1:target.x+rand(-9,9),y1:target.y-18*perspective(target.y),t:0,duration,height:rand(95,185),side:u.side,target,hit:rand()<.64});stats.shots++}
+let searchClock=0;
+function update(dt){time+=dt;searchClock+=dt;let refresh=searchClock>.32;if(refresh)searchClock=0;
+ for(let i=0;i<units.length;i++){let u=units[i];u.flash=Math.max(0,u.flash-dt);u.cooldown-=dt;
+  if(u.state==='dying'){u.deathTime+=dt;if(u.deathTime>1.3){corpses.push({x:u.x,y:u.y,side:u.side,face:u.face,rot:rand(-.5,.5),life:rand(60,100),arrow:u.stuck,mounted:u.kind==='rider'});if(u.kind==='chariot')props.push({kind:'wreck',x:u.x,y:u.y,s:perspective(u.y)*.8,side:u.side,life:45});units[i]=makeUnit(u.side,u.id,true);stats.reinforcements++}continue}
+  if(u.kind==='drummer'){u.action=(time*1.8+u.side)%1;continue}
+  if(u.raid&&u.waypoint<3){const route=[{x:1050,y:525},{x:2060,y:525},{x:2010,y:800}],p=route[u.waypoint],dx=p.x-u.x,dy=p.y-u.y,d=Math.hypot(dx,dy);u.state='march';u.face=dx>=0?1:-1;const step=u.speed*1.75*dt;u.x+=dx/Math.max(d,1)*Math.min(step,d);u.y+=dy/Math.max(d,1)*Math.min(step,d);u.travel+=step;if(d<12){u.waypoint++;u.homeY=u.y}continue}
+  if(refresh||!u.target||u.target.state==='dying')u.target=nearest(u,units).target;
+  const v=u.target,ranged=u.kind==='archer'||u.kind==='crossbow',mounted=u.kind==='rider'||u.kind==='chariot';
+  if(ranged){u.face=u.side?-1:1;const hold=u.side?1820:580;if(Math.abs(u.x-hold)>90){u.state='march';u.x+=Math.sign(hold-u.x)*u.speed*dt}else{u.state='attack';u.action=clamp(1-u.cooldown/2,0,1);if(u.cooldown<=0){launch(u,v);u.cooldown=rand(3.8,7)}}continue}
+  if(!v)continue;const dx=v.x-u.x,dy=v.y-u.y,dist=Math.hypot(dx,dy*1.6),reach=u.kind==='chariot'?94:mounted?65:u.kind==='spear'||u.kind==='halberd'?47:30;u.face=dx>=0?1:-1;
+  if(dist>reach){u.state='march';u.action=0;let velocity=u.speed*(mounted?1.3:1)*dt;u.x+=dx/Math.max(dist,1)*velocity;u.y+=(clamp(dy,-24,24)*.3+(u.homeY-u.y)*.35)*dt;u.travel+=velocity;
+   if(mounted&&rand()<dt*.6)particles.push({x:u.x-20*u.face,y:u.y,vx:rand(-5,5),vy:rand(-8,-2),life:1.6,max:1.6,type:'dust'});
+  }else{u.state='attack';u.action=(u.action+dt*(mounted?1.35:1.8))%1;if(u.cooldown<=0){damage(v,rand(14,mounted?44:33));u.cooldown=rand(1.1,2.7)}u.x-=Math.sign(dx)*dt*1.4;}
+  u.y=clamp(u.y,515,1210);u.x=clamp(u.x,-80,2480);
+ }
+ // Mild same-army separation keeps shields and horses legible in dense melee.
+ for(let i=0;i<units.length;i++)for(let j=i+1;j<units.length;j++){const a=units[i],b=units[j];if(a.side!==b.side||a.state==='dying'||b.state==='dying'||a.kind==='drummer'||b.kind==='drummer')continue;let dx=a.x-b.x,dy=(a.y-b.y)*1.6;if(Math.abs(dx)>80||Math.abs(dy)>80)continue;const radius=u=>u.kind==='chariot'?39:u.kind==='rider'?25:12;const d=Math.hypot(dx,dy)||1,min=radius(a)+radius(b);if(d<min){const force=(min-d)*dt*2;a.x+=dx/d*force;b.x-=dx/d*force;a.y+=dy/d*force*.5;b.y-=dy/d*force*.5}}
+ for(let i=arrows.length-1;i>=0;i--){let a=arrows[i];a.t+=dt;if(a.t>=a.duration){if(a.hit&&a.target.state!=='dying'&&Math.hypot(a.target.x-a.x1,a.target.y-(a.y1+18*perspective(a.target.y)))<65)damage(a.target,rand(26,52),true);scars.push({x:a.x1,y:a.y1+18,life:24,angle:rand(-.3,.3)});arrows.splice(i,1)}}
+ for(let i=particles.length-1;i>=0;i--){let p=particles[i];p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.type==='blood')p.vy+=65*dt;if(p.life<=0)particles.splice(i,1)}
+ for(const c of corpses)c.life-=dt;corpses=corpses.filter(c=>c.life>0).slice(-150);
+ for(const s of scars)s.life-=dt;scars=scars.filter(s=>s.life>0).slice(-130);
+ props=props.filter(p=>p.life===undefined||(p.life-=dt)>0);
+ if(particles.length>240)particles=particles.slice(-240);
+}
+function smoke(g,t){for(const p of props){if(p.kind!=='fire')continue;for(let j=0;j<5;j++){const age=(t*.16+j*.2+p.x*.001)%1,x=p.x+Math.sin(age*4+p.x)*12+age*21,y=p.y-20-age*100;ellipse(g,x,y,8+age*22,5+age*11,`rgba(101,95,76,${(1-age)*.06})`)}}}
+function render(){
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=PAPER;ctx.fillRect(0,0,width,height);
+ scale=baseScale*zoom;let cx=camX+(drift?Math.sin(time*.018)*110:0),cy=camY+(drift?Math.sin(time*.013)*8:0);
+ const halfW=width/scale/2,halfH=height/scale/2;cx=halfW>=1200?1200:clamp(cx,halfW,2400-halfW);cy=halfH>=660?660:clamp(cy,halfH,1320-halfH);
+ ctx.save();ctx.translate(width/2,height/2);ctx.scale(scale,scale);ctx.translate(-cx,-cy);ctx.lineCap='round';ctx.lineJoin='round';ctx.drawImage(background,0,0);
+ for(const c of corpses)drawCorpse(ctx,c);
+ for(const s of scars){ctx.globalAlpha=Math.min(1,s.life/6)*.6;line(ctx,[[s.x,s.y],[s.x-6,s.y-19]],INK,.7)}ctx.globalAlpha=1;
+ const objects=[];for(const p of camps)objects.push({y:p.y,draw:()=>tent(ctx,p)});for(const p of props)objects.push({y:p.y,draw:()=>prop(ctx,p,time)});for(const f of flags)objects.push({y:f.y,draw:()=>flag(ctx,f.x,f.y,f.s,f.side,time,f.broken)});for(const u of units)objects.push({y:u.y,draw:()=>drawUnit(ctx,u,time)});objects.sort((a,b)=>a.y-b.y);for(const o of objects)o.draw();
+ for(const p of particles){ctx.globalAlpha=p.life/p.max;if(p.type==='blood')ellipse(ctx,p.x,p.y,1.5,1,showBlood?'#944939':'#94493900');else ellipse(ctx,p.x,p.y,5+(1-p.life/p.max)*13,3+(1-p.life/p.max)*6,'#9c886323')}ctx.globalAlpha=1;
+ for(const a of arrows){let p=clamp(a.t/a.duration,0,1),x=a.x0+(a.x1-a.x0)*p,y=a.y0+(a.y1-a.y0)*p-Math.sin(p*Math.PI)*a.height;let dx=(a.x1-a.x0),dy=(a.y1-a.y0)-Math.cos(p*Math.PI)*a.height*Math.PI;const norm=Math.hypot(dx,dy);dx/=norm;dy/=norm;line(ctx,[[x-dx*17,y-dy*17],[x,y]],'#514a38',.85);line(ctx,[[x-dx*15-dy*3,y-dy*15+dx*3],[x-dx*11,y-dy*11],[x-dx*15+dy*3,y-dy*15-dx*3]],'#514a38',.65)}
+ smoke(ctx,time);ctx.restore();
+ // A silk-colored edge wash makes the landscape dissolve into the scroll.
+ const v=ctx.createLinearGradient(0,0,0,height);v.addColorStop(0,'#eee6d2e0');v.addColorStop(.19,'#eee6d200');v.addColorStop(.82,'#e8ddc200');v.addColorStop(1,'#e8ddc2ee');ctx.fillStyle=v;ctx.fillRect(0,0,width,height);
+}
+function resize(){width=innerWidth;height=innerHeight;dpr=Math.min(devicePixelRatio||1,+document.getElementById('quality').value);canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);baseScale=Math.max(width/2400,height/1320);render()}
+function frame(now){let elapsed=last?Math.min((now-last)/1000,.1):0;last=now;if(!paused&&!document.hidden){acc+=elapsed*speed;let steps=0;while(acc>=1/30&&steps<6){update(1/30);acc-=1/30;steps++}if(steps===6)acc=0}if(!document.hidden){render();frameMs+=(elapsed-frameMs)*.05}requestAnimationFrame(frame)}
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),2200)}
+function togglePause(){paused=!paused;document.getElementById('pause').textContent=paused?'▷ 继续':'Ⅱ 暂停';document.getElementById('pause').setAttribute('aria-pressed',String(paused))}
+function toggleDrift(){drift=!drift;document.getElementById('drift').classList.toggle('active',drift);document.getElementById('drift').setAttribute('aria-pressed',String(drift))}
+function pure(){document.body.classList.toggle('pure');document.getElementById('settings').hidden=true;document.getElementById('settingBtn').setAttribute('aria-expanded','false')}
+async function fullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch{toast('请在浏览器中使用全屏，或按 F11')}}
+document.getElementById('pause').onclick=togglePause;document.getElementById('drift').onclick=toggleDrift;document.getElementById('hide').onclick=pure;document.getElementById('full').onclick=fullscreen;
+document.getElementById('settingBtn').onclick=()=>{const p=document.getElementById('settings');p.hidden=!p.hidden;document.getElementById('settingBtn').setAttribute('aria-expanded',String(!p.hidden))};
+document.getElementById('speed').oninput=e=>{speed=+e.target.value;document.getElementById('speedValue').textContent=speed.toFixed(1)};
+document.getElementById('blood').onchange=e=>{showBlood=e.target.checked;if(!showBlood)particles=particles.filter(p=>p.type!=='blood')};
+document.getElementById('quality').onchange=resize;document.getElementById('density').onchange=()=>{populate();render();updateCount()};
+document.getElementById('reset').onclick=()=>{populate();render();updateCount();toast('两军已重新布阵')};
+document.getElementById('home').onclick=()=>{zoom=1;camX=1200;camY=660;render();toast('已还原全景视角')};
+window.addEventListener('keydown',e=>{if(e.key!=='Escape'&&['INPUT','SELECT'].includes(document.activeElement.tagName))return;if(e.repeat)return;if(e.code==='Space'&&document.activeElement.tagName==='BUTTON')return;if(e.code==='Space'){e.preventDefault();togglePause()}if(e.key.toLowerCase()==='h')pure();if(e.key.toLowerCase()==='f')fullscreen();if(e.key==='Escape'){document.body.classList.remove('pure');document.getElementById('settings').hidden=true;document.getElementById('settingBtn').setAttribute('aria-expanded','false')}});
+const pointers=new Map();let gesture=null;
+function beginGesture(){const pts=[...pointers.values()];gesture={x:pts.reduce((s,p)=>s+p.x,0)/pts.length,y:pts.reduce((s,p)=>s+p.y,0)/pts.length,camX,camY,zoom,dist:pts.length>1?Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y):0}}
+canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(drift)toggleDrift();beginGesture()});
+canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const pts=[...pointers.values()],x=pts.reduce((s,p)=>s+p.x,0)/pts.length,y=pts.reduce((s,p)=>s+p.y,0)/pts.length;if(pts.length>1&&gesture.dist){const dist=Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y);zoom=clamp(gesture.zoom*dist/gesture.dist,1,3)}camX=clamp(gesture.camX-(x-gesture.x)/(baseScale*zoom),0,2400);camY=clamp(gesture.camY-(y-gesture.y)/(baseScale*zoom),0,1320);render()});
+function endPointer(e){pointers.delete(e.pointerId);if(pointers.size)beginGesture();else gesture=null}canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',endPointer);
+canvas.addEventListener('wheel',e=>{e.preventDefault();if(drift)toggleDrift();const old=zoom;zoom=clamp(zoom*Math.exp(-e.deltaY*.001),1,3);camX+=(e.clientX-width/2)/baseScale*(1/old-1/zoom);camY+=(e.clientY-height/2)/baseScale*(1/old-1/zoom);render()},{passive:false});
+window.addEventListener('resize',resize);document.addEventListener('visibilitychange',()=>{last=0;acc=0});
+function updateCount(){document.getElementById('count').textContent=units.length+' 兵'}
+populate();resize();updateCount();requestAnimationFrame(frame);
+// Read-only diagnostics also let the offline verification script inspect the simulation.
+window.battlefield={get units(){return units},get arrows(){return arrows},get corpses(){return corpses},get particles(){return particles},get props(){return props},get stats(){return {...stats}},get time(){return time},get view(){return {width,height,zoom,camX,camY}},update,render,reset:populate};
+})();
+</script>
+</body>
+</html>

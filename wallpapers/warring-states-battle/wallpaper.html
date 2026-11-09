@@ -1,0 +1,3975 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ece2cd">
+<title>长平 · 战于野 · Battle of Changping</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#ece2cd}
+  body{font-family:"STKaiti","KaiTi","FangSong","Songti SC",serif;user-select:none;-webkit-font-smoothing:antialiased}
+  canvas{position:fixed;inset:0;display:block;width:100%;height:100%;background:#ece2cd}
+  .paper-grain,.vignette{position:fixed;inset:0;pointer-events:none;z-index:1}
+  .paper-grain{mix-blend-mode:multiply;opacity:.52;background-repeat:repeat;background-size:320px 320px}
+  .vignette{
+    mix-blend-mode:multiply;
+    background:radial-gradient(ellipse at 50% 46%,rgba(60,45,24,0) 42%,rgba(60,45,24,.035) 72%,rgba(60,45,24,.11) 100%);
+  }
+  .colophon{
+    position:fixed;z-index:2;top:clamp(24px,5.2vh,68px);right:clamp(24px,4.2vw,78px);
+    display:flex;align-items:flex-start;gap:clamp(10px,1.2vw,20px);
+    color:#29322f;pointer-events:none;
+    opacity:0;transform:translateY(-6px);
+    transition:opacity 2.4s ease .7s,transform 2.4s ease .7s;
+    mix-blend-mode:multiply;
+  }
+  body.ready .colophon{opacity:.96;transform:none}
+  .vtitle{
+    writing-mode:vertical-rl;text-orientation:upright;
+    font-size:clamp(18px,1.7vw,32px);letter-spacing:.24em;line-height:1.18;
+    font-weight:600;color:#1f2824;text-shadow:none;
+  }
+  .vtitle small{
+    display:block;font-family:"Palatino Linotype","Book Antiqua",Georgia,serif;
+    font-size:clamp(6px,.47vw,9px);letter-spacing:.28em;font-weight:400;
+    color:#55625b;margin-top:1.4em;
+  }
+  .vtitle small.names{
+    font-family:"STKaiti","KaiTi","FangSong",serif;
+    font-size:clamp(8px,.7vw,12px);letter-spacing:.18em;color:#7c2f26;
+    margin-top:1.1em;
+  }
+  .seal{
+    width:clamp(27px,2.05vw,38px);height:clamp(27px,2.05vw,38px);
+    border:1.5px solid rgba(142,54,42,.8);color:#8e362a;
+    display:grid;place-items:center;font-size:clamp(14px,1.15vw,21px);
+    line-height:1;margin-top:2px;
+    box-shadow:inset 0 0 0 2px rgba(142,54,42,.12);
+    transform:rotate(1.2deg);
+  }
+  .seal span{transform:translateY(-.04em)}
+  .clean .colophon{display:none}
+  @media (max-width:720px),(max-aspect-ratio:1/1){
+    .colophon{top:20px;right:18px;opacity:.6}
+    .vtitle{font-size:15px}
+    .vtitle small{display:none}
+    .seal{width:24px;height:24px;font-size:12px}
+  }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="长平之战全景长卷：公元前260年，秦将白起与赵将赵括在长平旷野决战。玄色秦军与赤色赵军在壁垒、营帐、军旗之间以长矛、盾阵、弓弩、骑兵和双马战车厮杀；秦军骑兵从侧翼合围，箭雨落下，赵卒中刀溅血、倒地、被俘，伤兵在残车与断旗之间爬行。"></canvas>
+<div class="paper-grain" id="grain" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="colophon" aria-hidden="true">
+  <div class="vtitle">長平 · 戰於野<small>BATTLE OF CHANGPING · 260 BCE</small><small class="names">秦 · 白起　趙 · 趙括</small></div>
+  <div class="seal"><span>戰</span></div>
+</div>
+
+<script>
+
+'use strict';
+(() => {
+  /* ---------------------------------------------------------------------
+     Everything is vector line-work on canvas: no images, no network.
+     --------------------------------------------------------------------- */
+
+  const TAU = Math.PI * 2;
+  const DESIGN_H = 1080;
+  const WORLD_W = 4000;
+  const VIEW_TOP = 250;
+  const VIEW_H = 820;
+  const FOCUS_Y = VIEW_TOP + VIEW_H * .5;
+  const canvas = document.getElementById('stage');
+  let ctx = canvas.getContext('2d', { alpha: false });
+  const BG_SCALE = 1.5;
+
+  const PAL = {
+    paper: '#ece2cd',
+    paperHigh: '#f4ecdd',
+    paperLow: '#dfd2b8',
+    haze: '#eee5d3',
+    ink: '#26312e',
+    inkSoft: '#46534e',
+    inkFaint: '#6b746c',
+    indigo: '#42606a',
+    indigoMid: '#69878b',
+    indigoPale: '#a5b7b4',
+    indigoDark: '#263f49',
+    rust: '#a24c39',
+    rustMid: '#bd7258',
+    rustPale: '#d6a58b',
+    rustDark: '#743127',
+    ochre: '#b0854d',
+    ochrePale: '#cfb181',
+    jade: '#7f9484',
+    jadePale: '#b7c3b1',
+    skin: '#dcc09d',
+    bone: '#d4c4a3',
+    blood: '#77201f',
+    bloodPale: '#b34638',
+  };
+
+  const SIDE = {
+    jin: {
+      name: '秦军',
+      cloth: PAL.indigo,
+      clothMid: PAL.indigoMid,
+      clothPale: PAL.indigoPale,
+      dark: PAL.indigoDark,
+      accent: PAL.jadePale,
+      trousers: '#526a6f',
+      plume: PAL.jadePale,
+      flag: PAL.indigo,
+    },
+    chi: {
+      name: '赵军',
+      cloth: PAL.rust,
+      clothMid: PAL.rustMid,
+      clothPale: PAL.rustPale,
+      dark: PAL.rustDark,
+      accent: PAL.ochrePale,
+      trousers: '#8d654d',
+      plume: PAL.rustPale,
+      flag: PAL.rust,
+    },
+  };
+
+  const state = {
+    W: 0, H: 0, dpr: 1, scale: 1, visW: 1920, visH: 1080,
+    camX: 0, camMax: 0, offY: 0,
+    start: performance.now(),
+    sceneTime: 30,
+    reduced: false,
+    poster: null,
+    clean: false,
+    grain: null,
+  };
+
+  const qs = new URLSearchParams(location.search);
+  if (qs.has('clean')) state.clean = true;
+  if (qs.has('still')) {
+    state.poster = {
+      t: qs.has('t') ? Number(qs.get('t')) : null,
+      cam: qs.has('cam') ? Number(qs.get('cam')) : null,
+    };
+  }
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    state.reduced = true;
+  }
+
+  /* ---------------------------------- utils --------------------------- */
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function smooth(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+  function easeOut(t) { t = clamp(t, 0, 1); return 1 - Math.pow(1 - t, 3); }
+  function easeInOut(t) {
+    t = clamp(t, 0, 1);
+    return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+  function mod(a, n) { return ((a % n) + n) % n; }
+  function hash(n) {
+    n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4);
+    n = Math.imul(n, 0x27d4eb2d); n = n ^ (n >>> 15);
+    return n >>> 0;
+  }
+  function rng(seed) {
+    let a = hash(seed | 0);
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function pulse(t, period, offset, attack, hold, release) {
+    const u = mod(t + offset, period);
+    if (u < attack) return easeOut(u / attack);
+    if (u < attack + hold) return 1;
+    if (u < attack + hold + release) return 1 - smooth((u - attack - hold) / release);
+    return 0;
+  }
+  function burst(q, seed, n) {
+    if (q <= 0 || q >= 1) return [];
+    const R = rng(seed);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      out.push({
+        x: (R() - .15) * 46 * q,
+        y: -14 - R() * 30 * q,
+        r: .5 + R() * 2.3,
+        a: R() * .8 + .2,
+        d: .3 + R() * .7,
+      });
+    }
+    return out;
+  }
+
+  function inkLine(x1, y1, x2, y2, w = 1, a = 1, color = PAL.ink) {
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  function poly(points, fill, stroke = null, lw = 1, alpha = 1, close = true) {
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+    if (close) ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  function ellipse(x, y, rx, ry, fill, stroke = null, lw = 1, alpha = 1, rot = 0) {
+    ctx.globalAlpha = alpha;
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, TAU);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  function ik(a, b, l1, l2, bend = 1) {
+    let dx = b.x - a.x, dy = b.y - a.y;
+    let d = Math.hypot(dx, dy) || .0001;
+    const max = l1 + l2 - .05;
+    if (d > max) { dx *= max / d; dy *= max / d; d = max; }
+    const base = Math.atan2(dy, dx);
+    const cosA = clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1);
+    const off = Math.acos(cosA);
+    const ang = base - off * bend;
+    return { x: a.x + Math.cos(ang) * l1, y: a.y + Math.sin(ang) * l1 };
+  }
+  function limb(a, b, c, width, fill, outline = PAL.ink, oa = 1) {
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.globalAlpha = oa;
+    ctx.strokeStyle = outline; ctx.lineWidth = width + 1.35;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+    ctx.strokeStyle = fill; ctx.lineWidth = width;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  function qcurve(p0, p1, p2, color, lw, alpha = 1) {
+    ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.quadraticCurveTo(p1.x, p1.y, p2.x, p2.y); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  function pointOn(a, b, t) { return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) }; }
+
+  /* ---------------------------------- paper --------------------------- */
+
+  function makeGrain() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 320;
+    const g = c.getContext('2d');
+    const R = rng(9921);
+    g.clearRect(0, 0, 320, 320);
+    for (let i = 0; i < 1400; i++) {
+      const x = R() * 320, y = R() * 320;
+      const a = R() * .055;
+      g.fillStyle = R() > .5 ? `rgba(70,57,38,${a})` : `rgba(255,251,239,${a})`;
+      g.fillRect(x, y, R() * 1.6 + .3, R() * 1.2 + .3);
+    }
+    g.strokeStyle = 'rgba(90,74,48,.045)';
+    g.lineWidth = .6;
+    for (let i = 0; i < 34; i++) {
+      const x = R() * 320, y = R() * 320, len = 12 + R() * 54;
+      g.beginPath(); g.moveTo(x, y);
+      g.quadraticCurveTo(x + len * .4, y + (R() - .5) * 8, x + len, y + (R() - .5) * 9);
+      g.stroke();
+    }
+    for (let i = 0; i < 26; i++) {
+      const x = R() * 320, y = R() * 320;
+      g.strokeStyle = `rgba(66,55,36,${.018 + R() * .022})`;
+      g.lineWidth = .55;
+      g.beginPath(); g.arc(x, y, 4 + R() * 24, R() * TAU, R() * TAU + .8); g.stroke();
+    }
+    return c;
+  }
+
+  /* ---------------------------------- resize -------------------------- */
+
+  function resize() {
+    state.W = Math.max(1, window.innerWidth);
+    state.H = Math.max(1, window.innerHeight);
+    state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    state.scale = Math.max(state.H / VIEW_H, state.W / WORLD_W);
+    state.visW = state.W / state.scale;
+    state.visH = state.H / state.scale;
+    state.offY = VIEW_TOP + (VIEW_H - state.visH) * .5;
+    state.camMax = Math.max(0, WORLD_W - state.visW);
+    canvas.width = Math.round(state.W * state.dpr);
+    canvas.height = Math.round(state.H * state.dpr);
+    canvas.style.width = state.W + 'px';
+    canvas.style.height = state.H + 'px';
+  }
+
+  /* ---------------------------------- sky / land ---------------------- */
+
+  const ridges = [];
+  function buildRidges() {
+    const specs = [
+      { seed: 11, base: 410, amp: 96, step: 150, fill: '#748b88', fa: .17, la: .25, lw: .9 },
+      { seed: 27, base: 455, amp: 74, step: 118, fill: '#58736f', fa: .13, la: .22, lw: 1.05 },
+      { seed: 41, base: 494, amp: 44, step: 92, fill: '#3d5855', fa: .1, la: .17, lw: .9 },
+    ];
+    for (const spec of specs) {
+      const R = rng(spec.seed);
+      const pts = [];
+      for (let x = -420; x <= WORLD_W + 420; x += spec.step) {
+        const n = Math.sin(x * .0031 + spec.seed) * .45 + Math.sin(x * .0087 - spec.seed) * .3 + (R() - .5) * .5;
+        pts.push({ x, y: spec.base - spec.amp * (.3 + n * .7) });
+      }
+      ridges.push({ ...spec, pts });
+    }
+  }
+
+  function drawSkyStatic() {
+    const grad = ctx.createLinearGradient(0, -40, 0, 560);
+    grad.addColorStop(0, '#f7f0e1');
+    grad.addColorStop(.58, '#efe5d0');
+    grad.addColorStop(1, '#e8ddc5');
+    ctx.fillStyle = grad;
+    ctx.fillRect(-500, -120, WORLD_W + 1000, 700);
+
+    // A low, pale sun behind the dust of the plain.
+    ctx.save();
+    ctx.globalAlpha = .13;
+    ctx.fillStyle = PAL.rustMid;
+    ctx.beginPath(); ctx.arc(990, 305, 55, 0, TAU); ctx.fill();
+    ctx.globalAlpha = .18;
+    ctx.strokeStyle = PAL.rust;
+    ctx.lineWidth = .9;
+    ctx.beginPath(); ctx.arc(990, 305, 56, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = .06;
+    ctx.beginPath(); ctx.arc(990, 305, 82, 0, TAU); ctx.stroke();
+    ctx.restore();
+
+    // Long silk-like cloud bands, baked into the scroll paper.
+    drawCloud(300, 294, 1.25, 0, .2);
+    drawCloud(880, 242, .92, 8, .15);
+    drawCloud(1500, 330, 1.45, 2, .18);
+    drawCloud(2170, 276, 1.05, 12, .15);
+    drawCloud(2810, 322, 1.5, 5, .17);
+    drawCloud(3510, 258, 1.18, 18, .16);
+    drawCloud(3860, 330, .8, 22, .13);
+
+    // Fine, dry ink clouds near the ridge line.
+    ctx.save();
+    ctx.globalAlpha = .13;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .7;
+    for (let i = 0; i < 18; i++) {
+      const R = rng(240 + i);
+      const x = R() * WORLD_W, y = 360 + R() * 70;
+      ctx.beginPath(); ctx.moveTo(x, y);
+      ctx.bezierCurveTo(x + 30, y - 8, x + 72, y + 4, x + 110, y - 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawSkyDynamic(t) {
+    drawBirds(t);
+  }
+
+  function drawBirds(t) {
+    const groups = [
+      { x: 780, y: 320, n: 5, s: .85, p: 0.1 },
+      { x: 1740, y: 286, n: 7, s: 1.05, p: 1.8 },
+      { x: 3120, y: 338, n: 4, s: .8, p: 3.2 },
+      { x: 3660, y: 296, n: 6, s: .9, p: 4.6 },
+    ];
+    ctx.save();
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .85;
+    for (const g of groups) {
+      const drift = mod(t * 2.2 + g.x, WORLD_W + 400) - 200;
+      for (let i = 0; i < g.n; i++) {
+        const R = rng(g.x + i * 17);
+        const x = drift + (R() - .5) * 92;
+        const y = g.y + (R() - .5) * 34 + Math.sin(t * .45 + i + g.p) * 6;
+        const flap = Math.sin(t * 3.4 + i * 1.3 + g.p) * .55;
+        const s = g.s * (0.75 + R() * .45);
+        ctx.globalAlpha = .3 + R() * .22;
+        ctx.beginPath();
+        ctx.moveTo(x - 7 * s, y + 2 * s);
+        ctx.quadraticCurveTo(x - 3 * s, y - 3 * s - flap * 3, x, y);
+        ctx.quadraticCurveTo(x + 3 * s, y - 3 * s - flap * 3, x + 7 * s, y + 2 * s);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawCloud(x, y, s, t, a) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s * .62);
+    const sway = Math.sin(t * .035 + x) * 6;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#f8f2e5';
+    ctx.beginPath();
+    ctx.moveTo(-150 + sway, 8);
+    ctx.bezierCurveTo(-110, -20, -74, -4, -46, -10);
+    ctx.bezierCurveTo(-16, -34, 32, -26, 48, -6);
+    ctx.bezierCurveTo(88, -22, 126, -4, 160, 4);
+    ctx.bezierCurveTo(112, 24, 68, 14, 26, 22);
+    ctx.bezierCurveTo(-28, 32, -92, 25, -150, 8);
+    ctx.fill();
+    ctx.globalAlpha = a * 1.9;
+    ctx.strokeStyle = PAL.inkFaint;
+    ctx.lineWidth = .65;
+    ctx.beginPath();
+    ctx.moveTo(-134 + sway, 8);
+    ctx.bezierCurveTo(-78, 12, -34, 17, 12, 14);
+    ctx.bezierCurveTo(62, 12, 104, 7, 144, 4);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawMountains(t) {
+    for (let i = 0; i < ridges.length; i++) {
+      const r = ridges[i];
+      ctx.globalAlpha = r.fa;
+      ctx.fillStyle = r.fill;
+      ctx.beginPath();
+      ctx.moveTo(r.pts[0].x, 620);
+      for (const p of r.pts) ctx.lineTo(p.x, p.y);
+      ctx.lineTo(r.pts[r.pts.length - 1].x, 620);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.globalAlpha = r.la;
+      ctx.strokeStyle = r.fill;
+      ctx.lineWidth = r.lw;
+      ctx.beginPath();
+      ctx.moveTo(r.pts[0].x, r.pts[0].y);
+      for (let j = 1; j < r.pts.length; j++) {
+        const p = r.pts[j], q = r.pts[j - 1];
+        ctx.quadraticCurveTo(q.x + (p.x - q.x) * .5, q.y, p.x, p.y);
+      }
+      ctx.stroke();
+    }
+
+    // Pale ridge texture: short dry-brush marks following the slopes.
+    const R = rng(708);
+    ctx.globalAlpha = .12;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .7;
+    for (let i = 0; i < 520; i++) {
+      const x = R() * WORLD_W;
+      const base = 405 + R() * 120;
+      const y = base - R() * 62;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + 6 + R() * 16, y + (R() - .5) * 8, x + 14 + R() * 26, y + (R() - .5) * 11);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Mist settling at the foot of the hills.
+    const mist = ctx.createLinearGradient(0, 455, 0, 585);
+    mist.addColorStop(0, 'rgba(238,229,211,0)');
+    mist.addColorStop(.55, 'rgba(238,229,211,.52)');
+    mist.addColorStop(1, 'rgba(232,221,198,.82)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(-400, 455, WORLD_W + 800, 150);
+  }
+
+  function drawSmokeColumn(x, y, height, phase, alpha = .12, w = 1) {
+    const T = state.sceneTime;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 8; i++) {
+      const p = mod(T * .018 + i / 8 + phase, 1);
+      const yy = y - p * height;
+      const drift = Math.sin(p * 5.4 + phase * 3 + T * .22) * (5 + p * 30) * w;
+      const sway = Math.sin(T * .38 + i + phase * 4) * (4 + p * 14) * w;
+      ctx.lineWidth = (1.1 + p * 1.8) * w;
+      ctx.beginPath();
+      ctx.arc(drift + sway, yy, (5 + p * 24) * w, .25 + p * .4, 2.75 + p * .5);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = alpha * .62;
+    ctx.fillStyle = PAL.haze;
+    for (let i = 0; i < 4; i++) {
+      const p = mod(T * .014 + i / 4 + phase, 1);
+      const yy = y - p * height;
+      const xx = Math.sin(p * 4.4 + phase) * (8 + p * 28) * w;
+      ctx.beginPath();
+      ctx.ellipse(xx, yy, (9 + p * 27) * w, (4 + p * 11) * w, .2, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function buildDistantTrees() {
+    const R = rng(661);
+    const trees = [];
+    for (let i = 0; i < 190; i++) {
+      const x = -60 + R() * (WORLD_W + 120);
+      const y = 518 + R() * 34;
+      const s = .35 + R() * .7;
+      trees.push({ x, y, s, kind: R() > .5 ? 'pine' : 'willow', a: .22 + R() * .19 });
+    }
+    return trees;
+  }
+  const distantTrees = buildDistantTrees();
+
+  function drawDistantTrees() {
+    for (const tr of distantTrees) drawSmallTree(tr);
+  }
+  function drawSmallTree(tr) {
+    const { x, y, s, kind, a } = tr;
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.fillStyle = PAL.jade;
+    ctx.lineWidth = 1.1;
+    if (kind === 'pine') {
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -34); ctx.stroke();
+      for (let i = 0; i < 4; i++) {
+        const yy = -12 - i * 7;
+        ctx.beginPath(); ctx.moveTo(0, yy);
+        ctx.lineTo(-8 - i * 2, yy + 5); ctx.lineTo(-3, yy + 3);
+        ctx.lineTo(0, yy + 8); ctx.lineTo(3, yy + 3);
+        ctx.lineTo(8 + i * 2, yy + 5); ctx.closePath();
+        ctx.fillStyle = 'rgba(89,112,101,.26)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(60,80,74,.26)'; ctx.stroke();
+      }
+    } else {
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-2, -16, 1, -28); ctx.stroke();
+      for (let i = 0; i < 5; i++) {
+        const bx = -11 + i * 5.5;
+        ctx.beginPath(); ctx.moveTo(0, -18 - i * 2);
+        ctx.quadraticCurveTo(bx * .6, -23 - i * 2, bx, -29 + Math.abs(i - 2) * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = a * .7;
+      ctx.fillStyle = 'rgba(105,125,104,.24)';
+      ctx.beginPath(); ctx.ellipse(-2, -30, 16, 7, -.1, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawGround(t) {
+    const g = ctx.createLinearGradient(0, 450, 0, 1080);
+    g.addColorStop(0, 'rgba(232,221,197,0)');
+    g.addColorStop(.035, 'rgba(232,221,197,.42)');
+    g.addColorStop(.11, 'rgba(235,225,202,.94)');
+    g.addColorStop(.16, '#ebe1ca');
+    g.addColorStop(.6, '#e7dcc3');
+    g.addColorStop(1, '#e2d4b8');
+    ctx.fillStyle = g;
+    ctx.fillRect(-400, 450, WORLD_W + 800, 650);
+
+    // a soft band of plain mist above the first fields
+    const horizonFade = ctx.createLinearGradient(0, 430, 0, 610);
+    horizonFade.addColorStop(0, 'rgba(238,229,211,0)');
+    horizonFade.addColorStop(.35, 'rgba(238,229,211,.3)');
+    horizonFade.addColorStop(.6, 'rgba(238,229,211,.16)');
+    horizonFade.addColorStop(1, 'rgba(238,229,211,0)');
+    ctx.fillStyle = horizonFade;
+    ctx.fillRect(-400, 430, WORLD_W + 800, 180);
+
+    // Broad, dry field washes.
+    ctx.save();
+    ctx.globalAlpha = .13;
+    ctx.fillStyle = PAL.ochrePale;
+    ctx.beginPath();
+    ctx.moveTo(-300, 590);
+    ctx.bezierCurveTo(700, 575, 1250, 602, 2000, 590);
+    ctx.bezierCurveTo(2800, 578, 3400, 603, 4300, 584);
+    ctx.lineTo(4300, 690); ctx.bezierCurveTo(3300, 708, 2400, 680, 1600, 700);
+    ctx.bezierCurveTo(760, 718, 200, 690, -300, 706);
+    ctx.closePath(); ctx.fill();
+
+    ctx.globalAlpha = .08;
+    ctx.fillStyle = PAL.jade;
+    ctx.beginPath();
+    ctx.moveTo(-300, 780);
+    ctx.bezierCurveTo(900, 750, 1600, 792, 2300, 768);
+    ctx.bezierCurveTo(3100, 742, 3650, 780, 4300, 758);
+    ctx.lineTo(4300, 910); ctx.bezierCurveTo(3300, 930, 2600, 894, 1900, 918);
+    ctx.bezierCurveTo(1100, 942, 300, 900, -300, 922);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // Field contours.
+    const R = rng(302);
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .65;
+    for (let i = 0; i < 21; i++) {
+      const y0 = 548 + i * 26 + R() * 9;
+      ctx.globalAlpha = .045 + R() * .035;
+      ctx.beginPath();
+      ctx.moveTo(-200, y0);
+      for (let x = -200; x < WORLD_W + 300; x += 140) {
+        const yy = y0 + Math.sin(x * .007 + i) * 4 + Math.sin(x * .0023 - i * 1.7) * 7;
+        ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Cart ruts and bare earth.
+    drawRut(1300, 1010, 2400, 870, .06);
+    drawRut(1360, 990, 2460, 858, .05);
+    drawRut(2450, 1050, 3400, 930, .055);
+    drawRut(2520, 1028, 3460, 912, .045);
+
+    // Churned earth under the press of men, horses and wheels.
+    const M = rng(1442);
+    for (let i = 0; i < 54; i++) {
+      const x = 1180 + M() * 1780;
+      const y = 760 + M() * 280;
+      const rx = 16 + M() * 44, ry = 3 + M() * 8;
+      ctx.globalAlpha = .035 + M() * .045;
+      ctx.fillStyle = M() > .35 ? PAL.ochre : PAL.inkSoft;
+      ctx.beginPath(); ctx.ellipse(x, y, rx, ry, (M() - .5) * .12, 0, TAU); ctx.fill();
+      ctx.globalAlpha = .09 + M() * .08;
+      ctx.strokeStyle = PAL.ochre;
+      ctx.lineWidth = .6;
+      ctx.beginPath();
+      ctx.moveTo(x - rx * .8, y + 1);
+      ctx.quadraticCurveTo(x, y + 4, x + rx * .8, y + 1);
+      ctx.stroke();
+    }
+    // hoofprints around the chariot and horse lines
+    ctx.globalAlpha = .13;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .65;
+    for (let i = 0; i < 70; i++) {
+      const x = 1250 + M() * 1900;
+      const y = 820 + M() * 230;
+      ctx.beginPath(); ctx.arc(x, y, 1.3, .25, 2.6); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Grass and stones.
+    const G = rng(908);
+    for (let i = 0; i < 430; i++) {
+      const x = G() * WORLD_W;
+      const y = 535 + Math.pow(G(), 1.55) * 520;
+      const depth = clamp((y - 520) / 550, 0, 1);
+      const s = .35 + depth * 1.7 + G() * .5;
+      ctx.globalAlpha = .17 + G() * .19;
+      ctx.strokeStyle = G() > .25 ? PAL.inkSoft : PAL.ochre;
+      ctx.lineWidth = .55 + depth * .35;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let b = 0; b < 3 + (G() * 3 | 0); b++) {
+        const bx = x + (G() - .5) * 5 * s;
+        const by = y - (2 + G() * 7) * s;
+        ctx.moveTo(x + (G() - .5) * 1.5, y);
+        ctx.quadraticCurveTo(x + (G() - .5) * 4, y - 4 * s, bx, by);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Low scrub and stones at the horizon.
+    for (let i = 0; i < 90; i++) {
+      const x = G() * WORLD_W, y = 526 + G() * 28, s = .4 + G() * .5;
+      ellipse(x, y, 3 * s, 1.2 * s, 'rgba(75,85,74,.10)', 'rgba(60,70,63,.12)', .5);
+    }
+
+    // Faint red stains already soaked into the earth.
+    const B = rng(551);
+    for (let i = 0; i < 26; i++) {
+      const x = 900 + B() * 2750;
+      const y = 760 + B() * 290;
+      const s = .4 + B() * 1.2;
+      ctx.globalAlpha = .06 + B() * .07;
+      ctx.fillStyle = PAL.blood;
+      ctx.beginPath(); ctx.ellipse(x, y, 14 * s, 4.2 * s, (B() - .5) * .3, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawRut(x1, y1, x2, y2, a) {
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.bezierCurveTo(lerp(x1, x2, .35), y1 + 12, lerp(x1, x2, .7), y2 - 10, x2, y2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  /* ---------------------------------- figures ------------------------- */
+
+  function drawFarFootman(cfg) {
+    const T = state.sceneTime;
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1, dir = cfg.dir || 1;
+    const side = cfg.side || 'jin';
+    const pal = SIDE[side];
+    const role = cfg.role || 'spear';
+    const phase = cfg.phase || 0;
+    const death = cfg.death || 0;
+    const shield = cfg.shield !== false;
+    const thrust = cfg.thrust || 0;
+    const gait = Math.sin(T * 2.8 + phase);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = .1;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(0, 1, 9 * s, 1.6 * s, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    if (death > 0) {
+      ctx.translate(0, -1.5 * death);
+      ctx.rotate(-(cfg.fallDir || 1) * dir * 1.46 * easeOut(death));
+    }
+    ctx.scale(dir * s, s);
+    const bob = Math.abs(gait) * .6;
+    // legs
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3.4;
+    ctx.beginPath(); ctx.moveTo(-1, -34); ctx.lineTo(-4 + gait * 5, -18); ctx.lineTo(-7 + gait * 8, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(1, -34); ctx.lineTo(4 - gait * 4, -17); ctx.lineTo(8 - gait * 8, 0); ctx.stroke();
+    // torso
+    ctx.fillStyle = side === 'jin' ? '#769194' : '#b06b54';
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .9;
+    ctx.beginPath();
+    ctx.moveTo(-6, -55 + bob); ctx.lineTo(6, -55 + bob);
+    ctx.lineTo(4.5, -32); ctx.lineTo(-4.5, -32); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = .5;
+    ctx.beginPath(); ctx.moveTo(-4, -48); ctx.lineTo(4, -48); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-3.7, -41); ctx.lineTo(3.7, -41); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // head / helmet silhouette
+    ctx.fillStyle = PAL.skin; ctx.strokeStyle = PAL.ink; ctx.lineWidth = .65;
+    ctx.beginPath(); ctx.ellipse(1, -63 + bob, 4.2, 5.4, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = pal.cloth;
+    ctx.beginPath();
+    if (side === 'jin') {
+      ctx.moveTo(-4.5, -64 + bob); ctx.lineTo(-3.5, -72 + bob); ctx.lineTo(2, -75 + bob);
+      ctx.lineTo(6, -70 + bob); ctx.lineTo(5, -63 + bob); ctx.closePath();
+    } else {
+      ctx.arc(1, -67 + bob, 4.8, Math.PI * .9, Math.PI * 2.15); ctx.closePath();
+    }
+    ctx.fill(); ctx.stroke();
+    if (side === 'chi') {
+      ctx.strokeStyle = PAL.rustDark; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-1, -71 + bob); ctx.quadraticCurveTo(-9, -80, -16, -76 + bob); ctx.stroke();
+    }
+    // weapon
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1;
+    if (role === 'archer' || role === 'crossbow') {
+      ctx.beginPath(); ctx.arc(12, -50 + bob, 11, 1.4, 4.9); ctx.stroke();
+    } else if (role === 'dao' || role === 'mace') {
+      ctx.beginPath(); ctx.moveTo(8, -47 + bob); ctx.lineTo(22, -58 + bob); ctx.stroke();
+      ctx.fillStyle = '#b9c2b8';
+      ctx.beginPath(); ctx.moveTo(22, -58 + bob); ctx.lineTo(29, -54 + bob); ctx.lineTo(23, -51 + bob); ctx.closePath(); ctx.fill();
+    } else {
+      const tilt = role === 'halberd' ? 18 : 10;
+      ctx.beginPath(); ctx.moveTo(-8, -32 + bob); ctx.lineTo(44 + thrust * 10, -48 - tilt + bob); ctx.stroke();
+      poly([[44 + thrust * 10, -48 - tilt + bob], [50 + thrust * 10, -50 - tilt + bob], [45 + thrust * 10, -45 - tilt + bob]], '#b9c2b8', PAL.ink, .5, .9);
+    }
+    if (shield) {
+      ctx.fillStyle = pal.cloth; ctx.strokeStyle = PAL.ink; ctx.lineWidth = .7;
+      if (side === 'jin') {
+        ctx.beginPath(); ctx.rect(4, -50 + bob, 7, 17); ctx.fill(); ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(8, -43 + bob, 7.2, 0, TAU); ctx.fill(); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawFootman(cfg) {
+    const s0 = cfg.s || 1;
+    if (s0 < .52 && cfg.role !== 'standard' && cfg.role !== 'drummer' && !cfg.officer) {
+      drawFarFootman(cfg);
+      return;
+    }
+    const T = state.sceneTime;
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1, dir = cfg.dir || 1;
+    const side = cfg.side || 'jin';
+    const pal = SIDE[side];
+    const role = cfg.role || 'spear';
+    const phase = cfg.phase || 0;
+    const stance = cfg.stance || 'march';
+    const death = cfg.death || 0;
+    const shield = cfg.shield !== false;
+    const officer = !!cfg.officer;
+    const thrust = cfg.thrust || 0;
+    const swing = cfg.swing || 0;
+    const drawAmt = cfg.drawAmt != null ? cfg.drawAmt : 0;
+    const recoil = cfg.recoil || 0;
+    const seed = cfg.seed || 1;
+    const R = rng(seed);
+    const fallDir = cfg.fallDir || (R() > .5 ? 1 : -1);
+
+    ctx.save();
+    ctx.translate(x, y);
+    // shadow and blood pool stay on the ground
+    if (death > .02) {
+      ctx.globalAlpha = .10 + .06 * death;
+      ctx.fillStyle = PAL.blood;
+      ctx.beginPath(); ctx.ellipse(-dir * 30 * s, 1.5, 30 * s, 5 * s, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.globalAlpha = .10;
+      ctx.fillStyle = PAL.ink;
+      ctx.beginPath(); ctx.ellipse(0, 1.5, 13 * s, 2.6 * s, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    if (death > 0) {
+      ctx.translate(0, -2 * death);
+      ctx.rotate(-fallDir * dir * 1.48 * easeOut(death));
+      ctx.globalAlpha = 1 - Math.max(0, (death - .88) / .12) * .35;
+    }
+    ctx.scale(dir * s, s);
+
+    const walking = stance === 'march' || stance === 'run';
+    const gait = walking ? Math.sin(T * (stance === 'run' ? 4.2 : 2.8) + phase) : Math.sin(T * 1.05 + phase) * .12;
+    const bob = walking ? Math.abs(Math.sin(T * (stance === 'run' ? 4.2 : 2.8) + phase)) * .9 : Math.sin(T * 1.1 + phase) * .25;
+    const brace = stance === 'brace' || stance === 'fight' || role === 'archer' || role === 'crossbow';
+    const lean = (brace ? .15 : .05) + (role === 'spear' && stance === 'thrust' ? .16 * thrust : 0) - recoil * .12;
+    const hipY = -34 + bob;
+    const hip = { x: 0, y: hipY };
+    let fx = 8, bx = -8;
+    if (brace) { fx = 10 + recoil * 4; bx = -9; }
+    if (walking) { fx = 8 - gait * 8; bx = -8 + gait * 8; }
+    if (stance === 'run') { fx = 11 - gait * 12; bx = -10 + gait * 12; }
+    const footF = { x: fx, y: 0 };
+    const footB = { x: bx, y: 0 };
+    if (death > .3) {
+      footF.x = 12; footB.x = -13; footF.y = -1; footB.y = -1;
+    }
+    const kneeF = ik(hip, footF, 19.5, 18.5, 1);
+    const kneeB = ik(hip, footB, 19.5, 18.5, 1);
+
+    const shoulderY = -58 + bob - (death > .3 ? 0 : 0);
+    const sh = { x: lean * 21, y: shoulderY };
+    const shF = { x: sh.x + 5.2, y: sh.y };
+    const shB = { x: sh.x - 5.2, y: sh.y };
+    const head = { x: sh.x + 1.7 + recoil * 2, y: sh.y - 8.2 };
+
+    // arms & weapon targets
+    let frontHand, backHand, weapon = null;
+    if (role === 'spear') {
+      const naturalTilt = stance === 'march'
+        ? .06 + (hash(seed * 7 + 13) % 100) / 100 * .34
+        : .03;
+      const spearTilt = cfg.spearTilt != null ? cfg.spearTilt : naturalTilt;
+      const tip = { x: 45 + thrust * 17, y: -55 - spearTilt * 44 + thrust * 4 + (death > .3 ? 3 : 0) };
+      const butt = { x: -16 - thrust * 3, y: -27 + spearTilt * 7 };
+      frontHand = pointOn(butt, tip, .60 + thrust * .05);
+      backHand = pointOn(butt, tip, .30);
+      weapon = { kind: 'spear', butt, tip, banner: officer && cfg.pennant };
+    } else if (role === 'halberd') {
+      const tip = { x: 33 + thrust * 16, y: -84 + thrust * 15 };
+      const butt = { x: -13, y: -22 };
+      frontHand = pointOn(butt, tip, .58);
+      backHand = pointOn(butt, tip, .33);
+      weapon = { kind: 'halberd', butt, tip };
+    } else if (role === 'archer') {
+      const pull = drawAmt;
+      frontHand = { x: 18, y: -51 + bob };
+      backHand = { x: 3 - pull * 8, y: -50 + bob };
+      weapon = { kind: 'bow', pull, hand: frontHand };
+    } else if (role === 'crossbow') {
+      frontHand = { x: 17, y: -49 + bob };
+      backHand = { x: 7, y: -44 + bob };
+      weapon = { kind: 'crossbow', hand: frontHand, pull: drawAmt };
+    } else if (role === 'mace') {
+      frontHand = { x: 17 + swing * 8, y: -54 + swing * 14 + bob };
+      backHand = { x: 2, y: -47 + bob };
+      weapon = { kind: 'mace', hand: frontHand, swing };
+    } else if (role === 'standard') {
+      frontHand = { x: 13, y: -54 + bob };
+      backHand = { x: -2, y: -41 + bob };
+      weapon = { kind: 'standard', hand: frontHand, seed, torn: cfg.torn, h: cfg.flagH || 118, broken: cfg.broken };
+    } else if (role === 'drummer') {
+      frontHand = { x: 14, y: -38 + bob };
+      backHand = { x: 9, y: -42 + bob };
+      weapon = { kind: 'drummer' };
+    } else if (role === 'shield' || role === 'dao' || role === 'officer') {
+      const reach = role === 'officer' ? 5 : 0;
+      frontHand = { x: 18 + reach + swing * 5, y: -49 - swing * 10 + bob };
+      backHand = { x: 4, y: -43 + bob };
+      weapon = {
+        kind: 'dao',
+        hand: frontHand,
+        angle: -.35 + swing * 1.9 + (role === 'shield' ? -.3 : 0),
+        blood: cfg.bloodBlade,
+      };
+    } else {
+      frontHand = { x: 13, y: -45 + bob };
+      backHand = { x: -2, y: -42 + bob };
+    }
+
+    if (death > .3) {
+      frontHand = { x: 16, y: -36 };
+      backHand = { x: -7, y: -40 };
+    }
+
+    // back arm
+    const backElbow = ik(shB, backHand, 11.5, 12.5, -1);
+    limb(shB, backElbow, backHand, role === 'archer' ? 2.5 : 2.8, pal.trousers, PAL.ink, .95);
+    drawHand(backHand, side);
+
+    // back leg
+    drawLeg(hip, kneeB, footB, pal.trousers, .78);
+    // trailing cloth / cape
+    if (officer || role === 'standard') drawCape(T, sh, pal, phase);
+    // torso
+    drawTorso(sh, hip, pal, side, lean, officer, T, phase, death);
+    // front leg
+    drawLeg(hip, kneeF, footF, pal.trousers, 1);
+    // skirt/tassets
+    drawSkirt(hip, pal, side, gait, T, phase);
+
+    // weapon behind front arm for long shafts
+    if (weapon && weapon.kind === 'spear') drawSpear(weapon, pal, side);
+    if (weapon && weapon.kind === 'halberd') drawHalberd(weapon, pal, side);
+    if (weapon && weapon.kind === 'standard') drawStandardWeapon(weapon, side, pal, T, phase);
+
+    // front arm
+    const frontElbow = ik(shF, frontHand, 11.5, 12.5, 1);
+    limb(shF, frontElbow, frontHand, role === 'archer' ? 2.7 : 3, pal.clothMid, PAL.ink, 1);
+    drawHand(frontHand, side);
+
+    // shield in front arm / beside body
+    if (shield && role !== 'archer' && role !== 'crossbow' && role !== 'standard' && role !== 'drummer') {
+      drawShield(role === 'shield' ? frontHand : { x: 11 + recoil * 5, y: -42 }, side, role === 'shield', T, phase);
+    }
+
+    if (death > .3) {
+      // arms limp, no active weapon flourish
+      if (weapon && weapon.kind === 'bow') drawBow(weapon, side, .2);
+    } else if (weapon && weapon.kind === 'bow') {
+      drawBow(weapon, side, weapon.pull);
+    } else if (weapon && weapon.kind === 'crossbow') {
+      drawCrossbow(weapon, side);
+    } else if (weapon && weapon.kind === 'dao') {
+      drawDao(weapon, side);
+    } else if (weapon && weapon.kind === 'mace') {
+      drawMace(weapon, side);
+    } else if (weapon && weapon.kind === 'drummer') {
+      drawDrummerArms(frontHand, backHand);
+    }
+
+    // head and helmet last
+    drawHead(head, side, pal, T, phase, officer, death, recoil);
+
+    // arrows stuck in shield/body for corpses or unlucky soldiers
+    if (cfg.arrow) {
+      ctx.save();
+      ctx.translate(8, -47);
+      ctx.rotate(-.34);
+      ctx.globalAlpha = .6;
+      ctx.fillStyle = PAL.blood;
+      ctx.beginPath(); ctx.arc(0, 0, 3.1, 0, TAU); ctx.fill();
+      ctx.globalAlpha = .9;
+      ctx.strokeStyle = PAL.blood;
+      ctx.lineWidth = .75;
+      ctx.beginPath(); ctx.moveTo(-1, 2); ctx.quadraticCurveTo(-2, 8, -4, 12); ctx.stroke();
+      ctx.globalAlpha = .95;
+      inkLine(-19, 0, 8, 0, 1.2, .95);
+      poly([[9, 0], [3, -2.1], [4, 0], [3, 2.1]], PAL.ink, null, .8, .95);
+      ctx.strokeStyle = PAL.ochre; ctx.lineWidth = .55;
+      ctx.beginPath(); ctx.moveTo(-19, 0); ctx.lineTo(-23, -2.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-19, 0); ctx.lineTo(-23, 2.5); ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawLeg(hip, knee, foot, fill, alpha) {
+    limb(hip, knee, foot, 3.1, fill, PAL.ink, alpha);
+    // boot
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath();
+    ctx.moveTo(foot.x - 1.6, foot.y);
+    ctx.lineTo(foot.x - 2.6, foot.y - 2.1);
+    ctx.lineTo(foot.x + 3.6, foot.y - 2);
+    ctx.lineTo(foot.x + 5.2, foot.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHand(p, side) {
+    const pal = SIDE[side];
+    ellipse(p.x, p.y, 1.9, 1.7, PAL.skin, PAL.ink, .6, 1);
+  }
+
+  function drawTorso(sh, hip, pal, side, lean, officer, T, phase, death) {
+    const top = sh.y, bot = hip.y;
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.moveTo(sh.x - 6.2, top + 1);
+    ctx.quadraticCurveTo(sh.x - 8.2, top + 7, sh.x - 6.3, top + 13);
+    ctx.quadraticCurveTo(sh.x - 5.6, bot - 4, hip.x - 4.7, bot + 1);
+    ctx.quadraticCurveTo(hip.x, bot + 3, hip.x + 4.7, bot + 1);
+    ctx.quadraticCurveTo(sh.x + 5.6, bot - 4, sh.x + 6.4, top + 12);
+    ctx.quadraticCurveTo(sh.x + 8.3, top + 5, sh.x + 6.2, top + 1);
+    ctx.quadraticCurveTo(sh.x, top - 2, sh.x - 6.2, top + 1);
+    ctx.closePath();
+    ctx.fillStyle = side === 'jin' ? '#769194' : '#b06b54';
+    ctx.fill();
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // shaded side, kept as a flat ink wash
+    ctx.globalAlpha = .16;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath();
+    ctx.moveTo(sh.x - 6.2, top + 2);
+    ctx.quadraticCurveTo(sh.x - 7.5, top + 14, hip.x - 4.7, bot);
+    ctx.lineTo(hip.x - .5, bot + 1.5);
+    ctx.quadraticCurveTo(sh.x - 2.5, bot - 8, sh.x - 1.2, top + 3);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // collar and chest plate
+    ctx.globalAlpha = .9;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .65;
+    ctx.beginPath();
+    ctx.moveTo(sh.x - 5.7, top + 6);
+    ctx.quadraticCurveTo(sh.x, top + 10, sh.x + 5.7, top + 6);
+    ctx.stroke();
+
+    if (side === 'jin') {
+      // lacquered rectangular lamellae
+      ctx.globalAlpha = .55;
+      ctx.strokeStyle = PAL.indigoDark;
+      ctx.lineWidth = .55;
+      for (let r = 0; r < 4; r++) {
+        const yy = top + 10 + r * 4.3;
+        ctx.beginPath();
+        ctx.moveTo(sh.x - 5.6 + r * .15, yy);
+        ctx.lineTo(sh.x + 5.6 - r * .2, yy);
+        ctx.stroke();
+        for (let c = -2; c <= 2; c++) {
+          const xx = sh.x + c * 2.1;
+          ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx, yy + 4.2); ctx.stroke();
+        }
+      }
+      // shoulder guards
+      poly([[sh.x - 8, top + 1], [sh.x - 13, top + 8], [sh.x - 11, top + 14], [sh.x - 5, top + 8]], pal.cloth, PAL.ink, .9, .95);
+      poly([[sh.x + 8, top + 1], [sh.x + 13, top + 8], [sh.x + 11, top + 14], [sh.x + 5, top + 8]], pal.cloth, PAL.ink, .9, .95);
+    } else {
+      // cross-laced leather lamellae
+      ctx.globalAlpha = .55;
+      ctx.strokeStyle = PAL.rustDark;
+      ctx.lineWidth = .55;
+      for (let r = 0; r < 4; r++) {
+        const yy = top + 9 + r * 4.2;
+        ctx.beginPath(); ctx.moveTo(sh.x - 5.4, yy); ctx.lineTo(sh.x + 5.4, yy); ctx.stroke();
+      }
+      for (let c = -2; c <= 2; c++) {
+        ctx.beginPath();
+        ctx.moveTo(sh.x + c * 2.2 - 2, top + 9);
+        ctx.lineTo(sh.x + c * 2.2 + 2, top + 27);
+        ctx.stroke();
+      }
+      // round shoulder caps
+      ellipse(sh.x - 8.2, top + 7.5, 4.4, 3.6, pal.cloth, PAL.ink, .8, .95, -.35);
+      ellipse(sh.x + 8.2, top + 7.5, 4.4, 3.6, pal.cloth, PAL.ink, .8, .95, .35);
+    }
+
+    // belt
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.45;
+    ctx.beginPath(); ctx.moveTo(sh.x - 5.2, bot - 4.5); ctx.lineTo(sh.x + 5.2, bot - 4.5); ctx.stroke();
+    ctx.fillStyle = PAL.ochre;
+    ctx.beginPath(); ctx.arc(sh.x + 1, bot - 4.5, 1.4, 0, TAU); ctx.fill();
+
+    if (officer) {
+      // jade/ochre pectoral
+      ctx.strokeStyle = PAL.ochre;
+      ctx.lineWidth = .9;
+      ctx.beginPath(); ctx.arc(sh.x, top + 18, 3.2, 0, TAU); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawSkirt(hip, pal, side, gait, T, phase) {
+    const sway = gait * 1.1;
+    ctx.globalAlpha = .92;
+    ctx.fillStyle = side === 'jin' ? pal.cloth : pal.trousers;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .8;
+    ctx.beginPath();
+    ctx.moveTo(hip.x - 5.2, hip.y - 2);
+    ctx.quadraticCurveTo(hip.x - 5.7, hip.y + 8, hip.x - 8.4 - sway, hip.y + 14);
+    ctx.quadraticCurveTo(hip.x, hip.y + 17, hip.x + 8.2 + sway, hip.y + 14);
+    ctx.quadraticCurveTo(hip.x + 5.7, hip.y + 8, hip.x + 5.2, hip.y - 2);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = .38;
+    ctx.strokeStyle = PAL.ink;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(hip.x + i * 3.2, hip.y + 1);
+      ctx.lineTo(hip.x + i * 3.7 + sway, hip.y + 13);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawCape(t, sh, pal, phase) {
+    const w = Math.sin(t * 2.2 + phase) * 2.2;
+    ctx.globalAlpha = .65;
+    ctx.fillStyle = pal.cloth;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .7;
+    ctx.beginPath();
+    ctx.moveTo(sh.x - 5, sh.y + 2);
+    ctx.quadraticCurveTo(sh.x - 20 + w, sh.y + 9, sh.x - 27 + w * 2, sh.y + 22);
+    ctx.quadraticCurveTo(sh.x - 15, sh.y + 30, sh.x - 5, sh.y + 21);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHead(head, side, pal, T, phase, officer, death, recoil) {
+    const hx = head.x, hy = head.y;
+    const tilt = death > .3 ? .5 : recoil * .12;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(tilt);
+    // neck
+    inkLine(-.8, 6.2, -.2, 10.5, 2.4, 1, PAL.skin);
+    inkLine(-1.2, 6.2, -.5, 10.5, .7, .8);
+    // face
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = PAL.skin;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .8;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 4.55, 5.9, .04, 0, TAU);
+    ctx.fill(); ctx.stroke();
+    // profile nose, brow, eye, moustache
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .65;
+    ctx.beginPath(); ctx.moveTo(3.6, -1.8); ctx.quadraticCurveTo(5.8, .1, 3.7, 1.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(.8, -2.2); ctx.lineTo(3.1, -1.7); ctx.stroke();
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.arc(2.1, -.9, .45, 0, TAU); ctx.fill();
+    ctx.strokeStyle = PAL.ink;
+    ctx.beginPath(); ctx.moveTo(1.2, 3.0); ctx.lineTo(3.5, 3.4); ctx.stroke();
+    ctx.globalAlpha = .6;
+    ctx.beginPath(); ctx.moveTo(-.5, 4.1); ctx.quadraticCurveTo(1.2, 6.4, 3.4, 4.5); ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (side === 'jin') {
+      // thin dark beard and cheek strap
+      ctx.globalAlpha = .45;
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = .45;
+      ctx.beginPath(); ctx.moveTo(-2.8, 2.3); ctx.quadraticCurveTo(-4, 5.2, -1.6, 5.6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(3.2, 1.2); ctx.lineTo(2.2, 6.2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    if (side === 'jin') {
+      // tall lacquered helmet with nape guard
+      ctx.fillStyle = pal.cloth;
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = .85;
+      ctx.beginPath();
+      ctx.moveTo(-6.2, -2.5);
+      ctx.quadraticCurveTo(-7.4, -8.4, -2, -10.8);
+      ctx.quadraticCurveTo(2.8, -12.5, 5.8, -8);
+      ctx.quadraticCurveTo(7.1, -4.8, 5.5, -2.2);
+      ctx.quadraticCurveTo(2, -5.2, -6.2, -2.5);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // neck/cheek guard
+      ctx.globalAlpha = .92;
+      poly([[-6.2, -3.2], [-7.5, 4.2], [-3.8, 5.9], [-1.8, 1.1]], pal.cloth, PAL.ink, .7, .9);
+      ctx.globalAlpha = 1;
+      // helmet ribs
+      ctx.strokeStyle = PAL.indigoDark;
+      ctx.lineWidth = .55;
+      ctx.beginPath(); ctx.moveTo(-4.4, -8.7); ctx.quadraticCurveTo(0, -10.7, 4.3, -7.7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-3.7, -5.4); ctx.lineTo(4.4, -4.8); ctx.stroke();
+      // small crest / fin
+      if (officer) {
+        ctx.strokeStyle = PAL.ochre;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(-1, -11.5); ctx.quadraticCurveTo(-2.5, -20, 1.3, -24.5); ctx.stroke();
+        poly([[-1, -15], [1.2, -24], [3, -14]], PAL.jadePale, PAL.ink, .6, .9);
+      } else {
+        ctx.strokeStyle = PAL.inkSoft;
+        ctx.lineWidth = .9;
+        ctx.beginPath(); ctx.moveTo(-1.3, -10.5); ctx.lineTo(-2.4, -16); ctx.stroke();
+      }
+    } else {
+      // leather cap with two pheasant feathers
+      ctx.fillStyle = pal.cloth;
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = .8;
+      ctx.beginPath();
+      ctx.moveTo(-5.8, -2.8);
+      ctx.quadraticCurveTo(-5.4, -8.7, 0, -9.8);
+      ctx.quadraticCurveTo(5.4, -9.1, 5.4, -2.2);
+      ctx.quadraticCurveTo(1.5, -4.7, -5.8, -2.8);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // feathers
+      const sway = Math.sin(T * 1.7 + phase) * 1.2;
+      ctx.strokeStyle = PAL.rustDark;
+      ctx.lineWidth = 1.1;
+      for (let i = 0; i < 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(-.5 + i * 1.6, -8.4);
+        ctx.bezierCurveTo(-8 + i * 2 + sway, -15, -14 + i * 3 + sway, -19, -19 + i * 4 + sway, -16);
+        ctx.stroke();
+      }
+      poly([[-1.5, -8.7], [-8, -15], [-13, -17], [-9, -11]], PAL.rustPale, PAL.ink, .45, .72);
+      // headband
+      ctx.strokeStyle = PAL.ochre;
+      ctx.lineWidth = .9;
+      ctx.beginPath(); ctx.moveTo(-5.2, -4.2); ctx.quadraticCurveTo(0, -6, 5.1, -3.8); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawShield(p, side, big, T, phase) {
+    const pal = SIDE[side];
+    ctx.save();
+    ctx.translate(p.x + 1, p.y - 2);
+    if (side === 'jin') {
+      ctx.rotate(-.04);
+      const w = big ? 13.5 : 11.5, h = big ? 29 : 24;
+      ctx.globalAlpha = .96;
+      ctx.fillStyle = pal.cloth;
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-w *.55, -h *.5);
+      ctx.quadraticCurveTo(0, -h *.58, w *.55, -h *.5);
+      ctx.lineTo(w *.6, h *.36);
+      ctx.quadraticCurveTo(0, h *.54, -w *.6, h *.36);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.globalAlpha = .55;
+      ctx.strokeStyle = PAL.indigoDark;
+      ctx.lineWidth = .6;
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath(); ctx.moveTo(i * w * .35, -h * .45); ctx.lineTo(i * w * .38, h * .4); ctx.stroke();
+      }
+      ctx.globalAlpha = .85;
+      ctx.strokeStyle = PAL.ochre;
+      ctx.lineWidth = .8;
+      ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, TAU); ctx.stroke();
+      // little bird device
+      ctx.globalAlpha = .6;
+      ctx.beginPath();
+      ctx.moveTo(-2.5, -1.2); ctx.quadraticCurveTo(0, -4, 3, -1.8);
+      ctx.quadraticCurveTo(.8, 1.2, -2.5, -1.2);
+      ctx.stroke();
+    } else {
+      ctx.rotate(.08);
+      const r = big ? 14 : 12;
+      ctx.globalAlpha = .96;
+      ellipse(0, 0, r, r * 1.05, pal.cloth, PAL.ink, 1.1);
+      ctx.globalAlpha = .5;
+      ctx.strokeStyle = PAL.rustDark;
+      ctx.lineWidth = .65;
+      ctx.beginPath(); ctx.arc(0, 0, r * .72, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r * .72, 0); ctx.lineTo(r * .72, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -r * .72); ctx.lineTo(0, r * .72); ctx.stroke();
+      ctx.globalAlpha = .8;
+      ctx.strokeStyle = PAL.ochrePale;
+      ctx.lineWidth = .7;
+      for (let i = 0; i < 4; i++) {
+        const a = i * TAU / 4 + .78;
+        ctx.beginPath(); ctx.arc(Math.cos(a) * r * .48, Math.sin(a) * r * .48, .9, 0, TAU); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawSpear(w, pal, side) {
+    const { butt, tip } = w;
+    const a = Math.atan2(tip.y - butt.y, tip.x - butt.x);
+    ctx.globalAlpha = .96;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.25;
+    ctx.beginPath(); ctx.moveTo(butt.x, butt.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+    ctx.globalAlpha = .45;
+    ctx.strokeStyle = PAL.ochre;
+    ctx.lineWidth = .45;
+    ctx.beginPath(); ctx.moveTo(butt.x + 1, butt.y + 1); ctx.lineTo(tip.x - 2, tip.y + 1); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // leaf blade
+    ctx.save();
+    ctx.translate(tip.x, tip.y);
+    ctx.rotate(a);
+    ctx.fillStyle = '#b9c2b8';
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .7;
+    ctx.beginPath();
+    ctx.moveTo(-1, 0); ctx.quadraticCurveTo(4, -2.2, 11, 0);
+    ctx.quadraticCurveTo(4, 2.2, -1, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    // tassel
+    const tx = tip.x - Math.cos(a) * 8, ty = tip.y - Math.sin(a) * 8;
+    ctx.globalAlpha = .9;
+    ctx.strokeStyle = pal.flag;
+    ctx.lineWidth = 1.4;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath(); ctx.moveTo(tx, ty);
+      ctx.quadraticCurveTo(tx - 3 + i, ty + 4, tx - 5 + i * 1.5, ty + 8);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHalberd(w, pal) {
+    const { butt, tip } = w;
+    const a = Math.atan2(tip.y - butt.y, tip.x - butt.x);
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(butt.x, butt.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+    ctx.save();
+    ctx.translate(tip.x, tip.y);
+    ctx.rotate(a);
+    // spear point
+    poly([[-1, 0], [10, 0], [1, 2.2]], '#b9c2b8', PAL.ink, .65);
+    // axe crescent
+    ctx.fillStyle = '#b9c2b8';
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .7;
+    ctx.beginPath();
+    ctx.moveTo(1, -1);
+    ctx.quadraticCurveTo(-5, -8, -11, -4);
+    ctx.quadraticCurveTo(-7, -1, -10, 5);
+    ctx.quadraticCurveTo(-4, 6.2, 1, 1);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = .9;
+    ctx.strokeStyle = pal.flag;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(tip.x - Math.cos(a) * 8, tip.y - Math.sin(a) * 8);
+    ctx.quadraticCurveTo(tip.x - 11, tip.y + 7, tip.x - 4, tip.y + 12); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawDao(w, side) {
+    const { hand, angle } = w;
+    ctx.save();
+    ctx.translate(hand.x, hand.y);
+    ctx.rotate(angle);
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(10, 0); ctx.stroke();
+    ctx.fillStyle = '#b9c2b8';
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .7;
+    ctx.beginPath();
+    ctx.moveTo(10, -1.4);
+    ctx.quadraticCurveTo(21, -8, 29, -5);
+    ctx.quadraticCurveTo(22, -1.6, 13, 1.3);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = .7;
+    ctx.strokeStyle = side === 'jin' ? PAL.indigoDark : PAL.rustDark;
+    ctx.lineWidth = .45;
+    ctx.beginPath(); ctx.moveTo(11, -.5); ctx.quadraticCurveTo(20, -5, 27, -4); ctx.stroke();
+    if (w.blood) {
+      ctx.globalAlpha = .85;
+      ctx.fillStyle = PAL.blood;
+      ctx.beginPath(); ctx.arc(26, -4.5, 1.1, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawMace(w, side) {
+    const { hand, swing } = w;
+    const a = -.8 + swing * 2.6;
+    ctx.save();
+    ctx.translate(hand.x, hand.y);
+    ctx.rotate(a);
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(18, 0); ctx.stroke();
+    ctx.fillStyle = '#a9b2a8';
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .7;
+    ctx.beginPath(); ctx.arc(22, 0, 5.2, 0, TAU); ctx.fill(); ctx.stroke();
+    for (let i = 0; i < 7; i++) {
+      const ang = i * TAU / 7;
+      ctx.beginPath();
+      ctx.moveTo(22 + Math.cos(ang) * 4.8, Math.sin(ang) * 4.8);
+      ctx.lineTo(22 + Math.cos(ang) * 8.2, Math.sin(ang) * 8.2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawBow(w, side, pull) {
+    const h = w.hand;
+    const p = clamp(pull, 0, 1);
+    ctx.save();
+    ctx.translate(h.x, h.y);
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.25;
+    const bowR = 18;
+    ctx.beginPath();
+    ctx.moveTo(-1, -bowR);
+    ctx.quadraticCurveTo(8, 0, -1, bowR);
+    ctx.stroke();
+    // recurve tips
+    ctx.beginPath(); ctx.moveTo(-1, -bowR); ctx.quadraticCurveTo(4, -bowR - 2, 5, -bowR + 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-1, bowR); ctx.quadraticCurveTo(4, bowR + 2, 5, bowR - 2); ctx.stroke();
+    // string
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .55;
+    ctx.beginPath();
+    ctx.moveTo(-1, -bowR);
+    ctx.lineTo(-3 - p * 7, 0);
+    ctx.lineTo(-1, bowR);
+    ctx.stroke();
+    // arrow
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .7;
+    ctx.beginPath(); ctx.moveTo(-4 - p * 7, 0); ctx.lineTo(18, 0); ctx.stroke();
+    poly([[18, 0], [14, -1.4], [15, 0], [14, 1.4]], PAL.ink, null, .5, .9);
+    ctx.globalAlpha = .7;
+    ctx.strokeStyle = SIDE[side].flag;
+    ctx.lineWidth = .5;
+    ctx.beginPath(); ctx.moveTo(-4 - p * 7, 0); ctx.lineTo(-8 - p * 7, -2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-4 - p * 7, 0); ctx.lineTo(-8 - p * 7, 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawCrossbow(w, side) {
+    const h = w.hand;
+    ctx.save();
+    ctx.translate(h.x, h.y);
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(14, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8, -8); ctx.quadraticCurveTo(13, 0, 8, 8); ctx.stroke();
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .5;
+    ctx.beginPath(); ctx.moveTo(8, -8); ctx.lineTo(2 - w.pull * 4, 0); ctx.lineTo(8, 8); ctx.stroke();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .65;
+    ctx.beginPath(); ctx.moveTo(2 - w.pull * 4, 0); ctx.lineTo(16, 0); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDrummerArms(front, back) {
+    // subtle drumsticks are drawn by the drum cart
+    inkLine(back.x, back.y, back.x + 3, back.y - 5, 1.1, .8);
+    inkLine(front.x, front.y, front.x + 3, front.y - 4, 1.1, .8);
+  }
+
+  function drawStandardWeapon(w, side, pal, T, phase) {
+    const h = w.hand;
+    const H = w.h || 118;
+    const sway = Math.sin(T * 1.1 + phase) * 2.2;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(h.x - 2, 1); ctx.lineTo(h.x, -H); ctx.stroke();
+    // pole finial
+    ctx.fillStyle = PAL.ochre;
+    ctx.beginPath(); ctx.moveTo(h.x, -H - 8); ctx.lineTo(h.x - 2.5, -H); ctx.lineTo(h.x + 2.5, -H); ctx.closePath(); ctx.fill();
+    const topY = -H + 7;
+    const len = w.broken ? 34 : 56;
+    const droop = w.broken ? 12 : 0;
+    ctx.save();
+    ctx.translate(h.x, topY);
+    ctx.rotate(w.broken ? .22 : 0);
+    ctx.globalAlpha = .86;
+    ctx.fillStyle = pal.flag;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .8;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(len * .45, -4 + sway, len, -2 + droop);
+    ctx.lineTo(len * .82, 15 + droop);
+    if (w.torn) {
+      ctx.lineTo(len * .58, 11);
+      ctx.lineTo(len * .48, 18);
+      ctx.lineTo(len * .27, 12);
+    } else {
+      ctx.lineTo(len * .55, 16);
+    }
+    ctx.quadraticCurveTo(len * .3, 14 + sway, 0, 28);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // emblem
+    ctx.globalAlpha = .62;
+    ctx.strokeStyle = PAL.paperHigh;
+    ctx.lineWidth = 1;
+    if (w.glyph) {
+      ctx.save();
+      ctx.translate(len * .44, 9);
+      ctx.font = '700 11px "STKaiti","KaiTi","FangSong",serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = PAL.paperHigh;
+      ctx.fillText(w.glyph, 0, 0);
+      ctx.restore();
+    } else if (side === 'jin') {
+      ctx.beginPath(); ctx.arc(len * .44, 8, 5.2, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(len * .44 - 4, 8); ctx.quadraticCurveTo(len * .44, 2, len * .44 + 4, 8);
+      ctx.quadraticCurveTo(len * .44, 12, len * .44 - 4, 8); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(len * .43, 8, 4.2, 0, TAU); ctx.stroke();
+      for (let i = 0; i < 4; i++) {
+        const a = i * TAU / 4 + .78;
+        ctx.beginPath(); ctx.moveTo(len * .43 + Math.cos(a) * 5, 8 + Math.sin(a) * 5);
+        ctx.lineTo(len * .43 + Math.cos(a) * 8, 8 + Math.sin(a) * 8); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  /* ---------------------------------- horses & riders ----------------- */
+
+  function drawHorse(cfg) {
+    const T = state.sceneTime;
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1, dir = cfg.dir || 1;
+    const side = cfg.side || 'jin';
+    const pal = SIDE[side];
+    const phase = cfg.phase || 0;
+    const gallop = cfg.gallop == null ? 1 : cfg.gallop;
+    const rear = cfg.rear || 0;
+    const bob = Math.sin(T * 4.2 + phase) * 1.4 * gallop;
+    const g = T * 4.4 + phase;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = .1;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(0, 1.5, 37 * s, 4.2 * s, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.scale(dir * s, s);
+
+    // far legs
+    drawHorseLeg(-27, -40 + bob, g + Math.PI, true, cfg);
+    drawHorseLeg(23, -41 + bob, g + Math.PI * .55, true, cfg);
+    // tail
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-38, -55 + bob);
+    ctx.bezierCurveTo(-49, -52 + bob, -53 + Math.sin(T * 2 + phase) * 3, -38 + bob, -48, -30 + bob);
+    ctx.stroke();
+    ctx.globalAlpha = .6;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-40 - i * 2, -54 + bob);
+      ctx.quadraticCurveTo(-50 - i * 2, -48 + bob, -47 - i * 3, -34 + bob);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // hind leg near
+    drawHorseLeg(-30, -40 + bob, g + Math.PI * .12, false, cfg);
+    // front near leg
+    drawHorseLeg(26, -41 + bob, g + Math.PI * 1.45, false, cfg);
+
+    // barrel
+    ctx.fillStyle = cfg.horseColor || (side === 'jin' ? '#9d8061' : '#a67c5f');
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(-40, -51 + bob);
+    ctx.quadraticCurveTo(-44, -67 + bob, -25, -70 + bob);
+    ctx.quadraticCurveTo(0, -75 + bob, 24, -69 + bob);
+    ctx.quadraticCurveTo(40, -65 + bob, 39, -52 + bob);
+    ctx.quadraticCurveTo(34, -39 + bob, 8, -40 + bob);
+    ctx.quadraticCurveTo(-22, -39 + bob, -40, -51 + bob);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // chest shading
+    ctx.globalAlpha = .18;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .65;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.moveTo(-26 + i * 4, -65 + bob); ctx.quadraticCurveTo(-32 + i * 3, -52 + bob, -29 + i * 3, -44 + bob); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // neck
+    ctx.fillStyle = cfg.horseColor || (side === 'jin' ? '#9d8061' : '#a67c5f');
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(20, -66 + bob);
+    ctx.quadraticCurveTo(32, -77 + bob, 39, -96 + bob);
+    ctx.quadraticCurveTo(44, -104 + bob, 51, -101 + bob);
+    ctx.quadraticCurveTo(57, -98 + bob, 57, -89 + bob);
+    ctx.quadraticCurveTo(51, -84 + bob, 46, -81 + bob);
+    ctx.quadraticCurveTo(42, -68 + bob, 35, -57 + bob);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    // head
+    ctx.beginPath();
+    ctx.moveTo(49, -102 + bob);
+    ctx.quadraticCurveTo(58, -106 + bob, 65, -99 + bob);
+    ctx.quadraticCurveTo(70, -94 + bob, 66, -88 + bob);
+    ctx.quadraticCurveTo(61, -84 + bob, 55, -86 + bob);
+    ctx.quadraticCurveTo(50, -90 + bob, 47, -94 + bob);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // ears
+    poly([[48, -103 + bob], [46, -111 + bob], [51, -106 + bob]], cfg.horseColor || '#9d8061', PAL.ink, .7);
+    poly([[54, -104 + bob], [56, -112 + bob], [58, -104 + bob]], cfg.horseColor || '#9d8061', PAL.ink, .7);
+    // eye & nostril
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.arc(57, -97 + bob, .9, 0, TAU); ctx.fill();
+    ctx.globalAlpha = .6;
+    ctx.beginPath(); ctx.arc(65, -90 + bob, .7, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    // mane
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .8;
+    for (let i = 0; i < 9; i++) {
+      const mx = 24 + i * 2.4, my = -72 - i * 3.1 + bob;
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.quadraticCurveTo(mx - 5, my - 1, mx - 2, my - 5); ctx.stroke();
+    }
+
+    // horse armour / trappings
+    if (cfg.barded !== false) {
+      ctx.globalAlpha = .92;
+      ctx.fillStyle = side === 'jin' ? PAL.indigo : PAL.rust;
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = .75;
+      // caparison over hindquarters
+      ctx.beginPath();
+      ctx.moveTo(-37, -62 + bob);
+      ctx.quadraticCurveTo(-20, -72 + bob, -5, -68 + bob);
+      ctx.lineTo(-2, -49 + bob);
+      ctx.quadraticCurveTo(-18, -43 + bob, -36, -50 + bob);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // saddle blanket
+      ctx.beginPath();
+      ctx.moveTo(2, -70 + bob);
+      ctx.quadraticCurveTo(15, -73 + bob, 27, -68 + bob);
+      ctx.lineTo(25, -51 + bob);
+      ctx.quadraticCurveTo(14, -46 + bob, 1, -53 + bob);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // neck guard
+      ctx.globalAlpha = .8;
+      ctx.beginPath();
+      ctx.moveTo(29, -67 + bob);
+      ctx.quadraticCurveTo(38, -77 + bob, 43, -90 + bob);
+      ctx.lineTo(49, -87 + bob);
+      ctx.quadraticCurveTo(40, -67 + bob, 33, -57 + bob);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // tassels
+      ctx.strokeStyle = PAL.ochre;
+      ctx.lineWidth = .65;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(-22 + i * 7, -45 + bob);
+        ctx.quadraticCurveTo(-24 + i * 7, -39 + bob, -26 + i * 7, -35 + bob);
+        ctx.stroke();
+      }
+    }
+
+    // bridle / reins
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .55;
+    ctx.beginPath();
+    ctx.moveTo(53, -98 + bob); ctx.lineTo(60, -96 + bob); ctx.lineTo(63, -89 + bob);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(53, -99 + bob);
+    ctx.quadraticCurveTo(25, -82 + bob, 4, -72 + bob);
+    ctx.stroke();
+
+    // near legs
+    drawHorseLeg(28, -42 + bob, g, false, cfg);
+    drawHorseLeg(-24, -42 + bob, g + Math.PI * .62, false, cfg);
+
+    if (cfg.rider) {
+      drawRider(cfg.rider, side, T, phase, cfg);
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawHorseLeg(sx, sy, phase, far, cfg) {
+    const lift = Math.max(0, Math.sin(phase)) * 11;
+    const foot = {
+      x: sx + Math.sin(phase) * 17,
+      y: -lift,
+    };
+    const knee = ik({ x: sx, y: sy }, foot, 22, 20, far ? -1 : 1);
+    ctx.globalAlpha = far ? .52 : 1;
+    const fill = cfg.legColor || '#9a7b5d';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 5.2;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(knee.x, knee.y); ctx.lineTo(foot.x, foot.y); ctx.stroke();
+    ctx.strokeStyle = fill; ctx.lineWidth = 3.8;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(knee.x, knee.y); ctx.lineTo(foot.x, foot.y); ctx.stroke();
+    // hoof
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(foot.x - 1.6, foot.y); ctx.lineTo(foot.x + 2.6, foot.y); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawRider(r, side, T, phase, horseCfg) {
+    const pal = SIDE[side];
+    const dir = 1;
+    const R = rng(r.seed || 31);
+    const bob = Math.sin(T * 4.2 + phase) * 1.2;
+    const hip = { x: 0, y: -73 + bob };
+    const sh = { x: 1 + (r.lean || 0), y: -96 + bob };
+    const head = { x: sh.x + 1.2, y: sh.y - 8 };
+    const role = r.role || 'lance';
+    const swing = r.swing || 0;
+
+    // far leg
+    const footB = { x: 8, y: -53 + bob };
+    const kneeB = ik(hip, footB, 15, 16, 1);
+    limb(hip, kneeB, footB, 3, pal.trousers, PAL.ink, .7);
+    // cape
+    if (r.cape) drawCape(T, sh, pal, phase);
+
+    // torso
+    drawTorso(sh, hip, pal, side, .04, false, T, phase, 0);
+    // near leg
+    const footF = { x: 17, y: -49 + bob };
+    const kneeF = ik(hip, footF, 15, 16, 1);
+    limb(hip, kneeF, footF, 3.3, pal.trousers, PAL.ink, 1);
+    // stirrup
+    inkLine(footF.x, footF.y, footF.x + 1, footF.y + 5, .7, .8);
+
+    let hand, backHand, weapon = null;
+    if (role === 'lance') {
+      hand = { x: 26, y: -91 + bob };
+      backHand = { x: 5, y: -82 + bob };
+      weapon = { kind: 'lance', hand, swing };
+    } else if (role === 'dao') {
+      hand = { x: 23 + swing * 6, y: -95 - swing * 9 + bob };
+      backHand = { x: 6, y: -84 + bob };
+      weapon = { kind: 'daoR', hand, angle: -.5 + swing * 2.1, swing };
+    } else if (role === 'mace') {
+      hand = { x: 20 + swing * 4, y: -102 - swing * 8 + bob };
+      backHand = { x: 3, y: -84 + bob };
+      weapon = { kind: 'maceR', hand, swing };
+    } else if (role === 'bow') {
+      hand = { x: 25, y: -94 + bob };
+      backHand = { x: 6, y: -92 + bob };
+      weapon = { kind: 'bowR', hand, pull: r.pull || .4 };
+    }
+    // back arm
+    const be = ik({ x: sh.x - 4, y: sh.y + 1 }, backHand, 10, 12, -1);
+    limb({ x: sh.x - 4, y: sh.y + 1 }, be, backHand, 2.7, pal.clothMid, PAL.ink, .95);
+    // shield on far arm
+    if (r.shield) {
+      ctx.save(); ctx.globalAlpha = .9;
+      drawShield({ x: -9, y: -83 + bob }, side, false, T, phase);
+      ctx.restore();
+    }
+    // front arm
+    const fe = ik({ x: sh.x + 4, y: sh.y + 1 }, hand, 10, 12, 1);
+    limb({ x: sh.x + 4, y: sh.y + 1 }, fe, hand, 2.9, pal.clothMid, PAL.ink, 1);
+    drawHand(hand, side);
+    drawHead(head, side, pal, T, phase, r.officer, 0, 0);
+
+    if (weapon) {
+      if (weapon.kind === 'lance') drawLance(weapon, side, pal);
+      if (weapon.kind === 'daoR') drawDao(weapon, side);
+      if (weapon.kind === 'maceR') drawMace({ hand, swing }, side);
+      if (weapon.kind === 'bowR') {
+        // rotate bow vertical for a mounted archer
+        ctx.save(); ctx.translate(hand.x, hand.y); ctx.rotate(-.2);
+        drawBow({ hand: { x: 0, y: 0 }, pull: weapon.pull }, side, weapon.pull);
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawLance(w, side, pal) {
+    const h = w.hand;
+    const a = -.12;
+    ctx.save();
+    ctx.translate(h.x, h.y);
+    ctx.rotate(a);
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-38, 3); ctx.lineTo(62, 0); ctx.stroke();
+    // lance pennant
+    ctx.globalAlpha = .82;
+    ctx.fillStyle = pal.flag;
+    ctx.beginPath();
+    ctx.moveTo(37, -1);
+    ctx.quadraticCurveTo(45, -8, 54, -4);
+    ctx.lineTo(46, 2);
+    ctx.quadraticCurveTo(42, 7, 36, 6);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .55; ctx.stroke();
+    // point
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#b9c2b8';
+    ctx.strokeStyle = PAL.ink;
+    ctx.beginPath(); ctx.moveTo(61, 0); ctx.lineTo(72, 1.5); ctx.lineTo(61, 3); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ---------------------------------- chariot ------------------------- */
+
+  function drawChariot(cfg) {
+    const T = state.sceneTime;
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1, dir = cfg.dir || 1;
+    const side = cfg.side || 'jin';
+    const pal = SIDE[side];
+    const phase = cfg.phase || 0;
+    const moving = cfg.moving !== false;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(dir * s, s);
+
+    // dust
+    drawDustPuff(-70, -12, 1.3, phase, .28);
+    drawDustPuff(-118, -8, 1.9, phase + 2, .22);
+
+    // far horse of the pair, set higher and further ahead so both heads read
+    drawHorse({
+      x: 128, y: -19, s: .8, dir: 1, side,
+      phase: phase + .62, gallop: moving ? 1 : .15,
+      rider: null, barded: cfg.barded, horseColor: side === 'jin' ? '#80684f' : '#916b52',
+    });
+    // near horse
+    drawHorse({
+      x: 80, y: 0, s: 1.02, dir: 1, side,
+      phase, gallop: moving ? 1 : .15,
+      rider: null, barded: cfg.barded, horseColor: side === 'jin' ? '#a28563' : '#aa7f60',
+    });
+
+    // shafts / traces
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(-8, -32); ctx.quadraticCurveTo(64, -47, 124, -50); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8, -28); ctx.quadraticCurveTo(66, -22, 126, -36); ctx.stroke();
+    ctx.strokeStyle = PAL.inkSoft; ctx.lineWidth = .7;
+    ctx.beginPath(); ctx.moveTo(8, -41); ctx.quadraticCurveTo(55, -45, 94, -66); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2, -38); ctx.quadraticCurveTo(50, -60, 86, -92); ctx.stroke();
+
+    // far wheel
+    drawWheel(-18, -26, 25, T, phase, .48, side);
+    // shallow car box with an open rail
+    ctx.globalAlpha = .96;
+    ctx.fillStyle = pal.cloth;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-38, -46);
+    ctx.quadraticCurveTo(-8, -50, 21, -46);
+    ctx.lineTo(22, -29);
+    ctx.quadraticCurveTo(-8, -26, -37, -29);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // decorative side panel
+    ctx.globalAlpha = .55;
+    ctx.strokeStyle = PAL.ochre;
+    ctx.lineWidth = .8;
+    ctx.beginPath(); ctx.arc(-8, -38, 5, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-16, -38); ctx.lineTo(0, -38); ctx.stroke();
+    ctx.globalAlpha = .35;
+    ctx.strokeStyle = PAL.indigoDark;
+    ctx.lineWidth = .55;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.moveTo(-32 + i * 17, -45); ctx.lineTo(-30 + i * 16, -30); ctx.stroke();
+    }
+    ctx.globalAlpha = .9;
+    ctx.strokeStyle = PAL.ochre;
+    ctx.lineWidth = .9;
+    ctx.beginPath(); ctx.moveTo(-37, -31); ctx.lineTo(22, -31); ctx.stroke();
+    // rail and posts
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-39, -57); ctx.quadraticCurveTo(-8, -62, 23, -57); ctx.stroke();
+    ctx.lineWidth = .9;
+    for (let i = 0; i < 5; i++) {
+      const px = -34 + i * 14;
+      ctx.beginPath(); ctx.moveTo(px, -57); ctx.lineTo(px + 1, -46); ctx.stroke();
+    }
+    // near wheel
+    drawWheel(13, -28, 28, T, phase + .6, 1, side);
+    // axle caps
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.arc(-18, -26, 2.2, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(13, -28, 2.2, 0, TAU); ctx.fill();
+
+    // driver and warrior standing in the car
+    drawChariotFigure({ x: -17, y: -47, side, role: 'driver', T, phase, seed: (cfg.seed || 1) + 3 });
+    drawChariotFigure({ x: 5, y: -47, side, role: cfg.warrior || 'halberd', T, phase, seed: (cfg.seed || 1) + 8, swing: cfg.swing || 0 });
+
+    // a narrow commander's parasol, kept high so the crew stays visible
+    if (cfg.canopy) {
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(-15, -52); ctx.lineTo(-27, -116); ctx.stroke();
+      ctx.fillStyle = side === 'jin' ? PAL.indigo : PAL.rust;
+      ctx.globalAlpha = .82;
+      ctx.beginPath();
+      ctx.moveTo(-47, -108);
+      ctx.quadraticCurveTo(-26, -124, -7, -108);
+      ctx.quadraticCurveTo(-27, -112, -47, -108);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = .8; ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = PAL.ochre; ctx.lineWidth = .55;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath(); ctx.moveTo(-42 + i * 13, -109); ctx.lineTo(-44 + i * 13, -103); ctx.stroke();
+      }
+    }
+
+    // banner at the back of the car
+    drawStandardWeapon({ hand: { x: -38, y: -48 }, flagH: 102, seed: (cfg.seed || 1) + 2, torn: cfg.torn, glyph: cfg.glyph }, side, pal, T, phase);
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawWheel(x, y, r, T, phase, alpha, side) {
+    const ang = state.sceneTime * 3.1 + phase;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = alpha > .7 ? '#3f4a44' : '#66736b';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(0, 0, r - 2.4, 0, TAU); ctx.stroke();
+    for (let i = 0; i < 12; i++) {
+      const a = ang + i * TAU / 12;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * (r - 2), Math.sin(a) * (r - 2)); ctx.stroke();
+    }
+    ctx.fillStyle = PAL.ochre;
+    ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, TAU); ctx.fill();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .5; ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawChariotFigure(cfg) {
+    const T = cfg.T, phase = cfg.phase, side = cfg.side;
+    const pal = SIDE[side];
+    ctx.save();
+    ctx.translate(cfg.x, cfg.y);
+    const hip = { x: 0, y: -30 };
+    const sh = { x: 0, y: -52 };
+    const head = { x: 1, y: -60 };
+    // legs braced in the car
+    const f1 = { x: 8, y: 0 }, f2 = { x: -8, y: 0 };
+    limb(hip, ik(hip, f2, 15, 15, 1), f2, 2.8, pal.trousers, PAL.ink, .8);
+    drawTorso(sh, hip, pal, side, .03, false, T, phase, 0);
+    limb(hip, ik(hip, f1, 15, 15, 1), f1, 3, pal.trousers, PAL.ink, 1);
+    let hand, backHand, weapon = null;
+    if (cfg.role === 'driver') {
+      hand = { x: 13, y: -46 };
+      backHand = { x: -8, y: -44 };
+      weapon = null;
+    } else if (cfg.role === 'halberd') {
+      hand = { x: 16, y: -49 };
+      backHand = { x: 1, y: -43 };
+      weapon = { kind: 'halberd', butt: { x: -8, y: -16 }, tip: { x: 42, y: -78 } };
+    } else {
+      hand = { x: 15, y: -47 };
+      backHand = { x: 2, y: -41 };
+      weapon = { kind: 'dao', hand, angle: -.4 + (cfg.swing || 0) * 1.6 };
+    }
+    const be = ik({ x: -4, y: -51 }, backHand, 9, 11, -1);
+    limb({ x: -4, y: -51 }, be, backHand, 2.4, pal.trousers, PAL.ink, .85);
+    const fe = ik({ x: 4, y: -51 }, hand, 9, 11, 1);
+    limb({ x: 4, y: -51 }, fe, hand, 2.6, pal.clothMid, PAL.ink, 1);
+    drawHead(head, side, pal, T, phase, false, 0, 0);
+    if (weapon && weapon.kind === 'halberd') drawHalberd(weapon, pal);
+    if (weapon && weapon.kind === 'dao') drawDao(weapon, side);
+    if (cfg.role === 'driver') {
+      // reins
+      ctx.strokeStyle = PAL.inkSoft; ctx.lineWidth = .55;
+      ctx.beginPath(); ctx.moveTo(13, -46); ctx.quadraticCurveTo(50, -45, 84, -58); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* ---------------------------------- standards, tents, props --------- */
+
+  function drawStandingStandard(cfg) {
+    const T = state.sceneTime;
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1, dir = cfg.dir || 1;
+    const side = cfg.side || 'jin';
+    const pal = SIDE[side];
+    const phase = cfg.phase || 0;
+    const H = cfg.h || 150;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(dir * s, s);
+    // shadow
+    ctx.globalAlpha = .1; ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(0, 1, 10, 2.4, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+    // pole
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -H); ctx.stroke();
+    // finial
+    ctx.fillStyle = PAL.ochre;
+    ctx.beginPath(); ctx.moveTo(0, -H - 11); ctx.lineTo(-3, -H); ctx.lineTo(3, -H); ctx.closePath(); ctx.fill();
+    // socket
+    ctx.fillStyle = PAL.ink;
+    ctx.fillRect(-1.4, -H + 4, 2.8, 4);
+    // cloth
+    const sway = Math.sin(T * .9 + phase) * 4;
+    const len = cfg.len || 92;
+    const top = -H + 12;
+    ctx.save();
+    ctx.translate(0, top);
+    if (cfg.fallen) { ctx.rotate(1.32); ctx.translate(0, 8); }
+
+    // long secondary ribbon, behind the main banner
+    ctx.globalAlpha = .34;
+    ctx.fillStyle = cfg.faded ? pal.clothPale : pal.clothMid;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .55;
+    ctx.beginPath();
+    ctx.moveTo(2, 16);
+    ctx.bezierCurveTo(len * .35, 13 + sway * .7, len * .78, 17 + sway, len * 1.06, 10 + sway);
+    ctx.lineTo(len * 1.02, 19 + sway);
+    ctx.bezierCurveTo(len * .7, 24 + sway * .8, len * .36, 20 + sway * .3, 2, 25);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    // main swallow-tail cloth
+    ctx.globalAlpha = cfg.faded ? .62 : .9;
+    ctx.fillStyle = cfg.faded ? pal.clothMid : pal.flag;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(len * .22, -4 + sway * .25, len * .62, -6 + sway * .7, len, -7 + sway);
+    ctx.lineTo(len * .92, 17 + sway * .5);
+    ctx.lineTo(len * .78, 11 + sway * .3);
+    ctx.lineTo(len * .68, 28 + sway * .2);
+    ctx.lineTo(len * .52, 17);
+    ctx.lineTo(len * .4, 34);
+    ctx.lineTo(len * .26, 20 + sway * .1);
+    ctx.quadraticCurveTo(len * .12, 30, 0, 34);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    // top sleeve and inner border
+    ctx.globalAlpha = .72;
+    ctx.fillStyle = pal.dark;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(len * .24, -4 + sway * .25, len * .64, -6 + sway * .7, len, -7 + sway);
+    ctx.lineTo(len * .97, -1 + sway);
+    ctx.bezierCurveTo(len * .62, 0 + sway * .7, len * .24, 2 + sway * .25, 0, 6);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = .55;
+    ctx.strokeStyle = pal.accent;
+    ctx.lineWidth = .7;
+    ctx.beginPath();
+    ctx.moveTo(len * .06, 6);
+    ctx.bezierCurveTo(len * .32, 4 + sway * .35, len * .68, 2 + sway * .8, len * .95, 1 + sway);
+    ctx.stroke();
+
+    // folds
+    ctx.globalAlpha = .3;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .55;
+    for (let i = 1; i <= 3; i++) {
+      const p = i / 4;
+      ctx.beginPath();
+      ctx.moveTo(len * p, 2);
+      ctx.quadraticCurveTo(len * p + sway * .4, 14, len * (p - .03), 24 + (i % 2) * 3);
+      ctx.stroke();
+    }
+
+    // emblem
+    ctx.globalAlpha = .72;
+    ctx.strokeStyle = PAL.paperHigh;
+    ctx.fillStyle = PAL.paperHigh;
+    ctx.lineWidth = 1;
+    if (cfg.glyph) {
+      ctx.save();
+      ctx.translate(len * .44, 9);
+      ctx.font = '700 14px "STKaiti","KaiTi","FangSong",serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = PAL.paperHigh;
+      ctx.fillText(cfg.glyph, 0, 0);
+      ctx.globalAlpha = .55;
+      ctx.strokeRect(-7, -8, 14, 16);
+      ctx.restore();
+    } else if (side === 'jin') {
+      // a ringed bird, the device of the dark-armoured host
+      ctx.beginPath(); ctx.arc(len * .45, 11, 6.5, 0, TAU); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(len * .45 - 5, 11);
+      ctx.quadraticCurveTo(len * .45 - 1, 4, len * .45 + 5, 9);
+      ctx.quadraticCurveTo(len * .45 + 1, 13, len * .45 - 5, 11);
+      ctx.fill();
+    } else {
+      // a sun with four rays, the device of the red host
+      ctx.beginPath(); ctx.arc(len * .44, 11, 5, 0, TAU); ctx.stroke();
+      for (let i = 0; i < 8; i++) {
+        const a = i * TAU / 8 + .4;
+        ctx.beginPath();
+        ctx.moveTo(len * .44 + Math.cos(a) * 7, 11 + Math.sin(a) * 7);
+        ctx.lineTo(len * .44 + Math.cos(a) * 11, 11 + Math.sin(a) * 11);
+        ctx.stroke();
+      }
+    }
+
+    // hanging tassels at the lower edge
+    ctx.globalAlpha = .65;
+    ctx.strokeStyle = PAL.ochre;
+    ctx.lineWidth = .55;
+    for (let i = 0; i < 5; i++) {
+      const tx = len * (.12 + i * .17);
+      ctx.beginPath();
+      ctx.moveTo(tx, 30);
+      ctx.quadraticCurveTo(tx - 2, 36, tx - 4, 41 + (i % 2) * 3);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function drawNameBanner(cfg) {
+    const T = state.sceneTime;
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1, side = cfg.side || 'jin';
+    const pal = SIDE[side];
+    const phase = cfg.phase || 0;
+    const words = cfg.words || '白起';
+    const H = cfg.h || 142;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.globalAlpha = .1;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(0, 1, 9, 2.2, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    // pole and top crossbar
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -H); ctx.stroke();
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(-18, -H + 5); ctx.lineTo(18, -H + 5); ctx.stroke();
+    ctx.fillStyle = PAL.ochre;
+    ctx.beginPath(); ctx.moveTo(0, -H - 10); ctx.lineTo(-3, -H); ctx.lineTo(3, -H); ctx.closePath(); ctx.fill();
+    // hanging cloth
+    const sway = Math.sin(T * 1.1 + phase) * 3.2;
+    const cw = 23, ch = 94;
+    ctx.save();
+    ctx.translate(0, -H + 8);
+    ctx.globalAlpha = .92;
+    ctx.fillStyle = side === 'jin' ? pal.flag : pal.flag;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .9;
+    ctx.beginPath();
+    ctx.moveTo(-cw, 0);
+    ctx.quadraticCurveTo(0, -3, cw, 0);
+    ctx.lineTo(cw + sway * .2, ch - 12 + sway);
+    ctx.lineTo(cw * .55, ch - 5 + sway);
+    ctx.lineTo(cw * .28, ch + 6 + sway);
+    ctx.lineTo(0, ch - 1 + sway * .8);
+    ctx.lineTo(-cw * .38, ch + 6 + sway * .6);
+    ctx.lineTo(-cw * .7, ch - 4 + sway * .4);
+    ctx.lineTo(-cw + sway * .15, ch - 13);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // border and folds
+    ctx.globalAlpha = .65;
+    ctx.strokeStyle = pal.accent;
+    ctx.lineWidth = .75;
+    ctx.beginPath(); ctx.moveTo(-cw + 3, 6); ctx.lineTo(-cw + 3, ch - 16); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cw - 3, 6); ctx.lineTo(cw - 3, ch - 16); ctx.stroke();
+    ctx.globalAlpha = .3;
+    ctx.strokeStyle = PAL.ink;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath(); ctx.moveTo(i * 7, 4); ctx.quadraticCurveTo(i * 7 + sway * .4, ch * .55, i * 7 + sway * .6, ch - 12); ctx.stroke();
+    }
+    // name characters, brushed vertically
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = PAL.paperHigh;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 15px "STKaiti","KaiTi","FangSong",serif';
+    const chars = Array.from(words);
+    const gap = 20;
+    const start = ch * .5 - gap * (chars.length - 1) * .5;
+    for (let i = 0; i < chars.length; i++) {
+      ctx.fillText(chars[i], 0, start + i * gap);
+    }
+    // side glyph and tassel
+    ctx.font = '700 9px "STKaiti","KaiTi","FangSong",serif';
+    ctx.globalAlpha = .7;
+    ctx.fillStyle = pal.accent;
+    ctx.fillText(side === 'jin' ? '秦' : '趙', 0, ch - 5);
+    ctx.globalAlpha = .8;
+    ctx.strokeStyle = PAL.ochre;
+    ctx.lineWidth = .6;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * 6, ch + 3);
+      ctx.quadraticCurveTo(i * 6 - 1, ch + 10, i * 6 - 3, ch + 16 + Math.abs(i) * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function drawRampart(cfg) {
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1, side = cfg.side || 'chi';
+    const pal = SIDE[side];
+    const len = cfg.len || 560;
+    const h = cfg.h || 42;
+    const T = state.sceneTime;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    // ditch and embankment
+    ctx.globalAlpha = .13;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(len * .5, 2, len * .52, 7, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    // rammed earth wall
+    ctx.fillStyle = '#c7b38e';
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(-10, 0);
+    ctx.lineTo(-6, -h);
+    for (let px = 0; px <= len; px += 34) {
+      const top = -h - (Math.sin(px * .022 + 1.2) * 3);
+      ctx.lineTo(px, top);
+      ctx.lineTo(px + 22, top);
+      ctx.lineTo(px + 22, top + 7);
+      ctx.lineTo(px + 34, top + 7);
+    }
+    ctx.lineTo(len + 6, -h);
+    ctx.lineTo(len + 10, 0);
+    ctx.quadraticCurveTo(len * .5, 7, -10, 0);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // rammed earth strata
+    ctx.globalAlpha = .25;
+    ctx.strokeStyle = PAL.ochre;
+    ctx.lineWidth = .6;
+    for (let yy = -8; yy > -h + 4; yy -= 6) {
+      ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(len, yy - 1); ctx.stroke();
+    }
+    ctx.globalAlpha = .3;
+    ctx.strokeStyle = PAL.inkSoft;
+    for (let i = 0; i < 18; i++) {
+      const px = (i * 53 + 20) % len;
+      ctx.beginPath(); ctx.moveTo(px, -4); ctx.lineTo(px + 3, -h + 6); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // gate tower
+    const gx = len * .55;
+    ctx.fillStyle = '#b7a17c';
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.1;
+    ctx.fillRect(gx - 34, -h - 26, 68, 25);
+    ctx.strokeRect(gx - 34, -h - 26, 68, 25);
+    ctx.fillStyle = '#d0bf9d';
+    ctx.beginPath();
+    ctx.moveTo(gx - 43, -h - 26);
+    ctx.quadraticCurveTo(gx, -h - 47, gx + 43, -h - 26);
+    ctx.quadraticCurveTo(gx, -h - 33, gx - 43, -h - 26);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1; ctx.stroke();
+    // gate opening
+    ctx.fillStyle = '#5e5a4d';
+    ctx.beginPath();
+    ctx.moveTo(gx - 13, 0);
+    ctx.lineTo(gx - 13, -h + 1);
+    ctx.quadraticCurveTo(gx, -h - 13, gx + 13, -h + 1);
+    ctx.lineTo(gx + 13, 0);
+    ctx.closePath(); ctx.fill();
+    // tower posts and guards
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(gx - 24, -h - 26); ctx.lineTo(gx - 24, -h - 43); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gx + 24, -h - 26); ctx.lineTo(gx + 24, -h - 43); ctx.stroke();
+    ctx.fillStyle = pal.cloth;
+    ctx.beginPath(); ctx.ellipse(gx - 17, -h - 39, 3.4, 2.2, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(gx + 15, -h - 38, 3.4, 2.2, 0, 0, TAU); ctx.fill();
+    // banners on the wall
+    drawStandardWeapon({ hand: { x: gx + 28, y: -h - 28 }, flagH: 58, glyph: '趙', torn: true, broken: false }, side, pal, T, .8);
+    drawStandardWeapon({ hand: { x: 60, y: -h - 2 }, flagH: 50, glyph: '趙', torn: true }, side, pal, T, 2.1);
+    // stakes in the ditch
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .8;
+    for (let px = 18; px < len; px += 44) {
+      ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px - 3, -9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px, -9); ctx.lineTo(px + 1, -12); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawPlaceStele(cfg) {
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.globalAlpha = .1;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(0, 1, 24, 4, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    // broken stone base
+    ctx.fillStyle = '#c7b99e';
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-16, 0); ctx.lineTo(-13, -12); ctx.lineTo(14, -12); ctx.lineTo(18, 0); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // weathered slab
+    ctx.beginPath();
+    ctx.moveTo(-14, -12);
+    ctx.lineTo(-12, -58);
+    ctx.lineTo(-7, -64);
+    ctx.lineTo(12, -62);
+    ctx.lineTo(15, -16);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = .5;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .6;
+    ctx.beginPath(); ctx.moveTo(-6, -55); ctx.lineTo(-3, -22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(8, -52); ctx.lineTo(6, -30); ctx.stroke();
+    // place name
+    ctx.globalAlpha = .85;
+    ctx.fillStyle = PAL.ink;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 17px "STKaiti","KaiTi","FangSong",serif';
+    ctx.fillText('長', 0, -45);
+    ctx.fillText('平', 0, -26);
+    // moss
+    ctx.globalAlpha = .25;
+    ctx.fillStyle = PAL.jade;
+    ctx.beginPath(); ctx.ellipse(-11, -15, 5, 3, .2, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawTent(cfg) {
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1;
+    const side = cfg.side || 'jin';
+    const pal = SIDE[side];
+    const w = cfg.w || 140, h = cfg.h || 86;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.globalAlpha = .1; ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(2, 2, w * .54, 7, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+    // guy ropes
+    ctx.strokeStyle = PAL.inkSoft; ctx.lineWidth = .65;
+    ctx.beginPath(); ctx.moveTo(-w * .45, -h * .58); ctx.lineTo(-w * .74, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w * .45, -h * .58); ctx.lineTo(w * .74, 0); ctx.stroke();
+    // canvas
+    ctx.fillStyle = cfg.dark ? pal.clothPale : '#e8ddc4';
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(-w * .52, 0);
+    ctx.quadraticCurveTo(-w * .38, -h * .56, -w * .24, -h * .74);
+    ctx.quadraticCurveTo(0, -h, w * .24, -h * .74);
+    ctx.quadraticCurveTo(w * .38, -h * .56, w * .52, 0);
+    ctx.quadraticCurveTo(0, 8, -w * .52, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // ridge and seams
+    ctx.globalAlpha = .55;
+    ctx.strokeStyle = PAL.inkSoft; ctx.lineWidth = .55;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * w * .13, -h * .72 + Math.abs(i) * h * .16);
+      ctx.quadraticCurveTo(i * w * .18, -h * .35, i * w * .22, 0);
+      ctx.stroke();
+    }
+    // door
+    ctx.globalAlpha = .88;
+    ctx.fillStyle = cfg.dark ? pal.cloth : '#d7c9ad';
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .8;
+    ctx.beginPath();
+    ctx.moveTo(-w * .12, 0);
+    ctx.quadraticCurveTo(-w * .1, -h * .42, 0, -h * .48);
+    ctx.quadraticCurveTo(w * .1, -h * .42, w * .12, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = .6;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -h * .47); ctx.stroke();
+    // pennant on ridge
+    ctx.globalAlpha = 1;
+    const sway = Math.sin(state.sceneTime * 1.3 + x) * 2;
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, -h * .88); ctx.lineTo(0, -h - 22); ctx.stroke();
+    ctx.fillStyle = pal.flag;
+    ctx.beginPath();
+    ctx.moveTo(0, -h - 22);
+    ctx.quadraticCurveTo(13, -h - 26 + sway, 25, -h - 22);
+    ctx.lineTo(17, -h - 15);
+    ctx.quadraticCurveTo(8, -h - 17, 0, -h - 12);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .5; ctx.stroke();
+    // stacked spear butts at the side
+    ctx.restore();
+  }
+
+  function drawFence(cfg) {
+    const { x1, x2, y, s = 1 } = cfg;
+    ctx.save();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .85;
+    for (let x = x1; x <= x2; x += 15 * s) {
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 1.5, y - 16 * s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 1.5, y - 16 * s); ctx.lineTo(x + .5, y - 20 * s); ctx.stroke();
+    }
+    ctx.globalAlpha = .7;
+    ctx.strokeStyle = PAL.inkSoft; ctx.lineWidth = .8;
+    for (let yy of [y - 8 * s, y - 14 * s]) {
+      ctx.beginPath(); ctx.moveTo(x1, yy); ctx.lineTo(x2, yy); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawCampfire(cfg) {
+    const { x, y, s = 1 } = cfg;
+    const T = state.sceneTime;
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    // logs
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(8, -4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-7, -5); ctx.lineTo(9, 1); ctx.stroke();
+    // flames
+    const flick = Math.sin(T * 7 + x) * 2;
+    ctx.fillStyle = PAL.rustMid; ctx.strokeStyle = PAL.ink; ctx.lineWidth = .55;
+    ctx.beginPath();
+    ctx.moveTo(-4, -3);
+    ctx.quadraticCurveTo(-5, -14, 0 + flick * .2, -22 - Math.abs(flick));
+    ctx.quadraticCurveTo(5, -12, 4, -3);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = PAL.ochrePale;
+    ctx.beginPath();
+    ctx.moveTo(-1, -4);
+    ctx.quadraticCurveTo(-1, -11, 2, -15);
+    ctx.quadraticCurveTo(3, -9, 3, -4);
+    ctx.closePath(); ctx.fill();
+    // smoke
+    ctx.globalAlpha = .18;
+    ctx.strokeStyle = PAL.inkSoft; ctx.lineWidth = 1.4;
+    for (let i = 0; i < 4; i++) {
+      const yy = -24 - i * 14 - mod(T * 7 + i * 13, 14);
+      const xx = Math.sin(T * .8 + i + x) * (4 + i * 2);
+      ctx.beginPath(); ctx.arc(xx, yy, 7 + i * 2, .3, 2.7); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawDrumCart(cfg) {
+    const { x, y, s = 1, side = 'jin' } = cfg;
+    const T = state.sceneTime;
+    const pal = SIDE[side];
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    // wheels
+    drawWheel(-22, -16, 16, T, 0, .9, side);
+    drawWheel(22, -16, 16, T, 1, .9, side);
+    // cart bed
+    ctx.fillStyle = '#c7b28f'; ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.rect(-34, -34, 68, 12); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-34, -22); ctx.lineTo(-38, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(34, -22); ctx.lineTo(38, 0); ctx.stroke();
+    // big drum
+    ellipse(0, -50, 22, 17, pal.clothPale, PAL.ink, 1.2);
+    ctx.globalAlpha = .55;
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .6;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.ellipse(0, -50, 7 + i * 4, 5 + i * 3, 0, 0, TAU); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // drum stand
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(-18, -36); ctx.lineTo(-13, -63); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(18, -36); ctx.lineTo(13, -63); ctx.stroke();
+    // drummer standing behind
+    ctx.save(); ctx.translate(0, -34); ctx.scale(.9, .9);
+    drawFootman({
+      x: -2, y: 0, s: .8, dir: 1, side, role: 'drummer', stance: 'brace',
+      phase: 2.1, seed: 73, shield: false,
+    });
+    ctx.restore();
+    // drumsticks animation
+    const beat = Math.sin(T * 5.2) * 4;
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(3, -61); ctx.lineTo(8 + beat, -49); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-3, -61); ctx.lineTo(-7 - beat, -49); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBrokenChariot(cfg) {
+    const { x, y, s = 1, side = 'chi' } = cfg;
+    const pal = SIDE[side];
+    const T = state.sceneTime;
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    ctx.globalAlpha = .6;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(18, 2, 74, 7, -.04, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    // overturned car box, one side broken open
+    ctx.save();
+    ctx.translate(-16, -18);
+    ctx.rotate(-.34);
+    ctx.fillStyle = pal.cloth;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(-28, -14); ctx.lineTo(28, -20); ctx.lineTo(31, 8); ctx.lineTo(-25, 12);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = .55;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(-22 + i * 13, 10); ctx.lineTo(-20 + i * 13, -15); ctx.stroke();
+    }
+    // dark underside and broken floorboards
+    ctx.globalAlpha = .3;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.moveTo(-25, 9); ctx.lineTo(29, 5); ctx.lineTo(30, 12); ctx.lineTo(-24, 15); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = .8;
+    ctx.strokeStyle = PAL.ochre;
+    ctx.lineWidth = .8;
+    ctx.beginPath(); ctx.moveTo(-26, -4); ctx.lineTo(30, -10); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // snapped rail
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-32, -9); ctx.lineTo(-48, -20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-48, -20); ctx.lineTo(-55, -16); ctx.stroke();
+    ctx.restore();
+    // fallen canopy / parasol ribs
+    ctx.save();
+    ctx.translate(-30, -38); ctx.rotate(-.5);
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20 + i * 3, -8 + i * 5); ctx.stroke();
+    }
+    ctx.strokeStyle = PAL.ochre; ctx.lineWidth = .7;
+    ctx.beginPath(); ctx.arc(17, 6, 13, -.9, 2.2); ctx.stroke();
+    ctx.restore();
+    // broken wheel, with several spokes snapped away
+    ctx.save();
+    ctx.translate(46, -12);
+    ctx.rotate(.35);
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(0, 0, 24, .2, 4.6); ctx.stroke();
+    for (let i = 0; i < 5; i++) {
+      const a = i * 1.2 + .3;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 22, Math.sin(a) * 22); ctx.stroke();
+    }
+    ctx.globalAlpha = .55;
+    ctx.beginPath(); ctx.moveTo(2, 2); ctx.lineTo(-5, 9); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // detached wheel lying flat
+    ctx.save();
+    ctx.translate(-6, 1); ctx.scale(1, .34); ctx.rotate(.2);
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(0, 0, 20, 0, TAU); ctx.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = i * TAU / 8;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 18, Math.sin(a) * 18); ctx.stroke();
+    }
+    ctx.restore();
+    // broken shaft and a spilled helmet
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-30, -3); ctx.lineTo(-92, 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-78, 6); ctx.lineTo(-89, 13); ctx.stroke();
+    ctx.strokeStyle = PAL.blood; ctx.lineWidth = 1;
+    ctx.globalAlpha = .3;
+    ctx.beginPath(); ctx.moveTo(-20, 1); ctx.lineTo(18, 3); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // fallen standard in the dust
+    drawStandingStandard({ x: -78, y: 3, s: .8, side, h: 88, len: 56, phase: 4, fallen: true, faded: true });
+    // dead horse nearby
+    drawDeadHorse({ x: 86, y: 8, s: .9, side: 'chi', phase: 3 });
+    ctx.restore();
+  }
+
+  function drawDeadHorse(cfg) {
+    const { x, y, s = 1, side = 'chi' } = cfg;
+    const pal = SIDE[side];
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    // blood and shadow
+    ctx.globalAlpha = .22;
+    ctx.fillStyle = PAL.blood;
+    ctx.beginPath(); ctx.ellipse(-2, 1, 45, 5, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = .1;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(4, 2, 58, 7, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // legs in the air, bent at the joints
+    for (let i = 0; i < 4; i++) {
+      const sx = -38 + i * 20;
+      const knee = { x: sx - 5 + i * 2, y: -36 - (i % 2) * 7 };
+      const foot = { x: sx + 1 - (i % 2) * 7, y: -54 - (i % 2) * 8 };
+      ctx.globalAlpha = i < 2 ? .55 : 1;
+      limb({ x: sx, y: -20 }, knee, foot, 3, i < 2 ? '#80684f' : '#96775b', PAL.ink, 1);
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(foot.x - 2, foot.y); ctx.lineTo(foot.x + 2, foot.y); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // long barrel lying on its side
+    ctx.fillStyle = '#96775b';
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(-55, -8);
+    ctx.quadraticCurveTo(-48, -25, -24, -27);
+    ctx.quadraticCurveTo(6, -30, 30, -24);
+    ctx.quadraticCurveTo(41, -20, 38, -9);
+    ctx.quadraticCurveTo(20, 0, -6, 0);
+    ctx.quadraticCurveTo(-39, 0, -55, -8);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // rib lines
+    ctx.globalAlpha = .18;
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = .55;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.arc(-26 + i * 13, -17, 9, .2, 2.9); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // arched neck and head
+    ctx.fillStyle = '#96775b';
+    ctx.strokeStyle = PAL.ink;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(27, -25);
+    ctx.quadraticCurveTo(46, -34, 58, -26);
+    ctx.quadraticCurveTo(69, -22, 75, -13);
+    ctx.quadraticCurveTo(72, -6, 63, -7);
+    ctx.quadraticCurveTo(56, -10, 52, -15);
+    ctx.quadraticCurveTo(40, -17, 30, -15);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // head, muzzle, ears
+    ctx.beginPath(); ctx.ellipse(66, -11, 10, 5.8, .12, 0, TAU); ctx.fill(); ctx.stroke();
+    poly([[58, -16], [57, -22], [62, -17]], '#96775b', PAL.ink, .6);
+    poly([[64, -17], [66, -23], [69, -17]], '#96775b', PAL.ink, .6);
+    ctx.globalAlpha = .55;
+    ctx.beginPath(); ctx.moveTo(73, -12); ctx.lineTo(78, -10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(60, -13); ctx.lineTo(64, -12); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // mane
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .75;
+    for (let i = 0; i < 7; i++) {
+      const mx = 34 + i * 4, my = -26 - i * .3;
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.quadraticCurveTo(mx - 4, my - 4, mx - 1, my - 7); ctx.stroke();
+    }
+    // tail
+    ctx.beginPath();
+    ctx.moveTo(-53, -14);
+    ctx.bezierCurveTo(-70, -12, -76, -5, -69, 2);
+    ctx.stroke();
+
+    // saddle and torn caparison
+    ctx.fillStyle = pal.cloth;
+    ctx.globalAlpha = .9;
+    ctx.beginPath(); ctx.moveTo(-12, -27); ctx.lineTo(16, -28); ctx.lineTo(19, -15); ctx.lineTo(-10, -14); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = .5;
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .55;
+    ctx.beginPath(); ctx.moveTo(-8, -26); ctx.lineTo(14, -27); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-9, -19); ctx.lineTo(16, -20); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // arrows and a broken lance
+    for (let i = 0; i < 4; i++) {
+      const ax = -30 + i * 19, ay = -22 + (i % 2) * 4;
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = .8;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + 19, ay - 11); ctx.stroke();
+      poly([[ax + 19, ay - 11], [ax + 13, ay - 11], [ax + 17, ay - 8]], PAL.ink, null, .4, .85);
+      ctx.globalAlpha = .55;
+      ctx.strokeStyle = PAL.blood; ctx.lineWidth = .55;
+      ctx.beginPath(); ctx.moveTo(ax + 2, ay); ctx.lineTo(ax + 3, ay + 6); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  function drawCorpse(cfg) {
+    const { x, y, s = 1, dir = 1, side = 'chi', seed = 1, blood = 1, arrows = 0 } = cfg;
+    const pal = SIDE[side];
+    const T = state.sceneTime;
+    ctx.save();
+    ctx.translate(x, y);
+    // blood pool
+    if (blood) {
+      ctx.globalAlpha = .2 + blood * .07;
+      ctx.fillStyle = PAL.blood;
+      ctx.beginPath(); ctx.ellipse(-dir * 22 * s, 0, 31 * s, 4.5 * s, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = .16;
+      ctx.beginPath(); ctx.ellipse(-dir * 12 * s, 1, 16 * s, 2.4 * s, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = .12;
+      ctx.beginPath(); ctx.ellipse(-dir * 39 * s, 0, 12 * s, 1.8 * s, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.scale(dir * s, s);
+    // body lying at a slight angle
+    ctx.rotate(-.06 + (seed % 3) * .04);
+    const hip = { x: 0, y: -4 };
+    const sh = { x: -5, y: -9 };
+    const head = { x: -17, y: -11 };
+    // far leg
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(14, -4); ctx.lineTo(28, -8); ctx.stroke();
+    ctx.strokeStyle = pal.trousers; ctx.lineWidth = 2.7;
+    ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(14, -4); ctx.lineTo(28, -8); ctx.stroke();
+    // torso horizontal
+    ctx.fillStyle = pal.clothPale; ctx.strokeStyle = PAL.ink; ctx.lineWidth = .9;
+    ctx.beginPath();
+    ctx.moveTo(sh.x + 2, sh.y - 3);
+    ctx.quadraticCurveTo(-3, -10, 4, -10);
+    ctx.lineTo(8, -3);
+    ctx.quadraticCurveTo(2, 1, -3, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // near leg
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 4.2;
+    ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(12, 1); ctx.lineTo(27, -2); ctx.stroke();
+    ctx.strokeStyle = pal.trousers; ctx.lineWidth = 2.9;
+    ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(12, 1); ctx.lineTo(27, -2); ctx.stroke();
+    // arm out
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3.2;
+    ctx.beginPath(); ctx.moveTo(sh.x, sh.y); ctx.lineTo(-8, -2); ctx.lineTo(-15, -7); ctx.stroke();
+    ctx.strokeStyle = pal.clothMid; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(sh.x, sh.y); ctx.lineTo(-8, -2); ctx.lineTo(-15, -7); ctx.stroke();
+    // head
+    ctx.fillStyle = PAL.skin; ctx.strokeStyle = PAL.ink; ctx.lineWidth = .75;
+    ctx.beginPath(); ctx.ellipse(head.x, head.y, 6.4, 5.2, -.3, 0, TAU); ctx.fill(); ctx.stroke();
+    // helmet
+    ctx.fillStyle = pal.cloth;
+    ctx.beginPath();
+    ctx.arc(head.x - 1, head.y - 2, 6.4, Math.PI * .75, Math.PI * 2.15);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // weapon dropped
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-30, -1); ctx.lineTo(10, -15); ctx.stroke();
+    ctx.fillStyle = '#b9c2b8';
+    ctx.beginPath(); ctx.moveTo(10, -15); ctx.lineTo(17, -18); ctx.lineTo(12, -12); ctx.closePath(); ctx.fill();
+    // arrows in body
+    for (let i = 0; i < arrows; i++) {
+      const ax = -4 + i * 7, ay = -7 - i * 2;
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = .7;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + 15, ay - 7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ax + 15, ay - 7); ctx.lineTo(ax + 11, ay - 7); ctx.stroke();
+    }
+    if (seed % 4 === 0) {
+      // a discarded shield
+      ctx.save(); ctx.translate(-28, -2); ctx.rotate(.4);
+      drawShield({ x: 0, y: 0 }, side, false, T, seed);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawCrow(cfg) {
+    const { x, y, s = 1, dir = -1, seed = 1 } = cfg;
+    const T = state.sceneTime;
+    const peck = Math.max(0, Math.sin(T * 2 + seed * 1.7));
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(dir * s, s);
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.2;
+    ctx.fillStyle = PAL.ink;
+    // legs
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-1, -7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(3, 0); ctx.lineTo(2, -7); ctx.stroke();
+    // body
+    ctx.beginPath(); ctx.ellipse(0, -12, 7, 4.6, -.1, 0, TAU); ctx.fill();
+    // head + beak
+    ctx.save();
+    ctx.translate(6, -15 - peck * 3);
+    ctx.rotate(peck * .7);
+    ctx.beginPath(); ctx.arc(0, 0, 2.7, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(2, -1); ctx.lineTo(7, 0); ctx.lineTo(2, 1.2); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // tail
+    ctx.beginPath(); ctx.moveTo(-6, -12); ctx.lineTo(-13, -8); ctx.lineTo(-7, -9); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCrawler(cfg) {
+    const { x, y, s = 1, dir = 1, side = 'chi', seed = 1 } = cfg;
+    const pal = SIDE[side];
+    const T = state.sceneTime;
+    const struggle = Math.sin(T * 1.4 + seed) * .8;
+    ctx.save();
+    ctx.translate(x, y);
+    // blood trail
+    ctx.globalAlpha = .12;
+    ctx.fillStyle = PAL.blood;
+    ctx.beginPath(); ctx.ellipse(-dir * 18 * s, 0, 22 * s, 3.6 * s, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.scale(dir * s, s);
+    // legs dragging behind
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 4.2;
+    ctx.beginPath(); ctx.moveTo(-21, -4); ctx.lineTo(-36, -2); ctx.lineTo(-45, -5); ctx.stroke();
+    ctx.strokeStyle = pal.trousers; ctx.lineWidth = 2.9;
+    ctx.beginPath(); ctx.moveTo(-21, -4); ctx.lineTo(-36, -2); ctx.lineTo(-45, -5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-20, -1); ctx.lineTo(-36, 2); ctx.lineTo(-43, 1); ctx.stroke();
+    // torso on the ground
+    ctx.fillStyle = side === 'jin' ? '#769194' : '#b06b54';
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .9;
+    ctx.beginPath();
+    ctx.moveTo(-22, -7);
+    ctx.quadraticCurveTo(-10, -12, 7, -9);
+    ctx.lineTo(11, -2);
+    ctx.quadraticCurveTo(-5, 1, -22, -1);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // head
+    ctx.fillStyle = PAL.skin;
+    ctx.beginPath(); ctx.ellipse(14, -8, 4.8, 4.2, .2, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = pal.cloth;
+    ctx.beginPath(); ctx.arc(14, -10, 5.1, Math.PI * .78, Math.PI * 2.18); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // arms pulling
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(3, -7); ctx.lineTo(14 + struggle * 2, -4); ctx.lineTo(21, 0); ctx.stroke();
+    ctx.strokeStyle = pal.clothMid; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(3, -7); ctx.lineTo(14 + struggle * 2, -4); ctx.lineTo(21, 0); ctx.stroke();
+    // dropped broken spear
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .9;
+    ctx.beginPath(); ctx.moveTo(-30, 1); ctx.lineTo(-8, -5); ctx.stroke();
+    ctx.globalAlpha = .7;
+    ctx.strokeStyle = PAL.blood; ctx.lineWidth = .7;
+    ctx.beginPath(); ctx.moveTo(-18, -6); ctx.quadraticCurveTo(-9, -4, -2, -2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawReedClump(cfg) {
+    const { x, y, s = 1, seed = 1, alpha = .55 } = cfg;
+    const T = state.sceneTime;
+    const R = rng(seed);
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.globalAlpha = alpha;
+    for (let i = 0; i < 13; i++) {
+      const bx = (R() - .5) * 42;
+      const h = 34 + R() * 70;
+      const lean = (R() - .5) * 18 + Math.sin(T * .6 + i + seed) * 3.5;
+      ctx.lineWidth = .65 + R() * .7;
+      ctx.beginPath();
+      ctx.moveTo(bx, 0);
+      ctx.quadraticCurveTo(bx + lean * .2, -h * .55, bx + lean, -h);
+      ctx.stroke();
+      if (R() > .55) {
+        // seed head
+        ctx.globalAlpha = alpha * .65;
+        ctx.beginPath();
+        ctx.ellipse(bx + lean, -h - 3, 1.4, 4.6, lean * .01, 0, TAU);
+        ctx.stroke();
+        ctx.globalAlpha = alpha;
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function addTimedDeath(cfg) {
+    actor(cfg.y, () => {
+      const T = state.sceneTime;
+      const e = T - cfg.start;
+      const death = e <= 0 ? 0 : clamp((e - .65) / 1.55, 0, 1);
+      const recoil = e > 0 ? Math.max(0, Math.sin(clamp(e / 1.2, 0, 1) * Math.PI)) * .9 : 0;
+      drawFootman({ ...cfg, death, recoil });
+      if (e > -.1 && e < .75) {
+        const q = clamp((e + .1) / .85, 0, 1);
+        drawBloodSpray(
+          cfg.x + (cfg.dir || 1) * (16 + q * 8) * (cfg.s || 1),
+          cfg.y - 48 * (cfg.s || 1) + q * 12,
+          (cfg.s || 1) * 1.15, (cfg.seed || 1) + 900, Math.sin(q * Math.PI) * .95
+        );
+      }
+      if (e > .55 && e < 2.4) {
+        const q = (e - .55) / 1.85;
+        drawDustPuff(cfg.x, cfg.y - 2, (cfg.s || 1) * 1.1, (cfg.seed || 1) * .4, Math.sin(q * Math.PI) * .16);
+      }
+    });
+  }
+
+  function drawSwordInGround(cfg) {
+    const { x, y, s = 1, angle = .3 } = cfg;
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.rotate(angle);
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -26); ctx.stroke();
+    ctx.strokeStyle = PAL.ochre; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-5, -26); ctx.lineTo(5, -26); ctx.stroke();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = .9;
+    ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(0, -33); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDustPuff(x, y, s, phase, alpha) {
+    const T = state.sceneTime;
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = PAL.inkSoft;
+    ctx.lineWidth = .8;
+    for (let i = 0; i < 3; i++) {
+      const a = T * .7 + phase + i * 2.1;
+      const xx = Math.sin(a) * 8;
+      const yy = -6 - i * 5 + Math.cos(a * 1.2) * 2;
+      ctx.beginPath(); ctx.arc(xx, yy, 7 + i * 4, .2, 3.1); ctx.stroke();
+    }
+    ctx.globalAlpha = alpha * .7;
+    ctx.fillStyle = PAL.haze;
+    ctx.beginPath(); ctx.ellipse(0, -8, 14, 8, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  /* ---------------------------------- landscape actors ---------------- */
+
+  function drawTree(cfg) {
+    const x = cfg.x, y = cfg.y, s = cfg.s || 1;
+    const kind = cfg.kind || 'pine';
+    const T = state.sceneTime;
+    const R = rng(cfg.seed || 19);
+    const sway = Math.sin(T * .5 + x) * .012;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.globalAlpha = .09;
+    ctx.fillStyle = PAL.ink;
+    ctx.beginPath(); ctx.ellipse(0, 2, 34, 5, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    if (kind === 'pine') {
+      ctx.strokeStyle = PAL.ink; ctx.fillStyle = '#6f8374';
+      // trunk
+      ctx.lineWidth = 3.2;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(-8, -34, 12, -54, 2, -92); ctx.stroke();
+      ctx.strokeStyle = PAL.inkSoft; ctx.lineWidth = 1.2;
+      for (let i = 0; i < 6; i++) {
+        const yy = -16 - i * 13;
+        const dir = i % 2 ? 1 : -1;
+        const len = 24 + R() * 23;
+        ctx.beginPath();
+        ctx.moveTo(2, yy);
+        ctx.quadraticCurveTo(2 + dir * len * .5, yy - 8, 2 + dir * len, yy - 5 + R() * 4);
+        ctx.stroke();
+        // needle clusters
+        ctx.globalAlpha = .62;
+        for (let j = 0; j < 12; j++) {
+          const px = 2 + dir * (10 + j * (len - 12) / 12);
+          const py = yy - 5 - Math.sin(j / 12 * Math.PI) * 4;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + dir * 5 + (R() - .5) * 3, py - 5 - R() * 4); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+      // canopy wash
+      ctx.globalAlpha = .16;
+      ctx.fillStyle = '#4f6b5e';
+      ctx.beginPath(); ctx.ellipse(0, -75, 42, 22, sway, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(-20, -60, 25, 14, sway, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(23, -58, 22, 13, sway, 0, TAU); ctx.fill();
+    } else {
+      // old willow / bare tree
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3.6;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(-11, -36, 10, -62, -3, -100); ctx.stroke();
+      ctx.lineWidth = 1.6;
+      const branches = [];
+      for (let i = 0; i < 7; i++) {
+        const by = -48 - i * 8;
+        const dir = i % 2 ? 1 : -1;
+        const bx = -3 + dir * (18 + R() * 28);
+        const ty = by - 20 - R() * 28;
+        ctx.beginPath(); ctx.moveTo(-3 + i * .3, by);
+        ctx.quadraticCurveTo(bx * .7, by - 8, bx, ty); ctx.stroke();
+        branches.push({ x: bx, y: ty });
+      }
+      // drooping willow lines
+      ctx.strokeStyle = PAL.inkSoft; ctx.lineWidth = .55;
+      for (let i = 0; i < 90; i++) {
+        const b = branches[i % branches.length];
+        const xx = b.x + (R() - .5) * 35;
+        const yy = b.y + R() * 18;
+        const len = 15 + R() * 35;
+        ctx.globalAlpha = .35 + R() * .3;
+        ctx.beginPath(); ctx.moveTo(xx, yy);
+        ctx.bezierCurveTo(xx + sway * 100, yy + len * .4, xx - 4 + sway * 150, yy + len * .8, xx - 7 + sway * 180, yy + len);
+        ctx.stroke();
+      }
+      // sparse leaf wash
+      ctx.globalAlpha = .13;
+      ctx.fillStyle = '#7f9484';
+      ctx.beginPath(); ctx.ellipse(0, -112, 56, 32, sway, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawShrub(cfg) {
+    const { x, y, s = 1, seed = 1 } = cfg;
+    const R = rng(seed);
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.globalAlpha = .2;
+    ctx.fillStyle = PAL.jade;
+    ctx.beginPath(); ctx.ellipse(0, -7, 18, 9, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = .55;
+    ctx.strokeStyle = PAL.inkSoft; ctx.lineWidth = .65;
+    for (let i = 0; i < 14; i++) {
+      const xx = (R() - .5) * 32;
+      ctx.beginPath(); ctx.moveTo(xx, 0); ctx.lineTo(xx * .7 + (R() - .5) * 6, -5 - R() * 12); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  /* ---------------------------------- arrows & effects ---------------- */
+
+  function drawVolley(cfg) {
+    const t = state.sceneTime;
+    const { x, y, tx, ty, period = 5.6, offset = 0, count = 7, spread = 110, color = PAL.ink, height = 150 } = cfg;
+    const u = mod(t + offset, period);
+    const flight = 1.55;
+    for (let i = 0; i < count; i++) {
+      const delay = i * .055;
+      const lt = u - delay;
+      if (lt < 0 || lt > flight) continue;
+      const p = lt / flight;
+      const x0 = x + (i / count - .5) * spread * .3;
+      const x1 = tx + (i / count - .5) * spread;
+      const y0 = y;
+      const y1 = ty + ((i % 3) - 1) * 14;
+      const cx = (x0 + x1) / 2;
+      const cy = Math.min(y0, y1) - height - (i % 4) * 9;
+      const inv = 1 - p;
+      const px = inv * inv * x0 + 2 * inv * p * cx + p * p * x1;
+      const py = inv * inv * y0 + 2 * inv * p * cy + p * p * y1;
+      const dx = 2 * inv * (cx - x0) + 2 * p * (x1 - cx);
+      const dy = 2 * inv * (cy - y0) + 2 * p * (y1 - cy);
+      const ang = Math.atan2(dy, dx);
+      drawArrow(px, py, ang, 1.02, color);
+      // faint motion streak behind the shaft
+      ctx.save();
+      ctx.globalAlpha = .16;
+      ctx.strokeStyle = PAL.inkSoft;
+      ctx.lineWidth = .5;
+      ctx.beginPath();
+      ctx.moveTo(px - Math.cos(ang) * 12, py - Math.sin(ang) * 12);
+      ctx.lineTo(px - Math.cos(ang) * 34, py - Math.sin(ang) * 34);
+      ctx.stroke();
+      ctx.restore();
+    }
+    const impact = u - flight;
+    if (impact >= 0 && impact < .42) {
+      const a = 1 - impact / .42;
+      drawBloodSpray(tx + spread * .1, ty - 54, 1.35, 700 + Math.floor((t + offset) / period), a);
+      drawBloodSpray(tx - spread * .22, ty - 20, .9, 740 + Math.floor((t + offset) / period), a * .7);
+    }
+  }
+
+  function drawArrow(x, y, ang, s = 1, color = PAL.ink) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
+    ctx.strokeStyle = color; ctx.lineWidth = .8;
+    ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(9, 0); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(5, -1.6); ctx.lineTo(5, 1.6); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = .9;
+    ctx.strokeStyle = PAL.ochre; ctx.lineWidth = .65;
+    ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-14, -2.8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-14, 2.8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-13, 0); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawWoundMark(x, y, s, angle, alpha = .75, seed = 1) {
+    const T = state.sceneTime;
+    const R = rng(seed);
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(angle); ctx.scale(s, s);
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = PAL.blood;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-8, -2);
+    ctx.quadraticCurveTo(0, -4, 9, 2);
+    ctx.stroke();
+    ctx.globalAlpha = alpha * .7;
+    ctx.lineWidth = .6;
+    ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(-7, 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2, 1); ctx.lineTo(1, 10 + Math.sin(T * 2 + seed) * 2); ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      ctx.globalAlpha = alpha * (.4 + R() * .3);
+      ctx.fillStyle = PAL.blood;
+      ctx.beginPath();
+      ctx.arc(-6 + R() * 14, 10 + R() * 9, .7 + R() * .9, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawBloodSpray(x, y, s, seed, alpha = .8) {
+    const R = rng(seed);
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s);
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = alpha * .07;
+    ctx.fillStyle = PAL.blood;
+    ctx.beginPath(); ctx.ellipse(0, -3, 14, 7, -.25, 0, TAU); ctx.fill();
+    ctx.globalAlpha = alpha;
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI * .84 + R() * Math.PI * .9;
+      const len = 7 + R() * 18;
+      const x2 = Math.cos(a) * len, y2 = Math.sin(a) * len;
+      ctx.strokeStyle = i % 3 === 0 ? PAL.bloodPale : PAL.blood;
+      ctx.lineWidth = .5 + R() * .7;
+      ctx.beginPath();
+      ctx.moveTo(0, -2);
+      ctx.quadraticCurveTo(x2 * .4, y2 * .35 - 5, x2, y2);
+      ctx.stroke();
+      // a droplet at the end of the stroke
+      ctx.fillStyle = PAL.blood;
+      ctx.beginPath(); ctx.ellipse(x2, y2, .8 + R() * 1.2, .55 + R() * .8, a, 0, TAU); ctx.fill();
+    }
+    for (let i = 0; i < 6; i++) {
+      ctx.globalAlpha = alpha * (.25 + R() * .4);
+      ctx.fillStyle = PAL.blood;
+      ctx.beginPath();
+      ctx.ellipse((R() - .35) * 28, (R() - .4) * 26, .6 + R() * 1.4, .5 + R() * .9, R(), 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawImpactSpark(x, y, s, alpha = .6) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.globalAlpha = alpha; ctx.strokeStyle = PAL.ochre; ctx.lineWidth = .8;
+    for (let i = 0; i < 5; i++) {
+      const a = -1.8 + i * .9;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5);
+      ctx.lineTo(Math.cos(a) * 12, Math.sin(a) * 12); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.restore();
+  }
+
+  /* ---------------------------------- scene construction -------------- */
+
+  const actors = [];
+  function actor(y, fn) { actors.push({ y, fn }); }
+
+  function addFoot(cfg) {
+    actor(cfg.y, () => drawFootman(cfg));
+  }
+  function addAttacker(cfg) {
+    actor(cfg.y, () => {
+      const T = state.sceneTime;
+      const period = cfg.period || 3.6;
+      const u = mod(T + (cfg.offset || 0), period) / period;
+      const atk = smooth(clamp((u - .12) / .18)) * (1 - smooth(clamp((u - .43) / .2)));
+      const p = { ...cfg };
+      if (cfg.role === 'spear' || cfg.role === 'halberd') p.thrust = .12 + .92 * atk;
+      else p.swing = .1 + .9 * atk;
+      p.recoil = Math.max(0, atk - .75) * .5;
+      drawFootman(p);
+      // a fast ink motion line behind the weapon
+      if (atk > .52) {
+        ctx.save();
+        ctx.globalAlpha = (atk - .52) * .55;
+        ctx.strokeStyle = PAL.ink;
+        ctx.lineWidth = .8;
+        const dir = cfg.dir || 1, s = cfg.s || 1;
+        const wy = cfg.y - 54 * s;
+        const wx = cfg.x + dir * (24 + 34 * atk) * s;
+        ctx.beginPath(); ctx.moveTo(wx - dir * 12 * s, wy + 5 * s); ctx.lineTo(wx, wy); ctx.stroke();
+        ctx.restore();
+      }
+    });
+  }
+  function addDefender(cfg) {
+    actor(cfg.y, () => {
+      const T = state.sceneTime;
+      const period = cfg.period || 3.6;
+      const u = mod(T + (cfg.offset || 0), period) / period;
+      const hit = smooth(clamp((u - .36) / .1)) * (1 - smooth(clamp((u - .58) / .22)));
+      const p = { ...cfg, recoil: hit * .9 };
+      drawFootman(p);
+      if (hit > .06) {
+        const dir = cfg.dir || 1, s = cfg.s || 1;
+        const bx = cfg.x - dir * 6 * s;
+        const by = cfg.y - 47 * s;
+        drawBloodSpray(bx, by, s * 1.25, (cfg.seed || 1) + 440, Math.sin(hit * Math.PI) * .95);
+        // a short red cut across the armour
+        ctx.save();
+        ctx.globalAlpha = Math.sin(hit * Math.PI) * .75;
+        ctx.strokeStyle = PAL.blood;
+        ctx.lineWidth = 1.15 * s;
+        ctx.beginPath();
+        ctx.moveTo(bx - 8 * s, by - 7 * s);
+        ctx.quadraticCurveTo(bx + 2 * s, by - 2 * s, bx + 9 * s, by + 5 * s);
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+  }
+  function addHorse(cfg) {
+    actor(cfg.y, () => drawHorse(cfg));
+  }
+  function addCorpse(cfg) {
+    actor(cfg.y, () => drawCorpse(cfg));
+  }
+  function addStandard(cfg) {
+    actor(cfg.y, () => drawStandingStandard(cfg));
+  }
+  function addTent(cfg) {
+    actor(cfg.y, () => drawTent(cfg));
+  }
+  function addDrumCart(cfg) {
+    actor(cfg.y, () => drawDrumCart(cfg));
+  }
+  function addDeadHorse(cfg) {
+    actor(cfg.y, () => drawDeadHorse(cfg));
+  }
+  function addSwordInGround(cfg) {
+    actor(cfg.y, () => drawSwordInGround(cfg));
+  }
+  function addChariot(cfg) {
+    actor(cfg.y, () => drawChariot(cfg));
+  }
+  function addBrokenChariot(cfg) {
+    actor(cfg.y, () => drawBrokenChariot(cfg));
+  }
+  function addCrawler(cfg) {
+    actor(cfg.y, () => drawCrawler(cfg));
+  }
+  function addReeds(cfg) {
+    actor(cfg.y, () => drawReedClump(cfg));
+  }
+  function addNameBanner(cfg) {
+    actor(cfg.y, () => drawNameBanner(cfg));
+  }
+  function addRampart(cfg) {
+    actor(cfg.y, () => drawRampart(cfg));
+  }
+  function addPlaceStele(cfg) {
+    actor(cfg.y, () => drawPlaceStele(cfg));
+  }
+
+  function buildScene() {
+    actors.length = 0;
+
+    // --- distant tree actors, mostly behind the plain -----------------
+    actor(612, () => drawTree({ x: 350, y: 620, s: .95, kind: 'willow', seed: 4 }));
+    actor(638, () => drawTree({ x: 640, y: 648, s: 1.2, kind: 'willow', seed: 22 }));
+    actor(620, () => drawTree({ x: 1130, y: 630, s: .8, kind: 'pine', seed: 31 }));
+    actor(635, () => drawTree({ x: 1480, y: 645, s: .62, kind: 'willow', seed: 52 }));
+    actor(610, () => drawTree({ x: 2460, y: 618, s: .75, kind: 'pine', seed: 63 }));
+    actor(650, () => drawTree({ x: 3230, y: 660, s: 1.15, kind: 'pine', seed: 71 }));
+    actor(640, () => drawTree({ x: 3590, y: 648, s: .85, kind: 'willow', seed: 83 }));
+    actor(690, () => drawTree({ x: 3860, y: 700, s: 1.35, kind: 'willow', seed: 91 }));
+
+    for (let i = 0; i < 18; i++) {
+      const R = rng(400 + i);
+      actor(590 + R() * 40, () => drawShrub({
+        x: 80 + R() * 3820, y: 600 + R() * 42, s: .45 + R() * .45, seed: i + 2,
+      }));
+    }
+
+    // --- left camp -----------------------------------------------------
+    addTent({ x: 168, y: 694, s: 1.22, w: 168, h: 104, side: 'jin', dark: true });
+    addTent({ x: 405, y: 668, s: .78, w: 126, h: 78, side: 'jin' });
+    addTent({ x: 566, y: 704, s: 1.24, w: 196, h: 118, side: 'jin', dark: true });
+    addTent({ x: 700, y: 646, s: .42, w: 96, h: 60, side: 'jin' });
+    addTent({ x: 104, y: 650, s: .52, w: 100, h: 62, side: 'jin', dark: true });
+    actor(680, () => drawFence({ x1: 32, x2: 600, y: 692, s: 1 }));
+    addStandard({ x: 306, y: 688, s: .92, side: 'jin', h: 158, len: 84, phase: .6, torn: true, glyph: '秦' });
+    addStandard({ x: 566, y: 698, s: 1.16, side: 'jin', h: 184, len: 112, phase: 2.2, torn: false, glyph: '秦' });
+    addNameBanner({ x: 664, y: 748, s: 1.08, side: 'jin', words: '白起', phase: 1.2 });
+    addFoot({ x: 696, y: 758, s: 1.02, dir: 1, side: 'jin', role: 'halberd', stance: 'brace', phase: .4, seed: 780, officer: true, shield: false });
+    addFoot({ x: 724, y: 744, s: .86, dir: -1, side: 'jin', role: 'shield', stance: 'brace', phase: 2.2, seed: 781 });
+    addStandard({ x: 78, y: 675, s: .65, side: 'jin', h: 120, len: 62, phase: 1.2 });
+    addFoot({ x: 462, y: 718, s: 1.0, dir: 1, side: 'jin', role: 'spear', stance: 'brace', phase: .7, seed: 17 });
+    addFoot({ x: 282, y: 732, s: 1.12, dir: 1, side: 'jin', role: 'halberd', stance: 'brace', phase: 2.4, seed: 23, officer: true, shield: false });
+    addFoot({ x: 230, y: 704, s: .78, dir: 1, side: 'jin', role: 'spear', stance: 'march', phase: 3.1, seed: 29 });
+    addFoot({ x: 350, y: 712, s: .78, dir: -1, side: 'jin', role: 'spear', stance: 'march', phase: 1.2, seed: 33 });
+    actor(735, () => drawCampfire({ x: 722, y: 735, s: 1.15 }));
+    actor(734, () => drawDrumCart({ x: 592, y: 738, s: .95, side: 'jin' }));
+    // stacked spears
+    for (let i = 0; i < 6; i++) {
+      actor(730, () => {
+        ctx.save(); ctx.translate(536 + i * 2.4, 728); ctx.rotate(-.13 + i * .022);
+        inkLine(0, 0, 0, -74, .9, .72);
+        poly([[0, -74], [-2, -79], [0, -83], [2, -79]], '#b9c2b8', PAL.ink, .5, .8);
+        ctx.restore();
+      });
+    }
+    // supply cart
+    actor(740, () => {
+      const T = state.sceneTime;
+      ctx.save(); ctx.translate(404, 742);
+      drawWheel(-24, -13, 14, T, 0, .8, 'jin');
+      drawWheel(23, -13, 14, T, .8, .8, 'jin');
+      ctx.fillStyle = '#c2ae8b'; ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.rect(-34, -31, 65, 12); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-34, -19); ctx.lineTo(-40, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(31, -19); ctx.lineTo(38, 0); ctx.stroke();
+      // sacks
+      ellipse(-18, -39, 10, 8, '#d5c4a4', PAL.ink, .8);
+      ellipse(0, -40, 11, 9, '#d5c4a4', PAL.ink, .8);
+      ellipse(18, -38, 9, 7, '#d5c4a4', PAL.ink, .8);
+      ctx.restore();
+    });
+
+    // --- camp life: horses, stores, a watch platform -------------------
+    addHorse({ x: 512, y: 727, s: .83, dir: 1, side: 'jin', phase: 1.7, rider: null, barded: false });
+    addHorse({ x: 574, y: 716, s: .74, dir: -1, side: 'jin', phase: 3.2, rider: null, barded: false });
+    addTent({ x: 30, y: 606, s: .36, w: 100, h: 62, side: 'jin', dark: true });
+    addTent({ x: 118, y: 598, s: .3, w: 96, h: 58, side: 'jin' });
+    addStandard({ x: 560, y: 600, s: .34, side: 'jin', h: 74, len: 42, phase: 2.8, faded: true });
+    actor(760, () => {
+      const T = state.sceneTime;
+      ctx.save(); ctx.translate(70, 760);
+      // timber watch platform
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(-14, -82); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(14, -82); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-14, -82); ctx.lineTo(16, -82); ctx.stroke();
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath(); ctx.moveTo(-21 + i * 1.7, -20 * i - 8); ctx.lineTo(21 - i * 1.7, -20 * i - 8); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(-16, -48); ctx.lineTo(16, -64); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(16, -44); ctx.lineTo(-16, -66); ctx.stroke();
+      // watchman
+      ctx.translate(2, -84); ctx.scale(.65, .65);
+      drawFootman({ x: 0, y: 0, s: .8, dir: -1, side: 'jin', role: 'spear', stance: 'brace', phase: 2.3, seed: 777, shield: false });
+      ctx.restore();
+      // small signal flag
+      const sway = Math.sin(T * 1.2) * 2;
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(16, -82); ctx.lineTo(18, -138); ctx.stroke();
+      ctx.fillStyle = PAL.indigo;
+      ctx.beginPath(); ctx.moveTo(18, -138);
+      ctx.quadraticCurveTo(34, -143 + sway, 46, -136);
+      ctx.lineTo(36, -126);
+      ctx.quadraticCurveTo(27, -130, 18, -128);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = .5; ctx.stroke();
+    });
+    actor(726, () => {
+      // stacked grain sacks and a bronze cauldron
+      ctx.save(); ctx.translate(652, 726);
+      ellipse(-16, -6, 11, 8, '#d2c09e', PAL.ink, .8);
+      ellipse(0, -8, 12, 9, '#d8c6a4', PAL.ink, .8);
+      ellipse(14, -5, 9, 7, '#cbb895', PAL.ink, .8);
+      ctx.fillStyle = '#9a8d72'; ctx.strokeStyle = PAL.ink; ctx.lineWidth = .8;
+      ctx.beginPath(); ctx.ellipse(36, -8, 13, 6, 0, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(36, -16, 13, 6, 0, 0, TAU); ctx.stroke();
+      ctx.restore();
+    });
+
+    // --- distant engagement, seen through the dust ---------------------
+    for (let i = 0; i < 22; i++) {
+      const R = rng(1710 + i);
+      const side = i % 2 ? 'chi' : 'jin';
+      addFoot({
+        x: 1060 + i * 94 + R() * 40, y: 640 + R() * 34,
+        s: .3 + R() * .12, dir: side === 'jin' ? 1 : -1, side,
+        role: i % 5 === 0 ? 'halberd' : i % 7 === 0 ? 'archer' : 'spear',
+        stance: i % 3 === 0 ? 'brace' : 'march', phase: R() * TAU,
+        seed: 1740 + i, shield: i % 4 === 0,
+      });
+    }
+    addStandard({ x: 1320, y: 652, s: .38, side: 'jin', h: 84, len: 52, phase: 1.4, faded: true });
+    addStandard({ x: 1830, y: 646, s: .4, dir: -1, side: 'chi', h: 86, len: 54, phase: 3.1, torn: true, faded: true });
+    addStandard({ x: 2330, y: 658, s: .36, side: 'chi', h: 82, len: 50, phase: 4.4, faded: true });
+    addFoot({ x: 1112, y: 700, s: .48, dir: 1, side: 'jin', role: 'spear', stance: 'march', phase: 2.2, seed: 1766 });
+    addFoot({ x: 1160, y: 712, s: .52, dir: 1, side: 'jin', role: 'shield', stance: 'march', phase: 1.1, seed: 1767 });
+    addFoot({ x: 1210, y: 692, s: .45, dir: -1, side: 'chi', role: 'archer', stance: 'brace', phase: 3.3, seed: 1768, shield: false, drawAmt: .5 });
+    addFoot({ x: 1240, y: 716, s: .54, dir: -1, side: 'chi', role: 'dao', stance: 'march', phase: .4, seed: 1769 });
+
+    // --- middle distance: a second press behind the front ---------------
+    for (let i = 0; i < 20; i++) {
+      const R = rng(1910 + i);
+      const side = i % 2 ? 'chi' : 'jin';
+      addFoot({
+        x: 1130 + i * 72 + R() * 26, y: 716 + R() * 42,
+        s: .58 + R() * .14, dir: side === 'jin' ? 1 : -1, side,
+        role: i % 6 === 0 ? 'archer' : i % 5 === 0 ? 'shield' : i % 7 === 0 ? 'halberd' : 'spear',
+        stance: i % 4 === 0 ? 'brace' : i % 9 === 0 ? 'thrust' : 'march',
+        phase: R() * TAU, seed: 1950 + i, shield: i % 5 === 0,
+        drawAmt: i % 6 === 0 ? .4 + R() * .4 : 0,
+      });
+    }
+    addStandard({ x: 1510, y: 734, s: .64, side: 'jin', h: 104, len: 64, phase: 2.7, torn: true });
+    addStandard({ x: 2050, y: 726, s: .6, dir: -1, side: 'chi', h: 98, len: 60, phase: 4.2, torn: true });
+    addHorse({ x: 2240, y: 752, s: .72, dir: -1, side: 'chi', phase: 2.4, rider: { role: 'lance', seed: 76 }, barded: true });
+    addHorse({ x: 1280, y: 744, s: .68, dir: 1, side: 'jin', phase: .8, rider: { role: 'dao', seed: 77, shield: true }, barded: true });
+
+    // --- left formation ------------------------------------------------
+    // far ranks
+    for (let row = 0; row < 3; row++) {
+      for (let i = 0; i < 6; i++) {
+        const x = 760 + i * 51 + row * 17;
+        const y = 626 + row * 20 + (i % 2) * 5;
+        addFoot({ x, y, s: .47, dir: 1, side: 'jin', role: i % 4 === 3 ? 'archer' : 'spear', stance: i % 4 === 3 ? 'brace' : 'march', phase: i * .9 + row, seed: 100 + i + row * 10, shield: false });
+      }
+    }
+    for (let i = 0; i < 8; i++) {
+      addFoot({ x: 690 + i * 50, y: 704 + (i % 2) * 4, s: .73, dir: 1, side: 'jin', role: i % 3 === 0 ? 'shield' : 'spear', stance: 'march', phase: i * .7, seed: 150 + i });
+    }
+    // shield wall
+    for (let i = 0; i < 7; i++) {
+      addFoot({
+        x: 926 + i * 49, y: 792 + (i % 2) * 5, s: 1.02, dir: 1, side: 'jin',
+        role: i === 3 ? 'spear' : 'shield', stance: 'brace', phase: i * .6,
+        seed: 200 + i, shield: true,
+      });
+    }
+    for (let i = 0; i < 5; i++) {
+      addFoot({ x: 865 + i * 43, y: 740 + (i % 2) * 4, s: .78, dir: 1, side: 'jin', role: 'archer', stance: 'brace', phase: i * .8, seed: 230 + i, shield: false, drawAmt: .3 + .4 * Math.max(0, Math.sin(state.sceneTime * .6 + i)) });
+    }
+    addStandard({ x: 844, y: 806, s: 1.23, side: 'jin', h: 176, len: 104, phase: 1.4, torn: false, glyph: '秦' });
+    addStandard({ x: 1180, y: 760, s: .96, side: 'jin', h: 150, len: 84, phase: 2.7, torn: true, glyph: '秦' });
+    addFoot({ x: 1178, y: 752, s: .9, dir: 1, side: 'jin', role: 'spear', stance: 'brace', phase: 1.7, seed: 260, shield: false });
+    addHorse({ x: 1204, y: 786, s: 1.02, dir: 1, side: 'jin', phase: 1.2, rider: { role: 'lance', seed: 14, officer: true, cape: true }, barded: true });
+    actor(780, () => drawDrumCart({ x: 1046, y: 782, s: .75, side: 'jin' }));
+
+    // more of the left host, crowding toward the front
+    for (let i = 0; i < 7; i++) {
+      addFoot({
+        x: 718 + i * 34, y: 748 + (i % 2) * 7, s: .66, dir: 1, side: 'jin',
+        role: i % 3 === 1 ? 'archer' : i % 3 === 2 ? 'halberd' : 'spear',
+        stance: i % 3 === 1 ? 'brace' : 'march', phase: i * .8 + 2.1,
+        seed: 270 + i, shield: false,
+      });
+    }
+    for (let i = 0; i < 5; i++) {
+      addFoot({
+        x: 1088 + i * 38, y: 742 + (i % 2) * 9, s: .6, dir: 1, side: 'jin',
+        role: i % 2 ? 'shield' : 'spear', stance: 'march', phase: i * 1.1,
+        seed: 290 + i,
+      });
+    }
+    // a knot of officers and runners beside the standard
+    addFoot({ x: 920, y: 758, s: .72, dir: 1, side: 'jin', role: 'officer', stance: 'brace', phase: 2.9, seed: 296, officer: true, shield: false });
+    addFoot({ x: 950, y: 746, s: .62, dir: -1, side: 'jin', role: 'spear', stance: 'march', phase: .4, seed: 297 });
+    addFoot({ x: 1090, y: 720, s: .48, dir: 1, side: 'jin', role: 'crossbow', stance: 'brace', phase: 1.9, seed: 298, shield: false, drawAmt: .5 });
+    addFoot({ x: 1126, y: 716, s: .48, dir: 1, side: 'jin', role: 'crossbow', stance: 'brace', phase: 2.8, seed: 299, shield: false, drawAmt: .3 });
+
+    // distant rank along the horizon, a second army behind the first
+    for (let i = 0; i < 24; i++) {
+      const side = i < 12 ? 'jin' : 'chi';
+      const R = rng(1000 + i);
+      addFoot({
+        x: side === 'jin' ? 640 + i * 58 + R() * 12 : 2240 + (i - 12) * 72 + R() * 18,
+        y: 596 + R() * 28, s: .28 + R() * .12, dir: side === 'jin' ? 1 : -1, side,
+        role: i % 5 === 0 ? 'halberd' : 'spear', stance: 'march',
+        phase: R() * TAU, seed: 1020 + i, shield: false,
+      });
+    }
+    addStandard({ x: 1010, y: 612, s: .46, side: 'jin', h: 82, len: 54, phase: 2.4, torn: true, faded: true });
+    addStandard({ x: 2940, y: 606, s: .42, dir: -1, side: 'chi', h: 78, len: 48, phase: 4.1, torn: true, faded: true });
+
+    // --- left clash ----------------------------------------------------
+    addFoot({ x: 1340, y: 842, s: 1.3, dir: 1, side: 'jin', role: 'spear', stance: 'thrust', phase: .2, seed: 301, thrust: .3, shield: false });
+    addFoot({ x: 1438, y: 852, s: 1.3, dir: -1, side: 'chi', role: 'shield', stance: 'brace', phase: 1.2, seed: 302, recoil: .25, bloodBlade: false });
+    addFoot({ x: 1472, y: 828, s: 1.1, dir: -1, side: 'chi', role: 'dao', stance: 'fight', phase: 2.1, seed: 303, swing: .5 });
+    addFoot({ x: 1534, y: 816, s: .92, dir: 1, side: 'jin', role: 'shield', stance: 'brace', phase: 3.2, seed: 304 });
+    addFoot({ x: 1592, y: 846, s: 1.24, dir: -1, side: 'chi', role: 'spear', stance: 'thrust', phase: 1.7, seed: 305, thrust: .55, shield: false });
+    addFoot({ x: 1666, y: 838, s: 1.25, dir: 1, side: 'jin', role: 'dao', stance: 'fight', phase: .9, seed: 306, swing: .7 });
+    addFoot({ x: 1724, y: 818, s: .9, dir: -1, side: 'chi', role: 'archer', stance: 'brace', phase: 2.5, seed: 307, shield: false, drawAmt: .7 });
+    addFoot({ x: 1256, y: 880, s: 1.0, dir: 1, side: 'jin', role: 'shield', stance: 'brace', phase: 4.1, seed: 308, officer: true });
+    addFoot({ x: 1300, y: 890, s: .86, dir: -1, side: 'chi', role: 'dao', stance: 'march', phase: 1.4, seed: 309 });
+    addCorpse({ x: 1218, y: 926, s: 1.25, dir: 1, side: 'chi', seed: 5, arrows: 2 });
+    addCorpse({ x: 1510, y: 938, s: 1.15, dir: -1, side: 'jin', seed: 11, arrows: 0 });
+    addSwordInGround({ x: 1290, y: 958, s: 1.1, angle: .5 });
+
+    // the two hosts lock together: a dense knot of spears, shields and blades
+    addAttacker({ x: 1378, y: 870, s: 1.22, dir: 1, side: 'jin', role: 'spear', stance: 'thrust', phase: 1.1, seed: 320, shield: false, period: 3.8, offset: 0 });
+    addDefender({ x: 1436, y: 872, s: 1.18, dir: -1, side: 'chi', role: 'shield', stance: 'brace', phase: .6, seed: 321, period: 3.8, offset: 0 });
+    addDefender({ x: 1404, y: 906, s: 1.36, dir: 1, side: 'jin', role: 'shield', stance: 'brace', phase: 2.4, seed: 322, period: 4.4, offset: 1.1 });
+    addAttacker({ x: 1468, y: 910, s: 1.3, dir: -1, side: 'chi', role: 'dao', stance: 'fight', phase: 1.8, seed: 323, period: 4.4, offset: 1.1 });
+    addFoot({ x: 1498, y: 846, s: 1.0, dir: 1, side: 'jin', role: 'halberd', stance: 'brace', phase: 3.1, seed: 324, shield: false });
+    addAttacker({ x: 1556, y: 854, s: 1.04, dir: -1, side: 'chi', role: 'spear', stance: 'thrust', phase: 2.2, seed: 325, shield: false, period: 4.1, offset: .7 });
+    addDefender({ x: 1516, y: 890, s: 1.32, dir: 1, side: 'jin', role: 'dao', stance: 'fight', phase: .4, seed: 326, period: 4.1, offset: .7 });
+    addFoot({ x: 1574, y: 896, s: 1.34, dir: -1, side: 'chi', role: 'shield', stance: 'brace', phase: 1.5, seed: 327, recoil: .35 });
+    addAttacker({ x: 1612, y: 870, s: 1.15, dir: 1, side: 'jin', role: 'spear', stance: 'thrust', phase: 2.8, seed: 328, shield: false, period: 3.5, offset: 1.9 });
+    addDefender({ x: 1646, y: 852, s: 1.02, dir: -1, side: 'chi', role: 'halberd', stance: 'brace', phase: .9, seed: 329, shield: false, period: 3.5, offset: 1.9 });
+    addFoot({ x: 1684, y: 884, s: 1.25, dir: -1, side: 'chi', role: 'dao', stance: 'fight', phase: 2.6, seed: 330, swing: .55 });
+    addFoot({ x: 1702, y: 918, s: 1.28, dir: 1, side: 'jin', role: 'shield', stance: 'brace', phase: 1.3, seed: 331 });
+    addFoot({ x: 1754, y: 906, s: 1.22, dir: -1, side: 'chi', role: 'spear', stance: 'thrust', phase: 3.3, seed: 332, thrust: .95, shield: false, arrow: true });
+    addFoot({ x: 1776, y: 868, s: 1.08, dir: 1, side: 'jin', role: 'mace', stance: 'fight', phase: .2, seed: 333, swing: .8, shield: false });
+    addFoot({ x: 1816, y: 848, s: .96, dir: -1, side: 'chi', role: 'halberd', stance: 'brace', phase: 2.1, seed: 334, shield: false });
+    addAttacker({ x: 1848, y: 880, s: 1.16, dir: 1, side: 'jin', role: 'spear', stance: 'thrust', phase: 1.7, seed: 335, shield: false, period: 4.6, offset: 2.6 });
+    addDefender({ x: 1878, y: 866, s: 1.0, dir: -1, side: 'chi', role: 'shield', stance: 'brace', phase: .8, seed: 336, period: 4.6, offset: 2.6 });
+    addFoot({ x: 1904, y: 834, s: .85, dir: 1, side: 'jin', role: 'archer', stance: 'brace', phase: 1.2, seed: 337, shield: false, drawAmt: .6 });
+    addFoot({ x: 1946, y: 824, s: .8, dir: -1, side: 'chi', role: 'archer', stance: 'brace', phase: 2.7, seed: 338, shield: false, drawAmt: .8 });
+    addFoot({ x: 1978, y: 858, s: .98, dir: 1, side: 'jin', role: 'crossbow', stance: 'brace', phase: .3, seed: 339, shield: false, drawAmt: .7 });
+    addFoot({ x: 2008, y: 842, s: .92, dir: -1, side: 'chi', role: 'archer', stance: 'brace', phase: 1.9, seed: 340, shield: false, drawAmt: .5 });
+
+    // far melee haze: loose groups behind the front
+    for (let i = 0; i < 12; i++) {
+      const R = rng(1500 + i);
+      const side = i % 3 === 0 ? 'chi' : 'jin';
+      addFoot({
+        x: 1360 + R() * 600, y: 742 + R() * 34, s: .55 + R() * .18,
+        dir: side === 'jin' ? 1 : -1, side,
+        role: i % 4 === 0 ? 'shield' : i % 5 === 0 ? 'archer' : 'spear',
+        stance: i % 4 === 0 ? 'brace' : 'march', phase: R() * TAU,
+        seed: 1520 + i, shield: i % 4 === 0,
+      });
+    }
+    // a pair of standards caught in the press
+    addStandard({ x: 1604, y: 934, s: .92, side: 'jin', h: 132, len: 76, phase: 3.1, torn: true });
+    addStandard({ x: 1802, y: 932, s: .88, dir: -1, side: 'chi', h: 126, len: 72, phase: 1.4, torn: true });
+    addFoot({ x: 1590, y: 948, s: 1.02, dir: 1, side: 'jin', role: 'standard', stance: 'brace', phase: 2.6, seed: 345, torn: true, flagH: 62, shield: false });
+    addFoot({ x: 1816, y: 944, s: 1.0, dir: -1, side: 'chi', role: 'standard', stance: 'brace', phase: .9, seed: 346, torn: true, flagH: 58, shield: false });
+
+    // falling men, one at the front and one behind the chariot
+    addTimedDeath({ x: 1698, y: 952, s: 1.38, dir: 1, side: 'chi', role: 'spear', stance: 'brace', phase: 2.4, seed: 347, start: 38, fallDir: 1, shield: false });
+    addTimedDeath({ x: 2154, y: 934, s: 1.26, dir: -1, side: 'jin', role: 'shield', stance: 'brace', phase: 1.1, seed: 348, start: 51, fallDir: -1 });
+
+    // wounded crawling out of the line
+    addCrawler({ x: 1718, y: 1004, s: 1.32, dir: -1, side: 'chi', seed: 4 });
+    addCrawler({ x: 2190, y: 1022, s: 1.18, dir: 1, side: 'jin', seed: 9 });
+    addFoot({ x: 1762, y: 978, s: 1.38, dir: 1, side: 'chi', role: 'spear', stance: 'march', phase: .4, seed: 351, death: .97, fallDir: 1, shield: false });
+    addFoot({ x: 2074, y: 1010, s: 1.5, dir: -1, side: 'chi', role: 'dao', stance: 'march', phase: 2.1, seed: 352, death: .95, fallDir: -1 });
+
+    // --- central chariot and cavalry ----------------------------------
+    addChariot({ x: 1870, y: 914, s: 1.42, dir: 1, side: 'jin', phase: .7, seed: 401, warrior: 'halberd', canopy: false, swing: .55, glyph: '秦' });
+    addHorse({
+      x: 1648, y: 886, s: 1.07, dir: 1, side: 'jin', phase: 2.1,
+      rider: { role: 'lance', seed: 18, officer: false, cape: true, shield: false }, barded: true,
+    });
+    addHorse({
+      x: 2050, y: 866, s: 1.08, dir: -1, side: 'chi', phase: 3.4,
+      rider: { role: 'mace', seed: 27, officer: false, cape: true, shield: true }, barded: true,
+    });
+    addHorse({
+      x: 2180, y: 842, s: .9, dir: -1, side: 'chi', phase: 1.1,
+      rider: { role: 'dao', seed: 33, officer: true, cape: true, shield: false }, barded: true,
+    });
+    addFoot({ x: 1968, y: 902, s: 1.35, dir: -1, side: 'chi', role: 'shield', stance: 'brace', phase: .4, seed: 411, recoil: .5 });
+    addFoot({ x: 2022, y: 924, s: 1.15, dir: -1, side: 'chi', role: 'spear', stance: 'brace', phase: 2.8, seed: 412, shield: false });
+    addFoot({ x: 1806, y: 938, s: 1.18, dir: 1, side: 'jin', role: 'shield', stance: 'brace', phase: 1.2, seed: 413 });
+    addAttacker({ x: 2130, y: 914, s: 1.32, dir: -1, side: 'chi', role: 'spear', stance: 'thrust', phase: 1.9, seed: 414, shield: false, period: 3.9, offset: 1.4 });
+    addDefender({ x: 2210, y: 902, s: 1.1, dir: 1, side: 'jin', role: 'dao', stance: 'fight', phase: .7, seed: 415, period: 3.9, offset: 1.4 });
+    addCorpse({ x: 1930, y: 968, s: 1.55, dir: 1, side: 'chi', seed: 21, arrows: 1 });
+    addCorpse({ x: 2086, y: 986, s: 1.4, dir: -1, side: 'jin', seed: 22, arrows: 3 });
+    addCorpse({ x: 1576, y: 976, s: 1.2, dir: 1, side: 'chi', seed: 23, arrows: 2 });
+    addCorpse({ x: 1734, y: 986, s: 1.28, dir: -1, side: 'jin', seed: 24, arrows: 0 });
+    addCorpse({ x: 2248, y: 964, s: 1.24, dir: 1, side: 'chi', seed: 25, arrows: 1 });
+    addDeadHorse({ x: 2290, y: 962, s: 1.05, side: 'chi', phase: 5 });
+    addSwordInGround({ x: 1672, y: 994, s: 1.22, angle: -.65 });
+    addSwordInGround({ x: 2116, y: 1010, s: 1.08, angle: .3 });
+    // broken chariot debris in the foreground
+    addCorpse({ x: 1816, y: 1000, s: 1.7, dir: -1, side: 'chi', seed: 27, arrows: 0 });
+
+    // --- Zhao rampart and the closing Qin ring -------------------------
+    addRampart({ x: 2360, y: 790, s: .9, side: 'chi', len: 600, h: 44 });
+    addNameBanner({ x: 2734, y: 934, s: 1.06, side: 'chi', words: '趙括', phase: 3.4 });
+    addChariot({ x: 2618, y: 930, s: 1.02, dir: -1, side: 'chi', phase: 2.6, seed: 802, warrior: 'dao', canopy: true, swing: .7, glyph: '趙' });
+    addFoot({ x: 2706, y: 906, s: 1.05, dir: -1, side: 'chi', role: 'halberd', stance: 'brace', phase: 1.7, seed: 803, officer: true, shield: false });
+
+    // --- right formation ----------------------------------------------
+    for (let i = 0; i < 7; i++) {
+      addFoot({
+        x: 2362 + i * 45, y: 754 + (i % 2) * 4, s: .8, dir: -1, side: 'chi',
+        role: 'archer', stance: 'brace', phase: i * .8 + .4, seed: 500 + i,
+        shield: false, drawAmt: .5 + .45 * Math.sin(state.sceneTime * .7 + i),
+      });
+    }
+    for (let i = 0; i < 6; i++) {
+      addFoot({ x: 2306 + i * 47, y: 690 + (i % 2) * 6, s: .58, dir: -1, side: 'chi', role: i % 4 === 0 ? 'halberd' : 'spear', stance: 'march', phase: i * .9, seed: 530 + i });
+    }
+    for (let i = 0; i < 8; i++) {
+      addFoot({ x: 2400 + i * 50, y: 830 + (i % 2) * 5, s: 1.08, dir: -1, side: 'chi', role: i % 3 === 0 ? 'dao' : 'shield', stance: 'brace', phase: i * .55, seed: 560 + i });
+    }
+    addStandard({ x: 2462, y: 846, s: 1.28, dir: -1, side: 'chi', h: 180, len: 108, phase: 2.2, torn: false, glyph: '趙' });
+    addStandard({ x: 2716, y: 808, s: .92, dir: -1, side: 'chi', h: 144, len: 82, phase: 3.7, torn: true, glyph: '趙' });
+    addFoot({ x: 2600, y: 802, s: 1.05, dir: -1, side: 'chi', role: 'halberd', stance: 'brace', phase: 1.2, seed: 590, officer: true, shield: false });
+    addDrumCart({ x: 2668, y: 790, s: .92, side: 'chi' });
+    addHorse({
+      x: 2820, y: 874, s: 1.2, dir: -1, side: 'chi', phase: .4,
+      rider: { role: 'mace', seed: 44, officer: true, cape: true, shield: true }, barded: true,
+    });
+    addHorse({ x: 2924, y: 904, s: 1.05, dir: -1, side: 'chi', phase: 2.2, rider: { role: 'lance', seed: 45, shield: false }, barded: true });
+    addCorpse({ x: 2338, y: 930, s: 1.3, dir: -1, side: 'jin', seed: 31, arrows: 1 });
+    addCorpse({ x: 2540, y: 950, s: 1.55, dir: 1, side: 'chi', seed: 32, arrows: 0 });
+    addCorpse({ x: 2660, y: 968, s: 1.25, dir: -1, side: 'jin', seed: 33, arrows: 2 });
+
+    // --- rout & aftermath ---------------------------------------------
+    addBrokenChariot({ x: 3120, y: 926, s: 1.28, side: 'chi' });
+    addHorse({ x: 3094, y: 872, s: 1.04, dir: -1, side: 'jin', phase: 1.1, rider: { role: 'lance', seed: 811, cape: true }, barded: true });
+    addHorse({ x: 3196, y: 848, s: .94, dir: -1, side: 'jin', phase: 2.4, rider: { role: 'dao', seed: 812, shield: true }, barded: true });
+    addHorse({ x: 3290, y: 888, s: 1.02, dir: -1, side: 'jin', phase: .6, rider: { role: 'lance', seed: 813 }, barded: true });
+    addHorse({ x: 3398, y: 856, s: .92, dir: -1, side: 'jin', phase: 3.1, rider: { role: 'mace', seed: 814, shield: true }, barded: true });
+    addStandard({ x: 3228, y: 924, s: 1.02, side: 'jin', h: 142, len: 82, phase: 1.9, torn: true, glyph: '秦' });
+    addStandard({ x: 3462, y: 880, s: .82, side: 'jin', h: 122, len: 72, phase: 3.6, torn: true, glyph: '秦' });
+    addFoot({ x: 3068, y: 872, s: 1.14, dir: 1, side: 'chi', role: 'shield', stance: 'run', phase: 1.8, seed: 601, recoil: .3 });
+    addFoot({ x: 3204, y: 896, s: 1.2, dir: 1, side: 'chi', role: 'spear', stance: 'run', phase: 2.6, seed: 602, shield: false });
+    addHorse({
+      x: 3282, y: 886, s: 1.08, dir: 1, side: 'jin', phase: 1.6,
+      rider: { role: 'lance', seed: 51, officer: false, cape: true }, barded: true,
+    });
+    addFoot({ x: 3388, y: 928, s: 1.08, dir: 1, side: 'jin', role: 'dao', stance: 'march', phase: .7, seed: 603, shield: false });
+    addCorpse({ x: 3022, y: 980, s: 1.6, dir: -1, side: 'chi', seed: 41, arrows: 0 });
+    addCorpse({ x: 3166, y: 996, s: 1.7, dir: 1, side: 'chi', seed: 42, arrows: 2 });
+    addCorpse({ x: 3304, y: 970, s: 1.4, dir: -1, side: 'jin', seed: 43, arrows: 1 });
+    addCorpse({ x: 3418, y: 1004, s: 1.65, dir: 1, side: 'chi', seed: 44, arrows: 0 });
+    addCorpse({ x: 3512, y: 982, s: 1.3, dir: -1, side: 'jin', seed: 45, arrows: 2 });
+    addStandard({ x: 3338, y: 986, s: 1.08, dir: 1, side: 'chi', h: 102, len: 72, phase: 4.7, fallen: true, torn: true, faded: true, glyph: '趙' });
+    addFoot({ x: 3450, y: 946, s: 1.08, dir: -1, side: 'chi', role: 'shield', stance: 'march', phase: 2.9, seed: 611, recoil: .5 });
+    addFoot({ x: 3510, y: 942, s: 1.12, dir: -1, side: 'jin', role: 'spear', stance: 'brace', phase: 1.1, seed: 612, shield: false });
+    addFoot({ x: 3604, y: 902, s: 1.42, dir: -1, side: 'jin', role: 'spear', stance: 'brace', phase: .2, seed: 613, officer: true, shield: false });
+    addStandard({ x: 3622, y: 912, s: 1.2, dir: -1, side: 'jin', h: 172, len: 102, phase: 1.8, torn: true });
+    addCorpse({ x: 3660, y: 1020, s: 1.5, dir: 1, side: 'chi', seed: 51, arrows: 1 });
+    actor(1008, () => drawCrow({ x: 3196, y: 1004, s: 1.1, dir: -1, seed: 3 }));
+    actor(986, () => drawCrow({ x: 3446, y: 1000, s: .9, dir: 1, seed: 7 }));
+    addDeadHorse({ x: 3760, y: 948, s: 1.28, side: 'chi' });
+    actor(964, () => drawCrow({ x: 3780, y: 976, s: .95, dir: -1, seed: 11 }));
+    addPlaceStele({ x: 3672, y: 1012, s: 1.28 });
+    actor(1000, () => drawCrow({ x: 3706, y: 1000, s: 1.1, dir: -1, seed: 41 }));
+    addStandard({ x: 3884, y: 960, s: 1.0, dir: 1, side: 'chi', h: 120, len: 76, phase: 5.4, fallen: true, torn: true, faded: true, glyph: '趙' });
+    addSwordInGround({ x: 3546, y: 1030, s: 1.35, angle: -.3 });
+    addSwordInGround({ x: 3088, y: 1000, s: 1.0, angle: .55 });
+
+    // --- wounded, crawling, and final details -------------------------
+    addFoot({ x: 2262, y: 1006, s: 1.42, dir: 1, side: 'chi', role: 'spear', stance: 'march', phase: .3, seed: 651, death: .96, fallDir: 1, shield: false });
+    addFoot({ x: 2850, y: 1004, s: 1.4, dir: -1, side: 'jin', role: 'shield', stance: 'brace', phase: 1.3, seed: 652, death: .94, fallDir: -1 });
+    addFoot({ x: 3518, y: 1018, s: 1.55, dir: 1, side: 'chi', role: 'dao', stance: 'march', phase: 2.4, seed: 653, death: .97, fallDir: 1 });
+
+    // scattered arrows and debris in the foreground
+    for (let i = 0; i < 26; i++) {
+      const R = rng(800 + i);
+      actor(940 + R() * 120, () => {
+        const x = 900 + R() * 3000, y = 940 + R() * 120;
+        drawArrow(x, y, R() * TAU, .9, PAL.ink);
+      });
+    }
+
+    // --- foreground debris and framing grasses ------------------------
+    addCorpse({ x: 980, y: 1016, s: 1.45, dir: 1, side: 'jin', seed: 61, arrows: 1 });
+    addCorpse({ x: 1184, y: 1044, s: 1.62, dir: -1, side: 'chi', seed: 62, arrows: 0 });
+    addCorpse({ x: 2310, y: 1046, s: 1.7, dir: 1, side: 'jin', seed: 63, arrows: 3 });
+    addCorpse({ x: 2476, y: 1018, s: 1.5, dir: -1, side: 'chi', seed: 64, arrows: 1 });
+    addCorpse({ x: 2866, y: 1048, s: 1.72, dir: 1, side: 'chi', seed: 65, arrows: 0 });
+    addCorpse({ x: 3060, y: 1024, s: 1.55, dir: -1, side: 'jin', seed: 66, arrows: 2 });
+    addCorpse({ x: 3740, y: 1040, s: 1.65, dir: 1, side: 'chi', seed: 67, arrows: 1 });
+    addDeadHorse({ x: 2650, y: 1024, s: 1.22, side: 'chi', phase: 2 });
+    addStandard({ x: 1120, y: 1048, s: 1.1, dir: 1, side: 'chi', h: 98, len: 66, phase: 5.1, fallen: true, torn: true, faded: true, glyph: '趙' });
+    addReeds({ x: 190, y: 1076, s: 1.15, seed: 2 });
+    addReeds({ x: 660, y: 1062, s: .9, seed: 5 });
+    addReeds({ x: 1160, y: 1084, s: 1.35, seed: 8 });
+    addReeds({ x: 1580, y: 1068, s: .85, seed: 11 });
+    addReeds({ x: 2050, y: 1080, s: 1.18, seed: 14 });
+    addReeds({ x: 2520, y: 1064, s: .92, seed: 17 });
+    addReeds({ x: 3000, y: 1082, s: 1.28, seed: 20 });
+    addReeds({ x: 3460, y: 1070, s: 1.0, seed: 23 });
+    addReeds({ x: 3910, y: 1078, s: 1.22, seed: 26 });
+    // spent arrows, dropped shields and a broken wheel
+    for (let i = 0; i < 10; i++) {
+      const R = rng(880 + i);
+      const x = 780 + R() * 3100, y = 1000 + R() * 62;
+      actor(y, () => {
+        ctx.save(); ctx.translate(x, y); ctx.rotate((R() - .5) * 2.4);
+        drawShield({ x: 0, y: 0 }, R() > .5 ? 'chi' : 'jin', false, state.sceneTime, i);
+        ctx.restore();
+      });
+    }
+    actor(1050, () => {
+      ctx.save(); ctx.translate(1450, 1052); ctx.rotate(.35);
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(0, 0, 27, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 23, 0, TAU); ctx.stroke();
+      for (let i = 0; i < 4; i++) {
+        const a = i * 1.1 + .2;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 23, Math.sin(a) * 23); ctx.stroke();
+      }
+      ctx.restore();
+    });
+
+    // --- foreground duel: the eye is drawn to the nearest fight ---------
+    addDefender({ x: 2012, y: 978, s: 1.85, dir: -1, side: 'chi', role: 'dao', stance: 'fight', phase: 1.2, seed: 700, period: 2.6, offset: 1.2, arrow: true });
+    addAttacker({ x: 1896, y: 968, s: 1.9, dir: 1, side: 'jin', role: 'halberd', stance: 'thrust', phase: .3, seed: 701, shield: false, period: 2.6, offset: 1.2, officer: true });
+    addCorpse({ x: 1948, y: 1044, s: 1.85, dir: -1, side: 'chi', seed: 70, arrows: 1 });
+    addSwordInGround({ x: 1848, y: 1050, s: 1.6, angle: .9 });
+    addReeds({ x: 2000, y: 1090, s: 1.25, seed: 33 });
+
+    actors.sort((a, b) => a.y - b.y);
+  }
+
+  /* ---------------------------------- effects ------------------------- */
+
+  function drawArrowStorm(t) {
+    const flights = [
+      { x0: 2410, x1: 1620, y0: 716, y1: 850, h: 205, n: 9, period: 2.9, seed: 3 },
+      { x0: 1030, x1: 1740, y0: 730, y1: 872, h: 165, n: 7, period: 3.4, seed: 8 },
+    ];
+    for (const f of flights) {
+      for (let i = 0; i < f.n; i++) {
+        const u = mod(t + i * f.period / f.n + f.seed, f.period);
+        const flight = 1.45;
+        if (u > flight) continue;
+        const p = u / flight;
+        const spread = (i - (f.n - 1) / 2) * 23;
+        const x0 = f.x0 + spread * .18;
+        const x1 = f.x1 + spread;
+        const y0 = f.y0 + (i % 3) * 8;
+        const y1 = f.y1 + (i % 4) * 7;
+        const cx = (x0 + x1) * .5;
+        const cy = Math.min(y0, y1) - f.h - (i % 3) * 14;
+        const inv = 1 - p;
+        const px = inv * inv * x0 + 2 * inv * p * cx + p * p * x1;
+        const py = inv * inv * y0 + 2 * inv * p * cy + p * p * y1;
+        const dx = 2 * inv * (cx - x0) + 2 * p * (x1 - cx);
+        const dy = 2 * inv * (cy - y0) + 2 * p * (y1 - cy);
+        drawArrow(px, py, Math.atan2(dy, dx), 1.0, PAL.ink);
+      }
+    }
+  }
+
+  function drawBattleEffects(t) {
+    drawArrowStorm(t);
+    // red archers loose across the line
+    drawVolley({ x: 2370, y: 694, tx: 1560, ty: 842, period: 5.6, offset: 1.2, count: 12, spread: 210, height: 185 });
+    drawVolley({ x: 2418, y: 700, tx: 1680, ty: 872, period: 4.9, offset: 3.6, count: 10, spread: 170, height: 160 });
+    drawVolley({ x: 2500, y: 720, tx: 1810, ty: 900, period: 6.8, offset: 4.2, count: 8, spread: 150, height: 130 });
+
+    // indigo archers answer
+    drawVolley({ x: 900, y: 688, tx: 1290, ty: 804, period: 6.6, offset: 2.5, count: 8, spread: 130, height: 130 });
+    drawVolley({ x: 970, y: 700, tx: 1450, ty: 870, period: 5.9, offset: 5.1, count: 7, spread: 110, height: 115 });
+    // a nearly continuous exchange overhead, so arrows are always in the air
+    drawVolley({ x: 2336, y: 714, tx: 1740, ty: 858, period: 3.2, offset: .5, count: 8, spread: 180, height: 170 });
+    drawVolley({ x: 1020, y: 728, tx: 1620, ty: 868, period: 3.6, offset: 2.1, count: 7, spread: 150, height: 145 });
+
+    // permanent wounds keep the front line visibly bloodied in every frame
+    drawBloodSpray(2018, 856, 3.0, 1201, .62);
+    drawBloodSpray(1520, 824, 2.25, 1202, .38);
+    drawBloodSpray(1432, 808, 2.1, 1203, .3);
+
+    // continuous bleeding at the closest fights, so the eye always catches it
+    const b1 = mod(t, 1.7);
+    if (b1 < .9) drawBloodSpray(2018, 860, 3.0, 500 + Math.floor(t / 1.7), Math.sin(b1 / .9 * Math.PI));
+    const b2 = mod(t + .7, 2.1);
+    if (b2 < .95) drawBloodSpray(1430, 810, 2.2, 600 + Math.floor(t / 2.1), Math.sin(b2 / .95 * Math.PI));
+    const b3 = mod(t + .35, 2.4);
+    if (b3 < 1.05) drawBloodSpray(1520, 828, 2.05, 650 + Math.floor(t / 2.4), Math.sin(b3 / 1.05 * Math.PI));
+    const b4 = mod(t + 1.1, 2.2);
+    if (b4 < .9) drawBloodSpray(2216, 842, 2.1, 680 + Math.floor(t / 2.2), Math.sin(b4 / .9 * Math.PI));
+
+    // timed blood bursts at the other points of contact
+    const hit1 = mod(t + .0, 3.8);
+    if (hit1 < .45) drawBloodSpray(1430, 817, 2.0, 12 + Math.floor(t / 3.8), Math.sin(hit1 / .45 * Math.PI));
+    const hit2 = mod(t + 1.1, 4.4);
+    if (hit2 < .5) drawBloodSpray(1414, 852, 2.0, 41 + Math.floor(t / 4.4), Math.sin(hit2 / .5 * Math.PI));
+    const hit3 = mod(t + .7, 4.1);
+    if (hit3 < .42) drawBloodSpray(1522, 839, 1.9, 73 + Math.floor(t / 4.1), Math.sin(hit3 / .42 * Math.PI));
+    const hit4 = mod(t + 1.9, 3.5);
+    if (hit4 < .36) drawBloodSpray(1650, 802, 1.9, 91 + Math.floor(t / 3.5), Math.sin(hit4 / .36 * Math.PI));
+    const hit5 = mod(t + 2.6, 4.6);
+    if (hit5 < .42) drawBloodSpray(1882, 814, 1.8, 111 + Math.floor(t / 4.6), Math.sin(hit5 / .42 * Math.PI));
+    const hit6 = mod(t + 1.4, 3.9);
+    if (hit6 < .38) drawBloodSpray(2214, 850, 2.0, 131 + Math.floor(t / 3.9), Math.sin(hit6 / .38 * Math.PI));
+    const hit7 = mod(t + 1.6, 3.2);
+    if (hit7 < .5) drawBloodSpray(2018, 924, 2.6, 171 + Math.floor(t / 3.2), Math.sin(hit7 / .5 * Math.PI));
+
+    // visible cuts on the men at the front
+    drawWoundMark(1436, 808, 1.15, -.45, .8, 3);
+    drawWoundMark(1518, 832, 1.1, .38, .75, 7);
+    drawWoundMark(1648, 794, 1.0, -.3, .7, 11);
+    drawWoundMark(1882, 804, 1.0, .5, .7, 15);
+    drawWoundMark(2018, 860, 2.2, -.42, 1, 21);
+    drawWoundMark(1998, 918, 1.25, .5, .8, 22);
+    drawWoundMark(1988, 934, 1.05, -.15, .7, 23);
+    drawWoundMark(2220, 842, 1.2, .3, .7, 27);
+
+    // dark pools spreading from the wounded
+    ctx.save();
+    ctx.fillStyle = PAL.blood;
+    const pools = [
+      [2008, 976, 40, .34], [1434, 872, 23, .24], [1522, 890, 22, .22],
+      [1650, 852, 18, .2], [1880, 866, 19, .2], [2218, 902, 22, .22],
+    ];
+    for (const [px, py, pr, pa] of pools) {
+      ctx.globalAlpha = pa;
+      ctx.beginPath(); ctx.ellipse(px, py, pr, 4.2, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = pa * .55;
+      ctx.beginPath(); ctx.ellipse(px - 9, py + 1, pr * .45, 2.2, 0, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+
+    // a few fixed cuts and stains, so the field never looks bloodless
+    ctx.save();
+    ctx.globalAlpha = .32;
+    ctx.strokeStyle = PAL.blood;
+    ctx.lineWidth = 1;
+    for (const p of [[1446, 864, 15, -.5], [1512, 894, 12, .4], [1680, 884, 14, -.3], [1860, 900, 18, .6], [2096, 946, 19, -.4]]) {
+      ctx.beginPath(); ctx.moveTo(p[0] - p[2] * .5, p[1]); ctx.lineTo(p[0] + p[2] * .5, p[1] + p[3] * p[2]); ctx.stroke();
+    }
+    ctx.restore();
+
+    // dust drifting across the middle distance
+    ctx.save();
+    ctx.globalAlpha = .09;
+    for (let i = 0; i < 8; i++) {
+      const x = 900 + mod(t * 7 + i * 430, 2800);
+      const y = 860 + (i % 3) * 40;
+      ctx.strokeStyle = PAL.inkSoft;
+      ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.ellipse(x, y, 48 + i * 5, 5 + i, 0, .2, 2.9); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawFallingLeaves(t) {
+    ctx.save();
+    ctx.globalAlpha = .28;
+    ctx.strokeStyle = PAL.ochre;
+    ctx.lineWidth = .7;
+    for (let i = 0; i < 20; i++) {
+      const R = rng(1200 + i);
+      const x = mod(R() * WORLD_W + t * (2 + R() * 3), WORLD_W);
+      const y = 160 + R() * 760 + Math.sin(t * .5 + i) * 12;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + 4, y - 2, x + 8, y + 1);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* ---------------------------------- render -------------------------- */
+
+  function cameraAt(t) {
+    const u = .10 + .86 * (.5 - .5 * Math.cos(TAU * t / 160));
+    return u * state.camMax;
+  }
+
+  const bgCanvas = document.createElement('canvas');
+  function buildBackground() {
+    bgCanvas.width = Math.round(WORLD_W * BG_SCALE);
+    bgCanvas.height = Math.round(DESIGN_H * BG_SCALE);
+    const bg = bgCanvas.getContext('2d', { alpha: false });
+    const prev = ctx;
+    ctx = bg;
+    ctx.setTransform(BG_SCALE, 0, 0, BG_SCALE, 0, 0);
+    drawSkyStatic();
+    drawMountains(0);
+    drawDistantTrees();
+    drawGround(0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx = prev;
+  }
+
+  function drawScene(t) {
+    const sx = clamp(state.camX, 0, WORLD_W) * BG_SCALE;
+    const sy = clamp(state.offY, 0, DESIGN_H) * BG_SCALE;
+    const sw = Math.min(state.visW, WORLD_W) * BG_SCALE;
+    const sh = Math.min(state.visH, DESIGN_H) * BG_SCALE;
+    if (sx + sw > bgCanvas.width) {
+      ctx.drawImage(bgCanvas, sx, sy, bgCanvas.width - sx, sh, state.camX, state.offY, (bgCanvas.width - sx) / BG_SCALE, sh / BG_SCALE);
+    } else {
+      ctx.drawImage(bgCanvas, sx, sy, sw, sh, state.camX, state.offY, sw / BG_SCALE, sh / BG_SCALE);
+    }
+    drawSkyDynamic(t);
+    drawSmokeColumn(654, 708, 380, .12, .18, 1.2);
+    drawSmokeColumn(1420, 880, 560, .36, .16, 1.65);
+    drawSmokeColumn(2020, 900, 600, .58, .18, 1.7);
+    drawSmokeColumn(2580, 820, 450, .72, .12, 1.3);
+    drawSmokeColumn(3810, 870, 520, .28, .08, 1.3);
+    for (const a of actors) a.fn(t);
+    drawBattleEffects(t);
+    drawFallingLeaves(t);
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const elapsed = Math.max(0, (now - state.start) / 1000);
+    const still = state.poster && state.poster.t != null;
+    const t = still ? state.poster.t : elapsed + (state.reduced ? 6 : 0);
+    state.sceneTime = still ? state.poster.t : elapsed + 32;
+    const cam = still
+      ? (state.poster.cam != null ? clamp(state.poster.cam, 0, state.camMax) : cameraAt(t))
+      : cameraAt(elapsed);
+    state.camX = cam;
+
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    ctx.fillStyle = PAL.paper;
+    ctx.fillRect(0, 0, state.W, state.H);
+
+    ctx.setTransform(
+      state.dpr * state.scale, 0, 0, state.dpr * state.scale,
+      -state.camX * state.dpr * state.scale,
+      -state.offY * state.dpr * state.scale
+    );
+    drawScene(t);
+
+    if (!still && !state.reduced) requestAnimationFrame(frame);
+    else if (!still && state.reduced) requestAnimationFrame(frame);
+  }
+
+  /* ---------------------------------- boot ---------------------------- */
+
+  buildRidges();
+  buildScene();
+  resize();
+  buildBackground();
+  state.grain = makeGrain();
+  const grainEl = document.getElementById('grain');
+  if (grainEl) grainEl.style.backgroundImage = `url(${state.grain.toDataURL()})`;
+  state.start = performance.now();
+  if (state.clean) document.body.classList.add('clean');
+  window.addEventListener('resize', resize, { passive: true });
+  window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+
+  document.body.classList.add('ready');
+  requestAnimationFrame(frame);
+
+  // Expose a tiny, read-only debug hook for local previews / screenshots.
+  window.__BATTLE_SCROLL__ = {
+    get info() { return { camX: state.camX, camMax: state.camMax, scale: state.scale, time: state.sceneTime, actors: actors.length }; },
+    seek(value) {
+      state.start = performance.now() - Math.max(0, Number(value) || 0) * 1000;
+    },
+    renderStill(t, cam) {
+      state.poster = { t: Number(t) || 0, cam: cam == null ? null : Number(cam) };
+      state.sceneTime = state.poster.t;
+      state.camX = state.poster.cam == null ? cameraAt(state.poster.t) : clamp(state.poster.cam, 0, state.camMax);
+      ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+      ctx.fillStyle = PAL.paper;
+      ctx.fillRect(0, 0, state.W, state.H);
+      ctx.setTransform(
+        state.dpr * state.scale, 0, 0, state.dpr * state.scale,
+        -state.camX * state.dpr * state.scale,
+        -state.offY * state.dpr * state.scale
+      );
+      drawScene(state.sceneTime);
+    },
+  };
+})();
+
+</script>
+</body>
+</html>
