@@ -585,6 +585,9 @@
   let bgReady = false;
   let photoFrame = null;
   let photoFrameCtx = null;
+  let maskFrame = null;
+  let maskFrameCtx = null;
+  let boltMaskSprite = null;
   let photoPulse = -99;
   let previewDone = false;
 
@@ -593,6 +596,7 @@
     bgImage.decoding = 'async';
     bgImage.onload = () => {
       bgReady = true;
+      if (PHOTO_MODE && !boltMaskSprite) buildBoltMask();
       if (PREVIEW && !previewDone) setupPreview();
     };
     bgImage.src = BG_DATA;
@@ -634,6 +638,7 @@
 
   let cloudLayers = [];
   let cloudWisps = [];
+  let cloudVeils = [];
   let grassLayers = [];
   let treeSegments = [];
   let treeSegmentsSmall = [];
@@ -1072,34 +1077,6 @@
     }
     ctx.globalAlpha = 1;
 
-    // Wind waves: a moving band of lit seed heads rolls across the plain.
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    for (let li = 1; li < grassLayers.length; li++) {
-      const layer = grassLayers[li];
-      const path = new Path2D();
-      for (let gi = 0; gi < layer.groups.length; gi++) {
-        const group = layer.groups[gi];
-        for (let i = 0; i < group.length; i += 3) {
-          const b = group[i];
-          const wave = Math.sin(b.x * .0072 - t * 1.05 + b.y * .006);
-          if (wave < .52) continue;
-          const w = windAt(b.x, b.y, t);
-          const sway = b.lean + w * (.55 + b.flex * .75) +
-            Math.sin(t * 1.8 + b.phase + b.x * .013) * .08;
-          const bend = sway * b.len;
-          const tipX = b.x + bend;
-          const tipY = b.y - b.len * (1 - Math.min(.34, Math.abs(sway) * .4));
-          path.moveTo(b.x + bend * .55, b.y - b.len * .66);
-          path.lineTo(tipX, tipY);
-        }
-      }
-      ctx.strokeStyle = 'rgba(138, 168, 140, ' + (.14 + li * .018) + ')';
-      ctx.lineWidth = Math.max(.6, (li + 1) * .42);
-      ctx.stroke(path);
-    }
-    ctx.restore();
-
     // A cold sheen catches the seed heads when the lightning fires.
     if (flashTint > .02) {
       ctx.globalCompositeOperation = 'screen';
@@ -1308,8 +1285,6 @@
     if (PREVIEW && !opts.preview) return;
 
     if (PHOTO_MODE) {
-      // The photograph already holds the great bolts. We animate their light,
-      // and occasionally let a small crawler run through the upper cloud.
       photoPulse = time;
       flashX = W * .555;
       flashY = H * .47;
@@ -1415,7 +1390,7 @@
           if (dt >= p) f += Math.exp(-(dt - p) * 11.5);
         }
       }
-      flash = Math.min(.52, f * .52);
+      flash = Math.min(.68, f * .68);
       for (const bolt of bolts) bolt.energy = boltEnergy(bolt, t);
       return;
     }
@@ -1606,6 +1581,7 @@
       for (const path of bolt.paths) {
         const pts = path.pts;
         const isMain = path === bolt.paths[0];
+        const photo = !!bolt.photo;
         const w = path.width * (isMain ? 1 : .72);
 
         // Wide atmospheric glow.
@@ -1613,7 +1589,7 @@
         fxCtx.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length; i++) fxCtx.lineTo(pts[i].x, pts[i].y);
         fxCtx.strokeStyle = 'rgba(122, 166, 236, ' + (.11 * a * path.alpha) + ')';
-        fxCtx.lineWidth = w * (isMain ? 14 : 8);
+        fxCtx.lineWidth = w * (isMain ? (photo ? 7.5 : 14) : (photo ? 4 : 8));
         fxCtx.stroke();
 
         // Blue-white halo.
@@ -1621,7 +1597,7 @@
         fxCtx.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length; i++) fxCtx.lineTo(pts[i].x, pts[i].y);
         fxCtx.strokeStyle = 'rgba(187, 214, 255, ' + (.40 * a * path.alpha) + ')';
-        fxCtx.lineWidth = w * (isMain ? 3.8 : 2.2);
+        fxCtx.lineWidth = w * (isMain ? (photo ? 2.1 : 3.8) : (photo ? 1.25 : 2.2));
         fxCtx.stroke();
 
         // Core.
@@ -1629,7 +1605,7 @@
         fxCtx.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length; i++) fxCtx.lineTo(pts[i].x, pts[i].y);
         fxCtx.strokeStyle = 'rgba(244, 249, 255, ' + (.96 * a * path.alpha) + ')';
-        fxCtx.lineWidth = w * (isMain ? 1.12 : .7);
+        fxCtx.lineWidth = w * (isMain ? (photo ? .86 : 1.12) : (photo ? .52 : .7));
         fxCtx.stroke();
 
         // Bloom pass.
@@ -1639,7 +1615,7 @@
           bloomCtx.lineTo(pts[i].x * scale, pts[i].y * scale);
         }
         bloomCtx.strokeStyle = 'rgba(168, 202, 255, ' + (.32 * a * path.alpha) + ')';
-        bloomCtx.lineWidth = Math.max(2, w * (isMain ? 9 : 5) * scale);
+        bloomCtx.lineWidth = Math.max(2, w * (isMain ? (photo ? 5 : 9) : (photo ? 3 : 5)) * scale);
         bloomCtx.stroke();
       }
     }
@@ -1656,7 +1632,7 @@
     fxCtx.globalCompositeOperation = 'screen';
 
     // Screen-wide lift.
-    fxCtx.fillStyle = 'rgba(123, 154, 199, ' + (.045 * lf) + ')';
+    fxCtx.fillStyle = 'rgba(123, 154, 199, ' + (.06 * lf) + ')';
     fxCtx.fillRect(0, 0, W, H);
 
     if (PHOTO_MODE) {
@@ -1665,7 +1641,7 @@
       const band = fxCtx.createLinearGradient(flashX - W * .28, 0, flashX + W * .28, 0);
       band.addColorStop(0, 'rgba(160, 188, 218, 0)');
       band.addColorStop(.36, 'rgba(174, 200, 226, ' + (.06 * lf) + ')');
-      band.addColorStop(.5, 'rgba(206, 224, 242, ' + (.13 * lf) + ')');
+      band.addColorStop(.5, 'rgba(206, 224, 242, ' + (.17 * lf) + ')');
       band.addColorStop(.64, 'rgba(174, 200, 226, ' + (.06 * lf) + ')');
       band.addColorStop(1, 'rgba(160, 188, 218, 0)');
       fxCtx.fillStyle = band;
@@ -1726,6 +1702,145 @@
   // ---------------------------------------------------------------------------
   // Photographic storm (default)
   // ---------------------------------------------------------------------------
+
+  function makeCloudVeilTexture(w, h, seed, light) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const x = c.getContext('2d');
+    const img = x.createImageData(w, h);
+    const data = img.data;
+    const n1 = makeValueNoise(seed);
+    const n2 = makeValueNoise(seed + 37);
+    for (let y = 0; y < h; y++) {
+      const v = y / h;
+      for (let xx = 0; xx < w; xx++) {
+        const u = xx / w;
+        const q = fbm(n1, u * 4, v * 2.2, 4) - .5;
+        const d = fbm(n1, u * 3.4 + q * 2.4, v * 2.6 + q * 1.5, 5);
+        const edge = smoothstep(0, .16, v) * (1 - smoothstep(.72, 1, v)) *
+                     smoothstep(0, .10, u) * (1 - smoothstep(.90, 1, u));
+        const a = smoothstep(.42, .61, d) * edge;
+        if (a < .004) continue;
+        const idx = (y * w + xx) * 4;
+        data[idx] = light ? 118 : 54;
+        data[idx + 1] = light ? 138 : 68;
+        data[idx + 2] = light ? 158 : 86;
+        data[idx + 3] = a * 255;
+      }
+    }
+    x.putImageData(img, 0, 0);
+    return c;
+  }
+
+  function buildCloudVeils() {
+    cloudVeils = [];
+    const darkA = makeCloudVeilTexture(640, 320, 9101, false);
+    const darkB = makeCloudVeilTexture(640, 320, 4403, false);
+    const lit = makeCloudVeilTexture(512, 256, 6607, true);
+    cloudVeils = [
+      { tex: darkA, x: -W * .20, y: -H * .02, w: W * .92, h: H * .46,
+        alpha: .32, speed: 19.0, phase: .3, rot: -.025, light: false },
+      { tex: darkB, x: W * .24, y: H * .01, w: W * .86, h: H * .43,
+        alpha: .27, speed: -14.0, phase: 2.1, rot: .018, light: false },
+      { tex: lit, x: W * .10, y: H * .06, w: W * .66, h: H * .33,
+        alpha: .18, speed: 25.0, phase: 4.4, rot: -.012, light: true },
+      { tex: darkA, x: W * .55, y: H * .36, w: W * .52, h: H * .22,
+        alpha: .24, speed: 34.0, phase: 1.4, rot: .015, light: false }
+    ];
+  }
+
+  function drawCloudVeils(t) {
+    for (const v of cloudVeils) {
+      const x = ((v.x + t * v.speed) % (W + v.w * 1.6)) - v.w * .8;
+      const y = v.y + Math.sin(t * .09 + v.phase) * H * .012;
+      const a = v.alpha * (.82 + .18 * Math.sin(t * .13 + v.phase));
+      sceneCtx.save();
+      sceneCtx.globalAlpha = a;
+      sceneCtx.globalCompositeOperation = v.light ? 'screen' : 'multiply';
+      sceneCtx.translate(x + v.w * .5, y + v.h * .5);
+      sceneCtx.rotate(v.rot + Math.sin(t * .021 + v.phase) * .012);
+      sceneCtx.drawImage(v.tex, -v.w * .5, -v.h * .5, v.w, v.h);
+      sceneCtx.restore();
+    }
+    sceneCtx.globalAlpha = 1;
+    sceneCtx.globalCompositeOperation = 'source-over';
+  }
+
+
+  function buildBoltMask() {
+    if (!bgReady) return;
+    const MW = 1920, MH = 1080;
+    const src = document.createElement('canvas');
+    src.width = MW;
+    src.height = MH;
+    const sx = src.getContext('2d');
+    sx.drawImage(bgImage, 0, 0, MW, MH);
+    const srcData = sx.getImageData(0, 0, MW, MH).data;
+
+    // A very cheap low-frequency luminance field. Subtracting it leaves the
+    // thin, high-contrast strokes of the existing lightning.
+    const sw = 240, sh = 135;
+    const small = document.createElement('canvas');
+    small.width = sw;
+    small.height = sh;
+    const smx = small.getContext('2d');
+    smx.drawImage(src, 0, 0, sw, sh);
+    const smData = smx.getImageData(0, 0, sw, sh).data;
+    const blurLum = new Float32Array(sw * sh);
+    for (let i = 0; i < sw * sh; i++) {
+      blurLum[i] = .2126 * smData[i * 4] + .7152 * smData[i * 4 + 1] + .0722 * smData[i * 4 + 2];
+    }
+
+    const mask = document.createElement('canvas');
+    mask.width = MW;
+    mask.height = MH;
+    const mx = mask.getContext('2d');
+    const out = mx.createImageData(MW, MH);
+    const data = out.data;
+    const yLimit = Math.floor(MH * .52);
+
+    for (let y = 0; y < yLimit; y++) {
+      const by = Math.min(sh - 1, (y * sh / MH) | 0);
+      for (let x = 0; x < MW; x++) {
+        const idx = (y * MW + x) * 4;
+        const r = srcData[idx], g = srcData[idx + 1], b = srcData[idx + 2];
+        const lum = .2126 * r + .7152 * g + .0722 * b;
+        const bx = Math.min(sw - 1, (x * sw / MW) | 0);
+        const detail = lum - blurLum[by * sw + bx];
+        if (lum < 165 || detail < 14) continue;
+        const a = clamp((detail - 14) * 8 + (lum - 165) * 2.0, 0, 255);
+        if (a < 16) continue;
+        data[idx] = 222;
+        data[idx + 1] = 234;
+        data[idx + 2] = 255;
+        data[idx + 3] = a;
+      }
+    }
+    mx.putImageData(out, 0, 0);
+
+    // A soft halo plus the sharp channel.
+    const glowSmall = document.createElement('canvas');
+    glowSmall.width = 240;
+    glowSmall.height = 135;
+    const gs = glowSmall.getContext('2d');
+    gs.drawImage(mask, 0, 0, 240, 135);
+
+    const glow = document.createElement('canvas');
+    glow.width = MW;
+    glow.height = MH;
+    const gx = glow.getContext('2d');
+    gx.imageSmoothingEnabled = true;
+    gx.imageSmoothingQuality = 'high';
+    gx.drawImage(glowSmall, 0, 0, MW, MH);
+    gx.globalCompositeOperation = 'lighter';
+    gx.globalAlpha = .92;
+    gx.drawImage(mask, 0, 0);
+    gx.globalAlpha = 1;
+    gx.globalCompositeOperation = 'source-over';
+    boltMaskSprite = glow;
+  }
+
   function buildPhotoGrass() {
     grassLayers = [];
     const rnd = mulberry32(7721);
@@ -1780,6 +1895,15 @@
     const dw = bgImage.width * scale;
     const dh = bgImage.height * scale;
     x.drawImage(bgImage, W * .5 + panX - dw * .5, H * .5 + panY - dh * .5, dw, dh);
+
+    if (maskFrameCtx && boltMaskSprite) {
+      const m = maskFrameCtx;
+      m.clearRect(0, 0, W, H);
+      const mScale = Math.max(W / 1920, H / 1080) * zoom;
+      const mw = 1920 * mScale;
+      const mh = 1080 * mScale;
+      m.drawImage(boltMaskSprite, W * .5 + panX - mw * .5, H * .5 + panY - mh * .5, mw, mh);
+    }
   }
 
   function drawPhotoScene(t) {
@@ -1798,10 +1922,35 @@
     const warpH = H * .56;
     for (let y = 0; y < warpH; y += strip) {
       const fade = 1 - smoothstep(warpH * .56, warpH, y);
-      const off = (Math.sin(t * .050 + y * .013) * 2.7 +
-                   Math.sin(t * .017 + y * .0045) * 1.3) * fade;
+      const off = (Math.sin(t * .14 + y * .017) * 8.4 +
+                   Math.sin(t * .061 + y * .006) * 3.4) * fade;
+      const oy = Math.sin(t * .11 + y * .021) * 1.6 * fade;
       const sh = Math.min(strip + .5, warpH - y + .5);
-      sceneCtx.drawImage(photoFrame, 0, y, W, sh, off, y, W, sh);
+      sceneCtx.drawImage(photoFrame, 0, y, W, sh, off, y + oy, W, sh + 1.6);
+    }
+
+    drawCloudVeils(t);
+
+    // Animate the lightning already in the photograph: its own channel and
+    // the cold cloud edges around it flare in return strokes.
+    if (boltMaskSprite && maskFrame && flash > .008) {
+      const spark = .56 + .44 * Math.sin((t - photoPulse) * 92);
+      const a = clamp(flash * 2.45, 0, 1) * spark;
+      sceneCtx.save();
+      sceneCtx.globalCompositeOperation = 'screen';
+      sceneCtx.globalAlpha = a;
+      const strip2 = 8;
+      const warpH2 = H * .56;
+      for (let y = 0; y < warpH2; y += strip2) {
+        const fade = 1 - smoothstep(warpH2 * .56, warpH2, y);
+        const off = (Math.sin(t * .14 + y * .017) * 8.4 +
+                     Math.sin(t * .061 + y * .006) * 3.4) * fade;
+        const oy = Math.sin(t * .11 + y * .021) * 1.6 * fade;
+        const sh = Math.min(strip2 + .5, warpH2 - y + .5);
+        sceneCtx.drawImage(maskFrame, 0, y, W, sh, off, y + oy, W, sh + 1.6);
+      }
+      sceneCtx.drawImage(maskFrame, 0, warpH2, W, H - warpH2);
+      sceneCtx.restore();
     }
 
     // Heavy top, wet bottom. Keeps the HUD legible and the grass anchored.
@@ -1859,7 +2008,6 @@
     sceneCtx.restore();
 
     drawGrass(sceneCtx, t, flash);
-    drawFieldSheen(sceneCtx, t, flash * .65);
   }
 
   function drawScene(t) {
@@ -2084,7 +2232,13 @@
       photoFrame.width = W;
       photoFrame.height = H;
       photoFrameCtx = photoFrame.getContext('2d');
+      maskFrame = document.createElement('canvas');
+      maskFrame.width = W;
+      maskFrame.height = H;
+      maskFrameCtx = maskFrame.getContext('2d');
+      if (bgReady && !boltMaskSprite) buildBoltMask();
       buildPhotoGrass();
+      buildCloudVeils();
       buildRain();
       flashX = W * .555;
       flashY = H * .47;
@@ -2121,7 +2275,7 @@
       photoPulse = time - .06;
       bolts = [];
       updateFlash(time);
-      flash = Math.max(flash, .50);
+      flash = Math.max(flash, .62);
       render(time, 0, { rainDt: .016 });
       return;
     }
