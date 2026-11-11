@@ -24,7 +24,7 @@ const BUILD_DIR = path.join(SOURCE_DIR, 'build');
 const TMP_DIR = path.join(SOURCE_DIR, '.build');
 const BINARY = path.join(TMP_DIR, 'LumenSaver');
 const MIN_MACOS = '13.0';
-const VERSION = '0.1.0';
+const VERSION = '1.0.0';
 
 const args = new Set(process.argv.slice(2));
 const shouldInstall = args.has('--install');
