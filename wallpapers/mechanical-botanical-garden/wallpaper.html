@@ -1,0 +1,2575 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<meta name="theme-color" content="#07100c">
+<title>机械植物园</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #050b08;
+    --paper: #ece5d3;
+    --muted: rgba(232, 226, 209, .56);
+    --faint: rgba(226, 218, 198, .30);
+    --line: rgba(201, 155, 92, .20);
+    --accent: #c99b5c;
+    --brass: #e3c07a;
+    --moss: #6f9275;
+    --sans: "Helvetica Neue", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --serif: "Songti SC", "SimSun", "Noto Serif CJK SC", serif;
+    --mono: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --pad: clamp(18px, 3vw, 50px);
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--ink); }
+  body {
+    position: fixed; inset: 0; font-family: var(--sans); color: var(--paper);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none;
+    cursor: default;
+  }
+  #scene { position: fixed; inset: 0; z-index: 1; width: 100%; height: 100%; display: block; }
+
+  .hud { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+  .hud a, .hud button, .hud input, .hud label, .hud .controls, .hud #panel { pointer-events: auto; }
+  .hud::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(68% 48% at 0% 0%, rgba(3, 8, 6, .68), transparent 66%),
+      radial-gradient(50% 42% at 100% 100%, rgba(3, 8, 6, .44), transparent 72%);
+  }
+
+  .masthead {
+    position: absolute; left: var(--pad); top: var(--pad);
+    display: flex; align-items: center; gap: 11px;
+    font-family: var(--mono); font-size: 8px; letter-spacing: .30em; color: var(--muted);
+    transition: opacity 1.4s;
+  }
+  .mark { width: 13px; height: 13px; border: 1px solid rgba(201, 155, 92, .55); border-radius: 50%; position: relative; }
+  .mark::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--accent); opacity: .78; }
+  .brand { color: rgba(240, 234, 220, .86); letter-spacing: .34em; }
+  .rule { width: 28px; height: 1px; background: var(--line); }
+  .collection { color: var(--faint); letter-spacing: .24em; }
+  .index { color: rgba(201, 155, 92, .60); border: 1px solid var(--line); border-radius: 3px; padding: 3px 6px; letter-spacing: .12em; }
+
+  .live {
+    position: absolute; right: var(--pad); top: calc(var(--pad) + 2px);
+    display: flex; align-items: center; gap: 9px;
+    font-family: var(--mono); font-size: 8px; letter-spacing: .20em; color: var(--faint);
+    transition: opacity 1.8s;
+  }
+  .live .dot {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--brass);
+    box-shadow: 0 0 11px rgba(227, 192, 122, .85); animation: breathe 5.2s ease-in-out infinite;
+  }
+  .live b { color: rgba(240, 230, 208, .68); font-weight: 400; letter-spacing: .10em; }
+  @keyframes breathe { 0%, 100% { opacity: .26; } 50% { opacity: 1; } }
+
+  .caption { position: absolute; left: var(--pad); top: calc(var(--pad) + 50px); width: min(520px, 44vw); transition: opacity 2.4s ease; }
+  .kicker { margin: 0; font-family: var(--mono); font-size: 8px; letter-spacing: .28em; color: rgba(201, 155, 92, .72); }
+  h1 {
+    margin: 14px 0 12px; font-family: var(--serif); font-weight: 400;
+    font-size: clamp(31px, 3.35vw, 52px); line-height: 1.08; letter-spacing: .19em;
+    color: #f1ead8; text-shadow: 0 2px 38px rgba(3, 8, 6, .82);
+  }
+  .sub { margin: 0; font-size: 11px; line-height: 2.0; letter-spacing: .10em; color: var(--muted); }
+  .measure { margin-top: 17px; display: flex; align-items: center; gap: 13px; }
+  .measure .line { width: 36px; height: 1px; background: rgba(201, 155, 92, .40); flex: none; }
+  .measure span:last-child { font-family: var(--mono); font-size: 8px; letter-spacing: .13em; color: var(--faint); }
+
+  .readout {
+    position: absolute; left: var(--pad); bottom: var(--pad);
+    display: flex; gap: clamp(18px, 2.5vw, 42px); transition: opacity 1.8s;
+  }
+  .readout div { display: flex; flex-direction: column; gap: 6px; }
+  .readout span { font-family: var(--mono); font-size: 7px; letter-spacing: .18em; color: var(--faint); }
+  .readout b { font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: .07em; color: rgba(240, 231, 210, .68); }
+  .readout b em { font-style: normal; font-size: 8px; color: var(--faint); }
+
+  .controls {
+    position: absolute; right: var(--pad); bottom: var(--pad);
+    display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+    opacity: .32; transition: opacity .35s;
+  }
+  .controls:hover, .controls:focus-within, .controls:has([aria-expanded="true"]) { opacity: 1; }
+  button {
+    font: inherit; cursor: pointer; color: #ece2ce;
+    background: rgba(7, 14, 11, .86); border: 1px solid rgba(201, 155, 92, .22);
+    border-radius: 7px; padding: 9px 13px; font-size: 10.5px; letter-spacing: .14em;
+    backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+    transition: border-color .25s, background .25s, color .25s;
+  }
+  button:hover { border-color: rgba(201, 155, 92, .56); background: rgba(15, 26, 20, .95); }
+  button:focus-visible, input:focus-visible { outline: 2px solid rgba(227, 192, 122, .82); outline-offset: 4px; }
+  #panel {
+    width: 288px; max-height: calc(100vh - 100px); overflow: auto; padding: 18px; touch-action: pan-y;
+    display: flex; flex-direction: column; gap: 11px;
+    border: 1px solid rgba(201, 155, 92, .20); border-radius: 11px;
+    background: rgba(6, 13, 10, .95); box-shadow: 0 20px 70px rgba(0, 0, 0, .62);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  #panel[hidden] { display: none; }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
+  .panel-head b { font-family: var(--serif); font-weight: 400; font-size: 13px; letter-spacing: .18em; color: rgba(244, 236, 220, .90); }
+  .panel-head span { font-family: var(--mono); font-size: 7px; letter-spacing: .12em; color: var(--faint); }
+  .row { display: flex; gap: 8px; }
+  .row button { flex: 1; padding: 8px 6px; font-size: 10px; }
+  .row button.active { border-color: rgba(227, 192, 122, .72); color: #ffe6b4; background: rgba(46, 35, 18, .62); }
+  #fullBtn { width: 100%; }
+  .tips { margin: 2px 0 0; font-size: 8.5px; line-height: 1.95; letter-spacing: .05em; color: var(--faint); }
+  .tips b { color: var(--muted); font-weight: 400; }
+
+  .toast {
+    position: absolute; left: 50%; bottom: 13%; transform: translate(-50%, 12px);
+    padding: 8px 15px; border: 1px solid rgba(201, 155, 92, .22); border-radius: 999px;
+    background: rgba(6, 13, 10, .82); color: rgba(240, 232, 214, .78);
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: .15em;
+    opacity: 0; transition: opacity .7s, transform .7s; pointer-events: none;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  body.quiet .caption, body.quiet .masthead, body.quiet .readout { opacity: 0; }
+  body.quiet .live { opacity: .20; }
+  body.hud-off .masthead, body.hud-off .caption, body.hud-off .readout,
+  body.hud-off .live, body.hud-off .toast, body.hud-off .controls, body.hud-off .hud::before { display: none; }
+  body.hud-off .hud { pointer-events: none; }
+
+  @media (max-width: 760px), (max-height: 620px) {
+    .readout, .live { display: none; }
+    .caption { width: min(84vw, 420px); top: calc(var(--pad) + 42px); }
+    h1 { font-size: clamp(26px, 7.6vw, 40px); letter-spacing: .14em; }
+    .sub { font-size: 10px; line-height: 1.9; }
+    .measure { margin-top: 12px; }
+    .measure span:last-child { letter-spacing: .08em; }
+    .collection, .masthead .rule, .index { display: none; }
+    .controls { right: 16px; bottom: 16px; }
+    .toast { bottom: 17%; }
+    #panel { width: min(288px, calc(100vw - 32px)); }
+  }
+  @media (max-width: 460px) {
+    .sub br { display: none; }
+    .measure { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hud *, .toast { transition-duration: .01s !important; }
+    .live .dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" role="img" aria-label="深夜玻璃温室中的三株黄铜发条植物：主株是十三瓣机械山茶，副株垂着三枚铃花并悬着摆轮，幼苗从低处展开发条叶片；月光斜落在展台上，前景是失焦的黄铜栏杆与凝结水珠"></canvas>
+
+<div class="hud" id="hud">
+  <header class="masthead">
+    <span class="mark"></span>
+    <span class="brand">LUMEN</span>
+    <span class="rule"></span>
+    <span class="collection">温室档案</span>
+    <span class="index">09</span>
+  </header>
+
+  <div class="live">
+    <span class="dot"></span>
+    <span>CLOCKWORK BLOOM</span>
+    <b id="liveBloom">—</b>
+  </div>
+
+  <div class="caption">
+    <p class="kicker">KEW WORKS No. 09 / THE GLASSHOUSE</p>
+    <h1>机械植物园</h1>
+    <p class="sub">发条与花期。<br>黄铜在夜里生长，齿轮咬住月光。</p>
+    <div class="measure"><span class="line"></span><span>THREE SPECIMENS · WOUND BY HAND</span></div>
+  </div>
+
+  <div class="readout">
+    <div><span>主株花期 · CAMELLIA</span><b id="roMain">—</b></div>
+    <div><span>齿轮周期 · TRAIN</span><b>47 · 73 · 101 <em>s</em></b></div>
+    <div><span>下一场检修 · SERVICE</span><b id="roService">—</b></div>
+  </div>
+
+  <div class="controls">
+    <div id="panel" hidden>
+      <div class="panel-head"><b>展台设置</b><span>GREENHOUSE 09</span></div>
+      <div class="row"><button data-stand="0">主株 · 1</button><button data-stand="1">副株 · 2</button><button data-stand="2">幼苗 · 3</button></div>
+      <div class="row"><button id="serviceBtn">检修</button><button id="pauseBtn">暂停</button></div>
+      <button id="fullBtn">全屏</button>
+      <p class="tips">悬停植株上发条 · 点击开花或收拢<br><b>1–3</b> 对准展台 · <b>Space</b> 暂停 · <b>H</b> 隐藏界面 · <b>F</b> 全屏</p>
+    </div>
+    <button id="settings" aria-expanded="false" aria-controls="panel">展台设置</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const q = new URLSearchParams(location.search);
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const TAU = Math.PI * 2;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const mod = (n, m) => ((n % m) + m) % m;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smooth = (a, b, n) => { const x = clamp((n - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+  const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
+  function mulberry32(a) {
+    a = a >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function numberParam(key, fallback, min, max) {
+    const raw = q.get(key);
+    const value = raw === null ? fallback : Number(raw);
+    return Number.isFinite(value) ? clamp(value, min, max) : fallback;
+  }
+
+  let seed = numberParam('seed', 20261110, 1, 2147483646) >>> 0;
+  let w = 1, h = 1, dpr = 1;
+  let time = numberParam('t', 100, 0, 86400);
+  let paused = q.get('still') === '1' || (q.get('still') !== '0' && reducedMotion.matches);
+  let raf = 0, last = 0, accumulator = 0, frames = 0;
+  let quietTimer = 0, toastTimer = 0, hudTick = 0;
+  let focusStand = 0, focusUntil = 0;
+  let manualService = null;
+  let service = { active: false, index: -1, progress: 0, cycle: 0 };
+  let steam = [];
+  const MAX_STEAM = 60;
+  let hoverIndex = -1;
+  let pointer = { x: 0, y: 0, inside: false, down: false, downX: 0, downY: 0, downTime: 0 };
+  let cam = { x: 0, y: 0, zoom: 1 };
+  let bgLayer = null, fgLayer = null;
+  let glowSprite = null, steamSprite = null;
+  let dust = [];
+  const HAS_PATH = typeof Path2D === 'function';
+  const gearPaths = new Map();
+  const metalCache = new Map();
+
+  const SPECIES = [
+    {
+      id: 'main', ordinal: 'I', label: '主株', latin: 'CAMELLIA MACHINA',
+      period: 47, bloomPeriod: 257, bloomOffset: 0, outer: 13, inner: 8,
+      height: .545, plinth: .155, plinthWidth: .096, x: .365,
+      accent: '#e3c07a',
+    },
+    {
+      id: 'secondary', ordinal: 'II', label: '副株', latin: 'PENDULUM FERN',
+      period: 73, bloomPeriod: 311, bloomOffset: 60, outer: 9, inner: 5,
+      height: .462, plinth: .112, plinthWidth: .074, x: .705,
+      accent: '#c99b5c',
+    },
+    {
+      id: 'seedling', ordinal: 'III', label: '幼苗', latin: 'SPRING SEEDLING',
+      period: 101, bloomPeriod: 349, bloomOffset: 330, outer: 5, inner: 3,
+      height: .158, plinth: .050, plinthWidth: .042, x: .535,
+      accent: '#9fbf8e',
+    },
+  ];
+
+  const plants = SPECIES.map((spec, index) => ({
+    ...spec, index,
+    x: 0, y: 0, scale: 1, plinthH: 0, plinthW: 0, shelf: false,
+    spine: [], branches: [], leaves: [], blooms: [], gears: [], lights: [],
+    open: 0, openPrev: 0, wound: 0, woundTarget: 0, pulseUntil: -1,
+    gearPhase: 0, fold: 0, manualUntil: -1, manualTarget: null,
+    phase: 0, swayPhase: 0, flowers: SPECIES[index].outer, petals: 0, gearCount: 0,
+  }));
+
+  /* ------------------------------ paths & sprites ------------------------------ */
+
+  function makePetalPath() {
+    const p = new Path2D();
+    p.moveTo(0, 0);
+    p.bezierCurveTo(-.26, -.13, -.40, -.62, -.035, -.985);
+    p.lineTo(0, -.955);
+    p.lineTo(.035, -.985);
+    p.bezierCurveTo(.40, -.62, .26, -.13, 0, 0);
+    p.closePath();
+    return p;
+  }
+
+  function makeLeafPath() {
+    const p = new Path2D();
+    p.moveTo(0, 0);
+    p.bezierCurveTo(-.25, -.16, -.31, -.62, 0, -1);
+    p.bezierCurveTo(.31, -.62, .25, -.16, 0, 0);
+    p.closePath();
+    return p;
+  }
+
+  function makeBellPath() {
+    const p = new Path2D();
+    p.moveTo(0, 0);
+    p.bezierCurveTo(-.30, -.12, -.34, -.56, -.16, -.85);
+    p.quadraticCurveTo(-.06, -.98, 0, -1);
+    p.quadraticCurveTo(.06, -.98, .16, -.85);
+    p.bezierCurveTo(.34, -.56, .30, -.12, 0, 0);
+    p.closePath();
+    return p;
+  }
+
+  const PETAL = HAS_PATH ? makePetalPath() : null;
+  const LEAF = HAS_PATH ? makeLeafPath() : null;
+  const BELL = HAS_PATH ? makeBellPath() : null;
+
+  function gearPath(teeth, depth = .17, hole = .30) {
+    const key = teeth + ':' + depth + ':' + hole;
+    if (gearPaths.has(key)) return gearPaths.get(key);
+    const p = new Path2D();
+    const step = TAU / teeth;
+    let first = true;
+    for (let i = 0; i < teeth; i++) {
+      const a = i * step;
+      const root = 1 - depth;
+      const pts = [
+        [a - step * .50, root], [a - step * .30, root],
+        [a - step * .20, 1], [a + step * .20, 1],
+        [a + step * .30, root], [a + step * .50, root],
+      ];
+      for (const [ang, rad] of pts) {
+        const x = Math.cos(ang) * rad, y = Math.sin(ang) * rad;
+        if (first) { p.moveTo(x, y); first = false; } else p.lineTo(x, y);
+      }
+    }
+    p.closePath();
+    p.moveTo(hole, 0);
+    p.arc(0, 0, hole, 0, TAU, true);
+    p.closePath();
+    gearPaths.set(key, p);
+    return p;
+  }
+
+  function makeCanvas(cw, ch) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(cw));
+    c.height = Math.max(1, Math.round(ch));
+    return c;
+  }
+
+  function buildSprites() {
+    glowSprite = makeCanvas(96, 96);
+    const g = glowSprite.getContext('2d');
+    const grad = g.createRadialGradient(48, 48, 0, 48, 48, 48);
+    grad.addColorStop(0, 'rgba(255,224,168,1)');
+    grad.addColorStop(.22, 'rgba(240,199,126,.72)');
+    grad.addColorStop(.58, 'rgba(197,143,72,.20)');
+    grad.addColorStop(1, 'rgba(120,80,40,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 96, 96);
+
+    steamSprite = makeCanvas(96, 96);
+    const s = steamSprite.getContext('2d');
+    const sg = s.createRadialGradient(48, 48, 0, 48, 48, 48);
+    sg.addColorStop(0, 'rgba(208,220,208,.62)');
+    sg.addColorStop(.40, 'rgba(190,206,194,.26)');
+    sg.addColorStop(1, 'rgba(150,174,160,0)');
+    s.fillStyle = sg;
+    s.fillRect(0, 0, 96, 96);
+  }
+
+  /* ------------------------------ plant geometry ------------------------------ */
+
+  function cubic(p0, p1, p2, p3, t) {
+    const u = 1 - t;
+    return {
+      x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+      y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+    };
+  }
+
+  function quadratic(p0, p1, p2, t) {
+    const u = 1 - t;
+    return { x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x, y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y };
+  }
+
+  function spinePoint(p, u) {
+    const n = p.spine.length - 1;
+    const f = clamp(u, 0, 1) * n;
+    const i = Math.min(n - 1, Math.floor(f));
+    const t = f - i;
+    return { x: lerp(p.spine[i].x, p.spine[i + 1].x, t), y: lerp(p.spine[i].y, p.spine[i + 1].y, t) };
+  }
+
+  function buildPlant(p) {
+    const r = mulberry32((seed ^ Math.imul(p.index + 3, 0x9E3779B1)) >>> 0);
+    p.phase = r() * TAU;
+    p.swayPhase = r() * TAU;
+
+    // Main stem: a slightly irregular cubic, sampled once and reused by every layer.
+    let c1, c2, end;
+    if (p.id === 'main') {
+      c1 = { x: -.035 + (r() - .5) * .03, y: -.36 };
+      c2 = { x: .070 + (r() - .5) * .03, y: -.70 };
+      end = { x: .020, y: -1.0 };
+    } else if (p.id === 'secondary') {
+      c1 = { x: .16 + (r() - .5) * .04, y: -.32 };
+      c2 = { x: .25 + (r() - .5) * .04, y: -.68 };
+      end = { x: .10, y: -.97 };
+    } else {
+      c1 = { x: .05, y: -.42 };
+      c2 = { x: -.035, y: -.76 };
+      end = { x: .010, y: -1.0 };
+    }
+    p.spine = [];
+    for (let i = 0; i <= 28; i++) {
+      const t = i / 28;
+      const pt = cubic({ x: 0, y: 0 }, c1, c2, end, t);
+      p.spine.push({ x: pt.x, y: pt.y, t });
+    }
+
+    const defs = p.id === 'main'
+      ? [
+          { u: .30, a: -2.48, len: .34, bend: .06, leaves: 4 },
+          { u: .52, a: -.58, len: .36, bend: -.05, leaves: 5 },
+          { u: .73, a: -2.16, len: .26, bend: .04, leaves: 3 },
+        ]
+      : p.id === 'secondary'
+        ? [
+            { u: .34, a: -.48, len: .43, bend: -.07, leaves: 4 },
+            { u: .55, a: -1.02, len: .37, bend: .06, leaves: 3 },
+            { u: .74, a: -2.62, len: .28, bend: .04, leaves: 3 },
+          ]
+        : [
+            { u: .42, a: -2.25, len: .34, bend: .04, leaves: 2 },
+            { u: .48, a: -.85, len: .32, bend: -.04, leaves: 2 },
+          ];
+
+    p.branches = [];
+    for (const d of defs) {
+      const start = spinePoint(p, d.u);
+      const dir = { x: Math.cos(d.a), y: Math.sin(d.a) };
+      const normal = { x: -dir.y, y: dir.x };
+      const tip = { x: start.x + dir.x * d.len, y: start.y + dir.y * d.len };
+      const ctrl = {
+        x: start.x + dir.x * d.len * .58 + normal.x * d.bend,
+        y: start.y + dir.y * d.len * .58 + normal.y * d.bend,
+      };
+      const pts = [];
+      for (let i = 0; i <= 14; i++) {
+        const t = i / 14;
+        const pt = quadratic(start, ctrl, tip, t);
+        pts.push({ x: pt.x, y: pt.y, t });
+      }
+      p.branches.push({ u: d.u, angle: d.a, pts, tip, dir });
+
+      // A leaf cluster at the branch tip, fanned around the branch direction.
+      const count = d.leaves;
+      for (let k = 0; k < count; k++) {
+        const frac = .52 + (k / Math.max(1, count - 1)) * .46;
+        const idx = Math.min(pts.length - 2, Math.floor(frac * (pts.length - 1)));
+        const base = pts[idx];
+        const spread = (k - (count - 1) / 2) * .46;
+        p.leaves.push({
+          x: base.x, y: base.y,
+          angle: d.a + spread + (r() - .5) * .18,
+          size: .095 + r() * .040 + (p.id === 'main' ? .012 : 0),
+          tone: r() < .36 ? 1 : 0,
+          seed: r(),
+        });
+      }
+    }
+
+    // Leaves growing directly from the main stem, alternating sides.
+    const stemLeaves = p.id === 'main' ? 5 : p.id === 'secondary' ? 4 : 2;
+    for (let i = 0; i < stemLeaves; i++) {
+      const u = .20 + i * (.55 / Math.max(1, stemLeaves - 1));
+      const pt = spinePoint(p, u);
+      const side = i % 2 ? 1 : -1;
+      p.leaves.push({
+        x: pt.x, y: pt.y,
+        angle: side > 0 ? .55 + r() * .3 : -2.55 - r() * .3,
+        size: .085 + r() * .035,
+        tone: r() < .30 ? 1 : 0,
+        seed: r(),
+      });
+    }
+
+    const top = p.spine[p.spine.length - 1];
+    p.blooms = [];
+
+    if (p.id === 'main') {
+      p.blooms.push({ type: 'flower', x: top.x + .015, y: top.y - .02, r: .166, outer: p.outer, inner: p.inner, rot: r() * .4, main: true });
+      const budA = p.branches[0].pts[10];
+      const budB = p.branches[2].pts[8];
+      p.blooms.push({ type: 'bud', x: budA.x + .025, y: budA.y - .045, r: .058, rot: -.35 });
+      p.blooms.push({ type: 'bud', x: budB.x - .020, y: budB.y - .038, r: .050, rot: .55 });
+    } else if (p.id === 'secondary') {
+      p.blooms.push({ type: 'flower', x: top.x, y: top.y - .02, r: .100, outer: p.outer, inner: p.inner, rot: r() * .5, main: true });
+      for (let i = 0; i < 3; i++) {
+        const br = p.branches[i];
+        const base = br.pts[Math.min(br.pts.length - 1, 10 + i)];
+        p.blooms.push({
+          type: 'bell', x: base.x, y: base.y + .015, r: .050 + i * .006,
+          rot: (r() - .5) * .16, swing: p.phase + i * 1.7,
+        });
+      }
+    } else {
+      p.blooms.push({ type: 'flower', x: top.x, y: top.y - .015, r: .150, outer: p.outer, inner: p.inner, rot: r() * .4, main: true });
+      p.blooms.push({ type: 'bud', x: top.x - .095, y: top.y + .115, r: .062, rot: -.5 });
+    }
+
+    // Gears, laid out along the stem joints and around the base plate.
+    p.gears = [];
+    const addGear = (x, y, rad, teeth, ratio, dir, layer, alpha) => {
+      p.gears.push({ x, y, r: rad, teeth, ratio, dir, off: r() * TAU, layer, alpha: alpha ?? 1 });
+    };
+    if (p.id === 'main') {
+      addGear(-.060, -.045, .086, 24, 1.0, 1, -1);
+      addGear(.050, -.062, .048, 16, -1.9, -1, -1);
+      addGear(-.015, -.012, .062, 30, .62, 1, -1);
+      for (const u of [.30, .52, .73]) {
+        const pt = spinePoint(p, u);
+        addGear(pt.x + (u === .52 ? -.045 : .038), pt.y + .01, .034 + u * .045, 18 + Math.round(u * 8), u === .52 ? -1.35 : 1.6, u === .52 ? -1 : 1, u === .52 ? -1 : 1, .95);
+      }
+      addGear(.032, -.30, .045, 20, 1.35, -1, 1, .9);
+      addGear(-.028, -.62, .036, 16, -.8, 1, 1, .85);
+    } else if (p.id === 'secondary') {
+      addGear(-.045, -.035, .070, 22, 1, 1, -1);
+      addGear(.045, -.070, .044, 15, -1.55, -1, -1);
+      addGear(.115, -.470, .068, 26, .72, 1, 1, .92);
+      addGear(.170, -.520, .036, 14, -1.8, -1, 1, .9);
+      addGear(.062, -.180, .032, 14, 1.8, 1, 1, .85);
+      addGear(.020, -.74, .028, 12, -2.1, -1, 1, .8);
+    } else {
+      addGear(-.030, -.030, .060, 18, 1, 1, -1);
+      addGear(.038, -.045, .032, 12, -1.7, -1, -1);
+      addGear(.005, -.20, .022, 10, 1.4, 1, 1, .8);
+    }
+    p.gearCount = p.gears.length + 1;
+
+    // A few warm leak points where teeth meet and at the flower bearing.
+    p.lights = [];
+    if (p.id === 'main') {
+      p.lights.push({ x: -.012, y: -.050, r: .10, p: .55 });
+      p.lights.push({ x: .052, y: -.615, r: .055, p: .40 });
+    } else if (p.id === 'secondary') {
+      p.lights.push({ x: .115, y: -.470, r: .075, p: .46 });
+      p.lights.push({ x: .062, y: -.180, r: .045, p: .32 });
+    } else {
+      p.lights.push({ x: .004, y: -.035, r: .070, p: .42 });
+    }
+    for (const b of p.blooms) {
+      if (b.type === 'flower' || b.type === 'bell') p.lights.push({ x: b.x, y: b.y, r: b.r * 1.2, p: .55 });
+    }
+
+    p.petals = p.blooms.reduce((sum, b) => sum + (b.type === 'flower' ? b.outer + b.inner : b.type === 'bell' ? 6 : 5), 0);
+    p.valve = p.id === 'secondary'
+      ? { x: .10, y: -.50 }
+      : p.id === 'main'
+        ? { x: .055, y: -.56 }
+        : { x: .02, y: -.24 };
+    p.pendulum = p.id === 'secondary' ? { x: .115, y: -.455, len: .30 } : null;
+  }
+
+  for (const p of plants) buildPlant(p);
+
+  /* ------------------------------ layout & camera ------------------------------ */
+
+  let sceneFloorY = 0;
+  let scenePortrait = false;
+  let sceneUltra = false;
+
+  function layout() {
+    const aspect = w / h;
+    scenePortrait = aspect < .92;
+    sceneUltra = aspect > 2.08;
+    if (scenePortrait) {
+      sceneFloorY = h * .995;
+      const shelves = [h * .545, h * .745, h * .900];
+      const scales = [h * .255, h * .185, h * .100];
+      const widths = [w * .66, w * .58, w * .48];
+      plants.forEach((p, i) => {
+        p.x = w * .5;
+        p.y = shelves[i] - 5;
+        p.scale = scales[i];
+        p.shelf = true;
+        p.plinthH = 0;
+        p.plinthW = widths[i];
+      });
+    } else if (sceneUltra) {
+      sceneFloorY = h * .872;
+      const base = [
+        { x: .325, h: .525, ph: .145, pw: .078 },
+        { x: .685, h: .470, ph: .112, pw: .060 },
+        { x: .505, h: .160, ph: .050, pw: .035 },
+      ];
+      plants.forEach((p, i) => {
+        p.x = w * base[i].x;
+        p.scale = h * base[i].h;
+        p.plinthH = h * base[i].ph;
+        p.plinthW = w * base[i].pw;
+        p.y = sceneFloorY - p.plinthH;
+        p.shelf = false;
+      });
+    } else {
+      sceneFloorY = h * .858;
+      const base = [
+        { x: .365, h: .515, ph: .145, pw: .096 },
+        { x: .705, h: .455, ph: .112, pw: .074 },
+        { x: .535, h: .158, ph: .050, pw: .042 },
+      ];
+      plants.forEach((p, i) => {
+        p.x = w * base[i].x;
+        p.scale = h * base[i].h;
+        p.plinthH = h * base[i].ph;
+        p.plinthW = w * base[i].pw;
+        p.y = sceneFloorY - p.plinthH;
+        p.shelf = false;
+      });
+    }
+    for (const p of plants) {
+      const spread = p.id === 'seedling' ? .38 : .34;
+      p.hit = {
+        x: p.x - p.scale * spread,
+        y: p.y - p.scale * 1.08,
+        w: p.scale * spread * 2,
+        h: p.scale * 1.14 + (p.shelf ? 0 : p.plinthH),
+      };
+    }
+  }
+
+  function cameraAt(t) {
+    const cycle = 180;
+    const idx = Math.floor(t / cycle) % 3;
+    const phase = mod(t, cycle);
+    const k = phase < 160 ? 0 : smooth(160, 180, phase);
+    let anchor = lerp(plants[idx].x / w, plants[(idx + 1) % 3].x / w, k);
+    if (focusUntil > time) anchor = plants[focusStand].x / w;
+    return {
+      x: -(anchor - .5) * w * .115 + Math.sin(t * .021) * w * .0018,
+      y: Math.sin(t * .027) * h * .0014,
+      zoom: 1 + .007 * Math.sin(t * .034),
+    };
+  }
+
+  function autoOpen(p, t) {
+    const phase = mod(t + p.bloomOffset, p.bloomPeriod) / p.bloomPeriod;
+    if (phase < .30) return 0;
+    if (phase < .38) return smooth(.30, .38, phase);
+    if (phase < .70) return 1;
+    if (phase < .78) return 1 - smooth(.70, .78, phase);
+    return 0;
+  }
+
+  function serviceFold(progress) {
+    if (progress < .15) return smooth(0, .15, progress);
+    if (progress < .72) return 1;
+    if (progress < .95) return 1 - smooth(.72, .95, progress);
+    return 0;
+  }
+
+  function serviceState(t) {
+    if (manualService) {
+      const age = t - manualService.start;
+      if (age >= 0 && age < 40) {
+        return { active: true, index: manualService.index, progress: age / 40, cycle: -1, manual: true };
+      }
+      manualService = null;
+    }
+    const cycle = Math.floor(t / 900);
+    const phase = mod(t, 900);
+    if (phase >= 600 && phase < 640) {
+      return { active: true, index: cycle % 3, progress: (phase - 600) / 40, cycle, manual: false };
+    }
+    return { active: false, index: -1, progress: 0, cycle, manual: false };
+  }
+
+  function nextServiceIn(t) {
+    const phase = mod(t, 900);
+    if (phase < 600) return 600 - phase;
+    if (phase < 640) return 0;
+    return 1500 - phase;
+  }
+
+  function plantToScreen(p, lx, ly) {
+    const wx = p.x + lx * p.scale;
+    const wy = p.y + ly * p.scale;
+    return {
+      x: w / 2 + (wx - cam.x - w / 2) * cam.zoom,
+      y: h / 2 + (wy - cam.y - h / 2) * cam.zoom,
+    };
+  }
+
+  /* ------------------------------ shared drawing ------------------------------ */
+
+  function drawGear(c, x, y, r, teeth, angle, opts = {}) {
+    const path = gearPath(teeth, opts.depth ?? .17, opts.hole ?? .30);
+    c.save();
+    c.translate(x, y);
+    c.rotate(angle);
+    c.scale(r, r * (opts.squash ?? .965));
+    c.globalAlpha = opts.alpha ?? 1;
+    if (opts.unit) {
+      const key = opts.fill ?? '#a06c38';
+      let metal = metalCache.get(key);
+      if (!metal) {
+        metal = c.createRadialGradient(-.34, -.42, .02, 0, 0, 1.02);
+        metal.addColorStop(0, '#e3bd7c');
+        metal.addColorStop(.34, key);
+        metal.addColorStop(.76, '#5e3d20');
+        metal.addColorStop(1, '#2c1b0c');
+        metalCache.set(key, metal);
+      }
+      c.fillStyle = metal;
+    } else {
+      c.fillStyle = opts.fill ?? '#6d4a28';
+    }
+    c.fill(path, 'evenodd');
+    c.strokeStyle = opts.stroke ?? '#24160b';
+    c.lineWidth = (opts.line ?? 1.15) * (opts.unit ? 1 : 1 / r);
+    c.stroke(path);
+    c.beginPath();
+    c.arc(0, 0, .62, 0, TAU);
+    c.strokeStyle = opts.ring ?? 'rgba(240,214,164,.32)';
+    c.lineWidth = (opts.ringLine ?? .8) * (opts.unit ? 1 : 1 / r);
+    c.stroke();
+    if (opts.spokes !== false) {
+      c.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = i * TAU / 5 + .3;
+        c.moveTo(Math.cos(a) * .31, Math.sin(a) * .31);
+        c.lineTo(Math.cos(a) * .58, Math.sin(a) * .58);
+      }
+      c.strokeStyle = opts.spoke ?? 'rgba(31,19,9,.72)';
+      c.lineWidth = (opts.spokeLine ?? 1.4) * (opts.unit ? 1 : 1 / r);
+      c.stroke();
+    }
+    if (opts.unit) {
+      c.beginPath();
+      c.arc(0, 0, .84, -2.55, -.55);
+      c.strokeStyle = 'rgba(255,236,192,.20)';
+      c.lineWidth = .022;
+      c.stroke();
+    }
+    c.beginPath();
+    c.arc(0, 0, .13, 0, TAU);
+    c.fillStyle = opts.hub ?? '#301d0e';
+    c.fill();
+    c.restore();
+  }
+
+  function drawFloor() {
+    const c = ctx;
+    const top = sceneFloorY - h * .10;
+    c.save();
+    c.translate(-cam.x, -cam.y);
+    const g = c.createLinearGradient(0, top, 0, h + 20);
+    g.addColorStop(0, '#0a1410');
+    g.addColorStop(.32, '#0c1713');
+    g.addColorStop(1, '#040806');
+    c.fillStyle = g;
+    c.fillRect(-40 - Math.abs(cam.x), top, w + 80 + Math.abs(cam.x) * 2, h - top + 120);
+    // Polished stone seams and the cold reflection of the glass wall.
+    c.strokeStyle = 'rgba(130,154,136,.055)';
+    c.lineWidth = 1;
+    for (let i = 0; i < 7; i++) {
+      const y = sceneFloorY + (i + 1) * (h - sceneFloorY) * .12;
+      if (y > h + 20) break;
+      c.beginPath(); c.moveTo(-40, y); c.lineTo(w + 40, y); c.stroke();
+    }
+    c.strokeStyle = 'rgba(140,164,144,.04)';
+    for (let i = -2; i < 9; i++) {
+      const x = w * .5 + (i - 3.5) * w * .14;
+      c.beginPath(); c.moveTo(x, sceneFloorY); c.lineTo(x + (x - w * .5) * .35, h + 20); c.stroke();
+    }
+    // Warm pools of light under each plinth.
+    for (const p of plants) {
+      const rr = p.scale * (p.id === 'main' ? .72 : .62);
+      const pool = c.createRadialGradient(p.x, sceneFloorY + p.scale * .02, 0, p.x, sceneFloorY + p.scale * .02, rr);
+      pool.addColorStop(0, 'rgba(227,192,122,.10)');
+      pool.addColorStop(.42, 'rgba(160,120,62,.045)');
+      pool.addColorStop(1, 'rgba(60,48,28,0)');
+      c.fillStyle = pool;
+      c.fillRect(p.x - rr, sceneFloorY - rr * .25, rr * 2, rr * .9);
+      // A dim, vertical reflection of the brass under each stand.
+      const ref = c.createLinearGradient(0, sceneFloorY, 0, h);
+      ref.addColorStop(0, 'rgba(180,132,68,.10)');
+      ref.addColorStop(1, 'rgba(80,58,30,0)');
+      c.fillStyle = ref;
+      c.fillRect(p.x - p.plinthW * .32, sceneFloorY, p.plinthW * .64, h - sceneFloorY);
+    }
+    c.restore();
+  }
+
+  function drawDistantStands() {
+    if (!sceneUltra) return;
+    const c = ctx;
+    c.save();
+    c.translate(-cam.x * .8, -cam.y * .8);
+    for (const [nx, flip] of [[.085, 1], [.915, -1]]) {
+      const x = nx * w;
+      const base = sceneFloorY + h * .012;
+      const W = w * .021;
+      const H = h * .135;
+      const PH = h * .29;
+      c.globalAlpha = .62;
+      const shadow = c.createRadialGradient(x, base + 4, 0, x, base + 4, W * 1.1);
+      shadow.addColorStop(0, 'rgba(0,0,0,.45)');
+      shadow.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = shadow;
+      c.fillRect(x - W * 1.2, base - H * .1, W * 2.4, H * .35);
+      c.fillStyle = '#09140f';
+      c.beginPath();
+      c.moveTo(x - W * .44, base - H);
+      c.lineTo(x + W * .44, base - H);
+      c.lineTo(x + W * .62, base);
+      c.lineTo(x - W * .62, base);
+      c.closePath();
+      c.fill();
+      c.fillStyle = 'rgba(160,116,62,.16)';
+      c.fillRect(x - W * .58, base - 3, W * 1.16, 2);
+      c.fillRect(x - W * .48, base - H - 2, W * .96, 2);
+      c.strokeStyle = 'rgba(150,110,60,.26)';
+      c.lineWidth = Math.max(1.4, h * .0022);
+      c.beginPath();
+      c.moveTo(x, base - H - 2);
+      c.quadraticCurveTo(x + flip * W * .55, base - H - PH * .52, x + flip * W * .30, base - H - PH);
+      c.stroke();
+      for (let i = 0; i < 7; i++) {
+        const u = .18 + i * .105;
+        const lx = x + flip * W * .55 * Math.sin(u * Math.PI * .9);
+        const ly = base - H - PH * u;
+        const side = i % 2 ? 1 : -1;
+        c.save();
+        c.translate(lx, ly);
+        c.rotate(side > 0 ? .55 : -2.6);
+        c.scale(PH * .075, PH * .075);
+        c.fillStyle = i % 3 === 0 ? 'rgba(92,67,35,.30)' : 'rgba(34,62,48,.44)';
+        c.fill(LEAF);
+        c.restore();
+      }
+      ellipse(c, x + flip * W * .30, base - H - PH, PH * .032, PH * .040, 'rgba(150,112,62,.34)');
+      c.globalAlpha = 1;
+    }
+    c.restore();
+  }
+
+  /* ------------------------------ background bake ------------------------------ */
+
+  function bakeBackground() {
+    const c = makeCanvas(w * dpr, h * dpr);
+    const g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const rnd = mulberry32((seed ^ 0xA53C9E1) >>> 0);
+
+    const base = g.createLinearGradient(0, 0, 0, h);
+    base.addColorStop(0, '#07110d');
+    base.addColorStop(.42, '#0d1a15');
+    base.addColorStop(.78, '#09140f');
+    base.addColorStop(1, '#040a07');
+    g.fillStyle = base;
+    g.fillRect(0, 0, w, h);
+
+    // Deep velvet folds: broad, nearly invisible vertical bands.
+    for (let i = 0; i < 9; i++) {
+      const x = (i + .5) / 9 * w + (rnd() - .5) * w * .04;
+      const fold = g.createLinearGradient(x - w * .10, 0, x + w * .10, 0);
+      fold.addColorStop(0, 'rgba(3,8,6,0)');
+      fold.addColorStop(.5, i % 2 ? 'rgba(32,52,40,.10)' : 'rgba(2,7,5,.18)');
+      fold.addColorStop(1, 'rgba(3,8,6,0)');
+      g.fillStyle = fold;
+      g.fillRect(x - w * .10, 0, w * .20, h);
+    }
+
+    // Tall frosted panes.
+    const panes = 4;
+    const left = w * .025, right = w * .975;
+    const paneW = (right - left) / panes;
+    for (let i = 0; i < panes; i++) {
+      const x = left + i * paneW + Math.max(8, paneW * .045);
+      const pw = paneW - Math.max(16, paneW * .09);
+      const top = h * .055;
+      const bottom = h * .615;
+      const radius = Math.min(pw * .5, h * .13);
+      g.save();
+      g.beginPath();
+      g.roundRect(x, top, pw, bottom - top, [radius, radius, 0, 0]);
+      g.clip();
+      const frost = g.createLinearGradient(0, top, 0, bottom);
+      frost.addColorStop(0, '#1d3327');
+      frost.addColorStop(.24, '#14271e');
+      frost.addColorStop(.60, '#0c1d16');
+      frost.addColorStop(1, '#07120d');
+      g.fillStyle = frost;
+      g.fillRect(x, top, pw, bottom - top);
+      // Moon haze behind the glass.
+      const haze = g.createRadialGradient(w * .76, h * .12, 0, w * .76, h * .12, h * .48);
+      haze.addColorStop(0, 'rgba(240,222,180,.14)');
+      haze.addColorStop(.36, 'rgba(214,196,154,.045)');
+      haze.addColorStop(1, 'rgba(160,170,150,0)');
+      g.fillStyle = haze;
+      g.fillRect(x, top, pw, bottom - top);
+      // Vertical streaks of frost and one diagonal wash.
+      for (let k = 0; k < 20; k++) {
+        const sx = x + rnd() * pw;
+        const sw = .5 + rnd() * 5;
+        g.fillStyle = rnd() < .5 ? 'rgba(214,230,214,.030)' : 'rgba(8,18,13,.09)';
+        g.fillRect(sx, top + rnd() * 30, sw, bottom - top - rnd() * 40);
+      }
+      g.save();
+      g.translate(x + pw * .5, bottom);
+      g.rotate(-.42);
+      const sheen = g.createLinearGradient(-pw * .1, 0, pw * .1, 0);
+      sheen.addColorStop(0, 'rgba(236,244,230,0)');
+      sheen.addColorStop(.5, 'rgba(236,244,230,.055)');
+      sheen.addColorStop(1, 'rgba(236,244,230,0)');
+      g.fillStyle = sheen;
+      g.fillRect(-pw * .55, -bottom * .8, pw * 1.1, bottom * .8);
+      g.restore();
+      // Dust-fine speckle in the glass.
+      for (let k = 0; k < 90; k++) {
+        g.fillStyle = rnd() < .55 ? 'rgba(220,232,214,.035)' : 'rgba(2,8,5,.05)';
+        g.fillRect(x + rnd() * pw, top + rnd() * (bottom - top), .6 + rnd() * 1.4, .6 + rnd() * 1.4);
+      }
+      g.restore();
+    }
+
+    // Mullions and transom.
+    g.fillStyle = '#0c1812';
+    for (let i = 0; i <= panes; i++) {
+      const x = left + i * paneW - Math.max(3, paneW * .020);
+      g.fillRect(x, h * .030, Math.max(6, paneW * .042), h * .60);
+    }
+    g.fillRect(0, h * .028, w, Math.max(5, h * .009));
+    g.fillRect(0, h * .365, w, Math.max(4, h * .006));
+    g.fillRect(0, h * .585, w, Math.max(6, h * .011));
+
+    // Distant machinery, deliberately almost dissolved into the frost.
+    g.save();
+    g.filter = 'blur(2.2px)';
+    if (scenePortrait) {
+      g.globalAlpha = .20;
+      drawGear(g, w * .84, h * .235, h * .145, 36, .22, {
+        fill: '#1a3127', stroke: '#08130e', line: 2, ring: 'rgba(150,180,154,.18)', ringLine: 1.4,
+        spokes: true, spoke: 'rgba(7,15,10,.7)', spokeLine: 3, hub: '#101d16', squash: .94,
+      });
+      drawGear(g, w * .17, h * .425, h * .108, 28, -.16, {
+        fill: '#172b22', stroke: '#08120d', line: 1.8, ring: 'rgba(150,180,154,.14)', ringLine: 1.2,
+        hub: '#0d1a13', squash: .94,
+      });
+      drawGear(g, w * .70, h * .605, h * .070, 20, .52, {
+        fill: '#16281f', stroke: '#08110c', line: 1.6, ring: 'rgba(150,180,154,.12)', ringLine: 1,
+        hub: '#0d1812', squash: .94,
+      });
+      g.strokeStyle = '#0a1711';
+      g.lineWidth = Math.max(3, h * .006);
+      g.beginPath();
+      g.moveTo(w * .84, h * .06); g.lineTo(w * .84, h * .55);
+      g.moveTo(w * .17, h * .30); g.lineTo(w * .17, h * .56);
+      g.stroke();
+      g.save();
+      g.translate(w * .17, h * .425);
+      g.rotate(Math.sin(time * .09) * .05);
+      g.strokeStyle = 'rgba(12,24,17,.55)';
+      g.lineWidth = Math.max(4, h * .007);
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(0, h * .19); g.stroke();
+      g.beginPath(); g.arc(0, h * .19, h * .028, 0, TAU); g.fillStyle = 'rgba(12,24,17,.55)'; g.fill();
+      g.restore();
+    } else {
+      g.globalAlpha = .23;
+      drawGear(g, w * .785, h * .275, h * .245, 40, .22, {
+        fill: '#1a3127', stroke: '#08130e', line: 2.2, ring: 'rgba(150,180,154,.20)', ringLine: 1.6,
+        spokes: true, spoke: 'rgba(7,15,10,.7)', spokeLine: 3, hub: '#101d16', squash: .94,
+      });
+      drawGear(g, w * .715, h * .505, h * .130, 28, -.16, {
+        fill: '#172b22', stroke: '#08120d', line: 1.8, ring: 'rgba(150,180,154,.14)', ringLine: 1.2,
+        hub: '#0d1a13', squash: .94,
+      });
+      drawGear(g, w * .175, h * .435, h * .175, 32, .52, {
+        fill: '#16281f', stroke: '#08110c', line: 2, ring: 'rgba(150,180,154,.14)', ringLine: 1.2,
+        hub: '#0d1812', squash: .94,
+      });
+      g.strokeStyle = '#0a1711';
+      g.lineWidth = Math.max(3, h * .006);
+      g.beginPath();
+      g.moveTo(w * .86, h * .06); g.lineTo(w * .86, h * .52);
+      g.moveTo(w * .93, h * .10); g.lineTo(w * .93, h * .44);
+      g.moveTo(w * .05, h * .52); g.lineTo(w * .32, h * .52);
+      g.stroke();
+      g.save();
+      g.translate(w * .175, h * .435);
+      g.rotate(Math.sin(time * .09) * .05);
+      g.strokeStyle = 'rgba(12,24,17,.55)';
+      g.lineWidth = Math.max(4, h * .008);
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(0, h * .24); g.stroke();
+      g.beginPath(); g.arc(0, h * .24, h * .035, 0, TAU); g.fillStyle = 'rgba(12,24,17,.55)'; g.fill();
+      g.restore();
+    }
+    g.restore();
+    g.filter = 'none';
+
+    // Moon glow, outside the glass.
+    const moon = g.createRadialGradient(w * .775, h * .105, 0, w * .775, h * .105, h * .30);
+    moon.addColorStop(0, 'rgba(250,238,204,.16)');
+    moon.addColorStop(.16, 'rgba(240,222,180,.075)');
+    moon.addColorStop(.52, 'rgba(210,200,164,.025)');
+    moon.addColorStop(1, 'rgba(160,170,150,0)');
+    g.fillStyle = moon;
+    g.fillRect(0, 0, w, h);
+    g.beginPath();
+    g.arc(w * .775, h * .105, Math.min(w, h) * .020, 0, TAU);
+    g.fillStyle = 'rgba(244,234,206,.18)';
+    g.fill();
+
+    // Velvet grain and glass stains.
+    for (let i = 0; i < 2600; i++) {
+      const x = rnd() * w, y = rnd() * h;
+      g.fillStyle = rnd() < .56 ? 'rgba(180,200,176,.022)' : 'rgba(0,0,0,.05)';
+      g.fillRect(x, y, .7 + rnd() * 1.6, .7 + rnd() * 1.6);
+    }
+    for (let i = 0; i < 14; i++) {
+      const x = rnd() * w, y = h * .10 + rnd() * h * .48;
+      const rr = h * (.02 + rnd() * .07);
+      const stain = g.createRadialGradient(x, y, 0, x, y, rr);
+      stain.addColorStop(0, 'rgba(120,148,124,.035)');
+      stain.addColorStop(1, 'rgba(120,148,124,0)');
+      g.fillStyle = stain;
+      g.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+    }
+    bgLayer = c;
+  }
+
+  /* ------------------------------ foreground bake ------------------------------ */
+
+  function bakeForeground() {
+    const c = makeCanvas(w * dpr, h * dpr);
+    const g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const rnd = mulberry32((seed ^ 0x51ED270B) >>> 0);
+
+    // Long reflections on the cabinet glass.
+    for (let i = 0; i < 4; i++) {
+      g.save();
+      g.translate(w * (.55 + i * .12), -h * .1);
+      g.rotate(.40 + i * .015);
+      const grad = g.createLinearGradient(-w * .05, 0, w * .05, 0);
+      grad.addColorStop(0, 'rgba(224,238,220,0)');
+      grad.addColorStop(.5, 'rgba(224,238,220,.026)');
+      grad.addColorStop(1, 'rgba(224,238,220,0)');
+      g.fillStyle = grad;
+      g.fillRect(-w * .08, 0, w * .16, h * 1.4);
+      g.restore();
+    }
+    // Edge highlights where the glass meets the frame.
+    const edgeL = g.createLinearGradient(0, 0, w * .035, 0);
+    edgeL.addColorStop(0, 'rgba(215,230,212,.07)');
+    edgeL.addColorStop(1, 'rgba(215,230,212,0)');
+    g.fillStyle = edgeL; g.fillRect(0, 0, w * .035, h);
+    const edgeR = g.createLinearGradient(w, 0, w * .965, 0);
+    edgeR.addColorStop(0, 'rgba(215,230,212,.05)');
+    edgeR.addColorStop(1, 'rgba(215,230,212,0)');
+    g.fillStyle = edgeR; g.fillRect(w * .965, 0, w * .035, h);
+
+    // Condensation: tiny beads over the whole pane, heavier near the frame and sill.
+    const count = Math.min(620, Math.round(w * h / 2600));
+    for (let i = 0; i < count; i++) {
+      const edge = Math.min(rnd(), 1 - rnd());
+      const bias = rnd() < .58 ? .5 : Math.pow(rnd(), .55);
+      const x = rnd() * w;
+      const y = h * (1 - bias) + (rnd() - .5) * h * .10;
+      if (edge < .13 || y > h * .77) {
+        const r = .7 + rnd() * 2.2;
+        g.beginPath(); g.ellipse(x, y, r, r * 1.18, 0, 0, TAU);
+        g.fillStyle = 'rgba(3,9,6,.34)'; g.fill();
+        g.beginPath(); g.ellipse(x - r * .25, y - r * .32, r * .52, r * .40, 0, 0, TAU);
+        g.fillStyle = 'rgba(206,228,218,.28)'; g.fill();
+        if (r > 1.8) {
+          g.beginPath(); g.ellipse(x + r * .28, y + r * .38, r * .26, r * .18, 0, 0, TAU);
+          g.fillStyle = 'rgba(240,236,210,.14)'; g.fill();
+        }
+      }
+    }
+
+    // Eight out-of-focus beads on the near glass.
+    const bokeh = [
+      [.085, .795, 13], [.135, .86, 8], [.88, .18, 16], [.93, .27, 9],
+      [.055, .22, 7], [.955, .70, 12], [.79, .925, 10], [.24, .935, 7],
+    ];
+    for (const [bx, by, rr] of bokeh) {
+      const x = bx * w, y = by * h;
+      const halo = g.createRadialGradient(x, y, rr * .2, x, y, rr * 2.4);
+      halo.addColorStop(0, 'rgba(226,238,222,.10)');
+      halo.addColorStop(.5, 'rgba(180,198,180,.035)');
+      halo.addColorStop(1, 'rgba(180,198,180,0)');
+      g.fillStyle = halo;
+      g.beginPath(); g.arc(x, y, rr * 2.4, 0, TAU); g.fill();
+      g.beginPath(); g.ellipse(x, y, rr, rr * 1.12, 0, 0, TAU);
+      g.fillStyle = 'rgba(8,16,12,.16)'; g.fill();
+      g.beginPath(); g.ellipse(x - rr * .25, y - rr * .3, rr * .38, rr * .30, 0, 0, TAU);
+      g.fillStyle = 'rgba(236,242,224,.16)'; g.fill();
+    }
+
+    // Larger beads and the beginning of a few runs, kept out of focus.
+    for (let i = 0; i < 22; i++) {
+      const left = i % 2 === 0;
+      const x = (left ? .035 + rnd() * .16 : .805 + rnd() * .16) * w;
+      const y = (.58 + rnd() * .36) * h;
+      const rr = 2.2 + rnd() * 6.4;
+      const halo = g.createRadialGradient(x, y, 0, x, y, rr * 2.6);
+      halo.addColorStop(0, 'rgba(220,236,222,.075)');
+      halo.addColorStop(1, 'rgba(220,236,222,0)');
+      g.fillStyle = halo;
+      g.beginPath(); g.arc(x, y, rr * 2.6, 0, TAU); g.fill();
+      g.beginPath(); g.ellipse(x, y, rr, rr * 1.22, 0, 0, TAU);
+      g.fillStyle = 'rgba(2,7,4,.30)'; g.fill();
+      g.beginPath(); g.ellipse(x - rr * .24, y - rr * .30, rr * .48, rr * .36, 0, 0, TAU);
+      g.fillStyle = 'rgba(206,228,218,.30)'; g.fill();
+      if (i % 3 === 0) {
+        const run = g.createLinearGradient(x, y, x, y + rr * 5.4);
+        run.addColorStop(0, 'rgba(214,230,214,.10)');
+        run.addColorStop(1, 'rgba(214,230,214,0)');
+        g.fillStyle = run;
+        g.fillRect(x - rr * .16, y, rr * .32, rr * 5.4);
+      }
+    }
+
+    // Defocused brass railing: a dark silhouette with a soft warm edge.
+    const railY = h * .905;
+    const shade = g.createLinearGradient(0, h * .855, 0, h * .945);
+    shade.addColorStop(0, 'rgba(2,5,3,0)');
+    shade.addColorStop(.52, 'rgba(2,5,3,.52)');
+    shade.addColorStop(1, 'rgba(2,5,3,0)');
+    g.fillStyle = shade;
+    g.fillRect(0, h * .855, w, h * .09);
+
+    const rail = g.createLinearGradient(0, railY - h * .016, 0, railY + h * .024);
+    rail.addColorStop(0, 'rgba(30,18,8,0)');
+    rail.addColorStop(.24, 'rgba(52,34,18,.46)');
+    rail.addColorStop(.42, 'rgba(122,84,44,.48)');
+    rail.addColorStop(.52, 'rgba(208,158,92,.36)');
+    rail.addColorStop(.68, 'rgba(82,54,28,.40)');
+    rail.addColorStop(1, 'rgba(20,12,6,0)');
+    g.fillStyle = rail;
+    g.fillRect(-w * .03, railY - h * .020, w * 1.06, h * .048);
+    g.fillStyle = 'rgba(242,208,146,.24)';
+    g.fillRect(-w * .03, railY - h * .003, w * 1.06, Math.max(1, h * .0020));
+
+    // Lower crossbar, further out of focus.
+    const rail2 = g.createLinearGradient(0, h * .950, 0, h * .974);
+    rail2.addColorStop(0, 'rgba(20,12,6,0)');
+    rail2.addColorStop(.45, 'rgba(66,44,24,.40)');
+    rail2.addColorStop(.55, 'rgba(138,96,50,.18)');
+    rail2.addColorStop(1, 'rgba(20,12,6,0)');
+    g.fillStyle = rail2;
+    g.fillRect(-w * .03, h * .950, w * 1.06, h * .028);
+
+    for (const px of [.075, .925]) {
+      const x = px * w;
+      const post = g.createLinearGradient(x - w * .020, 0, x + w * .020, 0);
+      post.addColorStop(0, 'rgba(16,10,5,0)');
+      post.addColorStop(.30, 'rgba(38,24,12,.42)');
+      post.addColorStop(.50, 'rgba(170,122,66,.30)');
+      post.addColorStop(.72, 'rgba(30,18,9,.42)');
+      post.addColorStop(1, 'rgba(16,10,5,0)');
+      g.fillStyle = post;
+      g.fillRect(x - w * .020, h * .79, w * .040, h * .21);
+    }
+
+    // Sill shadow and the last of the glass frost.
+    const sill = g.createLinearGradient(0, h * .865, 0, h);
+    sill.addColorStop(0, 'rgba(2,6,4,0)');
+    sill.addColorStop(.55, 'rgba(2,6,4,.38)');
+    sill.addColorStop(1, 'rgba(1,4,2,.88)');
+    g.fillStyle = sill;
+    g.fillRect(0, h * .865, w, h * .135);
+    for (const [fx, fy] of [[.03, .97], [.97, .97], [.03, .03], [.97, .03]]) {
+      const rr = Math.min(w, h) * .18;
+      const frost = g.createRadialGradient(fx * w, fy * h, 0, fx * w, fy * h, rr);
+      frost.addColorStop(0, 'rgba(190,214,196,.055)');
+      frost.addColorStop(1, 'rgba(190,214,196,0)');
+      g.fillStyle = frost;
+      g.fillRect(fx * w - rr, fy * h - rr, rr * 2, rr * 2);
+    }
+    fgLayer = c;
+  }
+
+  function buildDust() {
+    dust = [];
+    for (let i = 0; i < 80; i++) {
+      dust.push({
+        u: hash(i * 3.1 + 1), v: hash(i * 7.3 + 2) * 2 - 1,
+        speed: .006 + hash(i * 5.7) * .012,
+        twinkle: hash(i * 9.1) * TAU,
+        size: .6 + hash(i * 11.3) * 1.5,
+      });
+    }
+  }
+
+  /* ------------------------------ brass helpers ------------------------------ */
+
+  const BRASS_TONES = [
+    ['#8a582c', '#b47b40', '#e3c07a'],
+    ['#7b4d26', '#a76f36', '#d9ae6a'],
+    ['#986434', '#c1894a', '#f0d096'],
+  ];
+  const LEAF_TONES = [
+    ['#1b382b', '#3d5f49', '#829a72', '#b7a36c'],
+    ['#452c16', '#745026', '#c29858', '#e0b978'],
+  ];
+
+  function brassGrad(c, x0, y0, x1, y1) {
+    const g = c.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, '#3a2410');
+    g.addColorStop(.32, '#8a5b2f');
+    g.addColorStop(.55, '#c89550');
+    g.addColorStop(.76, '#8d6032');
+    g.addColorStop(1, '#432a12');
+    return g;
+  }
+
+  function ellipse(c, x, y, rx, ry, color) {
+    c.beginPath();
+    c.ellipse(x, y, rx, ry, 0, 0, TAU);
+    c.fillStyle = color;
+    c.fill();
+  }
+
+  function strokeTapered(c, pts, w0, w1, color, alpha = 1) {
+    c.strokeStyle = color;
+    c.globalAlpha = alpha;
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    for (let i = 0; i < pts.length - 1; i++) {
+      c.beginPath();
+      c.moveTo(pts[i].x, pts[i].y);
+      c.lineTo(pts[i + 1].x, pts[i + 1].y);
+      c.lineWidth = lerp(w0, w1, i / Math.max(1, pts.length - 2));
+      c.stroke();
+    }
+    c.globalAlpha = 1;
+  }
+
+  /* ------------------------------ pedestal & shelf ------------------------------ */
+
+  function drawPedestal(p) {
+    const c = ctx;
+    const H = p.plinthH;
+    if (H < 2) return;
+    const x = p.x, top = p.y, baseY = top + H, W = p.plinthW;
+
+    // Cast shadow on the floor.
+    const shadow = c.createRadialGradient(x, baseY + H * .04, 0, x, baseY + H * .04, W * .95);
+    shadow.addColorStop(0, 'rgba(0,0,0,.55)');
+    shadow.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = shadow;
+    c.fillRect(x - W, baseY - H * .15, W * 2, H * .38);
+
+    // Shaft: a slightly tapered stone drum with a cylindrical light.
+    const shaftTop = top + H * .11;
+    const shaftBottom = baseY - H * .13;
+    const body = c.createLinearGradient(x - W * .5, 0, x + W * .5, 0);
+    body.addColorStop(0, '#09120d');
+    body.addColorStop(.20, '#16251c');
+    body.addColorStop(.44, '#2a3c30');
+    body.addColorStop(.62, '#223429');
+    body.addColorStop(.84, '#101c16');
+    body.addColorStop(1, '#060d09');
+    c.fillStyle = body;
+    c.beginPath();
+    c.moveTo(x - W * .35, shaftTop);
+    c.lineTo(x + W * .35, shaftTop);
+    c.lineTo(x + W * .46, shaftBottom);
+    c.lineTo(x - W * .46, shaftBottom);
+    c.closePath();
+    c.fill();
+
+    // Base block, foot and cap.
+    const base = c.createLinearGradient(x - W * .56, 0, x + W * .56, 0);
+    base.addColorStop(0, '#070f0b');
+    base.addColorStop(.45, '#1a2a20');
+    base.addColorStop(.62, '#22352a');
+    base.addColorStop(1, '#08110c');
+    c.fillStyle = base;
+    c.fillRect(x - W * .56, baseY - H * .13, W * 1.12, H * .13);
+    c.fillRect(x - W * .50, baseY - H * .035, W * 1.0, H * .035);
+    c.fillStyle = '#0b1510';
+    c.fillRect(x - W * .44, top + H * .065, W * .88, H * .045);
+    c.fillStyle = base;
+    c.beginPath();
+    c.ellipse(x, top + H * .075, W * .47, H * .022, 0, 0, TAU);
+    c.fill();
+
+    // Brass fillets at every transition.
+    c.fillStyle = brassGrad(c, x - W * .5, 0, x + W * .5, 0);
+    c.fillRect(x - W * .45, top + H * .105, W * .90, Math.max(1, H * .006));
+    c.fillRect(x - W * .49, baseY - H * .135, W * .98, Math.max(1, H * .008));
+    c.fillRect(x - W * .44, top + H * .073, W * .88, Math.max(1, H * .005));
+
+    // Flutes and a single moonlit edge.
+    c.strokeStyle = 'rgba(3,8,5,.55)';
+    c.lineWidth = Math.max(.6, W * .007);
+    for (let i = -3; i <= 3; i++) {
+      if (i === 0) continue;
+      const fx = x + i * W * .075;
+      c.beginPath(); c.moveTo(fx * .985 + x * .015, shaftTop + H * .01); c.lineTo(fx, shaftBottom - H * .01); c.stroke();
+    }
+    c.strokeStyle = 'rgba(180,204,178,.10)';
+    c.lineWidth = Math.max(.6, W * .008);
+    c.beginPath();
+    c.moveTo(x - W * .31, shaftTop + H * .02);
+    c.lineTo(x - W * .40, shaftBottom - H * .02);
+    c.stroke();
+
+    // Top: a worn marble disc, warm at the rim.
+    c.beginPath();
+    c.ellipse(x, top, W * .47, W * .105, 0, 0, TAU);
+    const topFill = c.createLinearGradient(x - W * .45, 0, x + W * .45, 0);
+    topFill.addColorStop(0, '#14241b');
+    topFill.addColorStop(.5, '#283c2e');
+    topFill.addColorStop(1, '#0e1a14');
+    c.fillStyle = topFill;
+    c.fill();
+    c.strokeStyle = 'rgba(201,155,92,.26)';
+    c.lineWidth = Math.max(.7, W * .006);
+    c.stroke();
+    c.beginPath();
+    c.ellipse(x, top, W * .40, W * .085, 0, 0, TAU);
+    c.strokeStyle = 'rgba(6,12,8,.55)';
+    c.lineWidth = Math.max(.6, W * .006);
+    c.stroke();
+
+    // Engraved nameplate.
+    const plateW = W * .66, plateH = Math.max(7, H * .070);
+    const plateY = top + H * .53;
+    const plate = c.createLinearGradient(x - plateW * .5, 0, x + plateW * .5, 0);
+    plate.addColorStop(0, '#3b2a15');
+    plate.addColorStop(.35, '#8a6433');
+    plate.addColorStop(.55, '#b58a4d');
+    plate.addColorStop(1, '#3c2914');
+    c.fillStyle = plate;
+    c.fillRect(x - plateW * .5, plateY, plateW, plateH);
+    c.strokeStyle = 'rgba(20,12,5,.72)';
+    c.lineWidth = 1;
+    c.strokeRect(x - plateW * .5, plateY, plateW, plateH);
+    c.fillStyle = 'rgba(247,230,194,.62)';
+    c.font = `${Math.max(6, Math.min(11, W * .045))}px "Songti SC","SimSun",serif`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(p.latin, x, plateY + plateH * .52);
+
+    // Roman numeral, incised above the plate.
+    c.fillStyle = 'rgba(201,155,92,.34)';
+    c.font = `${Math.max(9, W * .10)}px "Songti SC","SimSun",serif`;
+    c.fillText(p.ordinal, x, top + H * .30);
+
+    // Pressure gauge on the main plinth.
+    if (p.id === 'main' && W > 100) {
+      const gx = x + W * .27, gy = top + H * .36, gr = W * .145;
+      ellipse(c, gx, gy, gr, gr, '#0b120d');
+      c.beginPath(); c.arc(gx, gy, gr, 0, TAU);
+      const face = c.createRadialGradient(gx - gr * .3, gy - gr * .35, 0, gx, gy, gr);
+      face.addColorStop(0, 'rgba(222,205,169,.55)');
+      face.addColorStop(.7, 'rgba(174,153,116,.42)');
+      face.addColorStop(1, 'rgba(90,78,56,.55)');
+      c.fillStyle = face; c.fill();
+      c.strokeStyle = '#6e4a26'; c.lineWidth = 1.2; c.stroke();
+      c.strokeStyle = 'rgba(40,30,16,.75)';
+      c.lineWidth = 1;
+      for (let i = 0; i < 12; i++) {
+        const a = i * TAU / 12;
+        c.beginPath();
+        c.moveTo(gx + Math.cos(a) * gr * .70, gy + Math.sin(a) * gr * .70);
+        c.lineTo(gx + Math.cos(a) * gr * .86, gy + Math.sin(a) * gr * .86);
+        c.stroke();
+      }
+      const needle = Math.sin(time * .17 + p.phase) * 1.1 - Math.PI * .5;
+      c.strokeStyle = 'rgba(120,50,30,.88)';
+      c.lineWidth = Math.max(1, gr * .075);
+      c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx + Math.cos(needle) * gr * .62, gy + Math.sin(needle) * gr * .62); c.stroke();
+      ellipse(c, gx, gy, gr * .08, gr * .08, '#3a2410');
+    }
+  }
+
+  function drawShelf(p) {
+    const c = ctx;
+    const x = p.x, y = p.y, W = p.plinthW;
+    const slab = Math.max(9, h * .013);
+    // A wall shadow separating the three tiers.
+    const back = c.createLinearGradient(0, y - h * .02, 0, y + slab + h * .03);
+    back.addColorStop(0, 'rgba(0,0,0,0)');
+    back.addColorStop(.4, 'rgba(0,0,0,.28)');
+    back.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = back;
+    c.fillRect(x - W * .6, y - h * .02, W * 1.2, slab + h * .05);
+    // Slab top and front edge.
+    const stone = c.createLinearGradient(0, y, 0, y + slab);
+    stone.addColorStop(0, '#3a5242');
+    stone.addColorStop(.22, '#23382c');
+    stone.addColorStop(.75, '#122019');
+    stone.addColorStop(1, '#08110c');
+    c.fillStyle = stone;
+    c.beginPath();
+    c.roundRect(x - W * .5, y, W, slab, [Math.min(5, slab * .4), Math.min(5, slab * .4), 1, 1]);
+    c.fill();
+    c.beginPath();
+    c.ellipse(x, y + slab * .12, W * .5, slab * .45, 0, 0, TAU);
+    c.fillStyle = 'rgba(58,82,66,.5)';
+    c.fill();
+    c.fillStyle = brassGrad(c, x - W * .5, 0, x + W * .5, 0);
+    c.fillRect(x - W * .5, y + slab - Math.max(1, slab * .12), W, Math.max(1, slab * .12));
+    // Two brass brackets.
+    for (const side of [-1, 1]) {
+      const bx = x + side * W * .36;
+      c.strokeStyle = 'rgba(138,91,47,.55)';
+      c.lineWidth = Math.max(2, slab * .26);
+      c.beginPath();
+      c.moveTo(bx, y + slab);
+      c.quadraticCurveTo(bx + side * W * .03, y + slab + h * .018, bx + side * W * .11, y + slab + h * .012);
+      c.stroke();
+      c.strokeStyle = 'rgba(227,192,122,.16)';
+      c.lineWidth = Math.max(1, slab * .07);
+      c.beginPath();
+      c.moveTo(bx, y + slab + 1);
+      c.quadraticCurveTo(bx + side * W * .03, y + slab + h * .014, bx + side * W * .10, y + slab + h * .009);
+      c.stroke();
+    }
+    // Engraved label on the front edge.
+    c.fillStyle = 'rgba(236,220,184,.38)';
+    c.font = `${Math.max(5.5, Math.min(9, W * .024))}px "Songti SC","SimSun",serif`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(p.ordinal + ' · ' + p.latin, x, y + slab * .55);
+  }
+
+  /* ------------------------------ plant parts ------------------------------ */
+
+  function drawBaseMech(p) {
+    const c = ctx;
+    // Mounting plate.
+    ellipse(c, 0, 0, .105, .019, 'rgba(0,0,0,.55)');
+    const plate = c.createLinearGradient(-.10, 0, .10, 0);
+    plate.addColorStop(0, '#3b2410');
+    plate.addColorStop(.42, '#9a6a37');
+    plate.addColorStop(.58, '#c79655');
+    plate.addColorStop(1, '#4a2d13');
+    ellipse(c, 0, -.004, .098, .017, plate);
+    c.beginPath(); c.ellipse(0, -.004, .088, .012, 0, 0, TAU);
+    c.strokeStyle = 'rgba(230,197,132,.24)'; c.lineWidth = .0018; c.stroke();
+
+    // Three claw feet.
+    c.strokeStyle = '#2c1a0b';
+    c.lineWidth = .008;
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI * .5 + i * TAU / 3;
+      c.beginPath();
+      c.moveTo(Math.cos(a) * .065, Math.sin(a) * .010 - .004);
+      c.quadraticCurveTo(Math.cos(a) * .11, -.008, Math.cos(a) * .125, .002);
+      c.stroke();
+    }
+
+    // Winding key, turning with the train.
+    const keyAngle = p.gearPhase * .35 + p.phase;
+    c.save();
+    c.translate(-.112, -.022);
+    c.rotate(keyAngle);
+    c.strokeStyle = '#3a2410'; c.lineWidth = .007;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(-.045, 0); c.stroke();
+    c.strokeStyle = '#a9773e'; c.lineWidth = .004;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(-.045, 0); c.stroke();
+    c.beginPath(); c.ellipse(-.055, 0, .017, .009, 0, 0, TAU);
+    c.strokeStyle = '#c79655'; c.lineWidth = .0045; c.stroke();
+    c.restore();
+
+    // A small sight glass of amber sap on the other side.
+    if (p.id !== 'seedling') {
+      c.save();
+      c.translate(.100, -.070);
+      c.rotate(-.06);
+      c.fillStyle = 'rgba(12,20,16,.75)';
+      c.beginPath(); c.roundRect(-.012, -.030, .024, .060, .010); c.fill();
+      const sap = c.createLinearGradient(0, -.02, 0, .026);
+      sap.addColorStop(0, 'rgba(255,214,142,.65)');
+      sap.addColorStop(1, 'rgba(150,88,36,.35)');
+      c.fillStyle = sap;
+      c.beginPath(); c.roundRect(-.008, -.006, .016, .030, .006); c.fill();
+      c.strokeStyle = 'rgba(230,197,132,.42)'; c.lineWidth = .002;
+      c.beginPath(); c.roundRect(-.012, -.030, .024, .060, .010); c.stroke();
+      c.fillStyle = 'rgba(255,238,200,.55)';
+      c.fillRect(-.006, -.024, .002, .048);
+      c.restore();
+    }
+  }
+
+  function drawStem(p) {
+    const c = ctx;
+    const pts = p.spine;
+    strokeTapered(c, pts, .020, .0060, 'rgba(20,11,5,.92)');
+    strokeTapered(c, pts, .0145, .0042, '#8f5f33');
+    strokeTapered(c, pts, .0060, .0018, 'rgba(227,192,122,.42)');
+    // Collars and rivets at the telescoping joints.
+    const collars = p.id === 'main' ? [.18, .30, .45, .52, .65, .73, .88] : p.id === 'secondary' ? [.20, .34, .48, .62, .76] : [.42, .70];
+    for (const u of collars) {
+      const a = spinePoint(p, u);
+      const b = spinePoint(p, Math.min(1, u + .01));
+      const ang = Math.atan2(b.y - a.y, b.x - a.x);
+      const size = p.id === 'seedling' ? .016 : .026;
+      c.save();
+      c.translate(a.x, a.y);
+      c.rotate(ang);
+      c.fillStyle = '#24150a';
+      c.fillRect(-size * .30, -size, size * .60, size * 2);
+      c.fillStyle = '#a06f3c';
+      c.fillRect(-size * .22, -size * .82, size * .44, size * 1.64);
+      c.fillStyle = 'rgba(236,201,139,.55)';
+      c.fillRect(-size * .04, -size * .78, size * .10, size * 1.56);
+      c.restore();
+      c.beginPath();
+      c.arc(a.x, a.y - size * 1.30, size * .16, 0, TAU);
+      c.fillStyle = 'rgba(238,206,146,.55)';
+      c.fill();
+    }
+  }
+
+  function drawBranches(p) {
+    for (const br of p.branches) {
+      strokeTapered(ctx, br.pts, .0105, .0026, 'rgba(20,11,5,.9)');
+      strokeTapered(ctx, br.pts, .0072, .0017, '#8b5c31');
+      strokeTapered(ctx, br.pts, .0026, .0007, 'rgba(227,192,122,.38)');
+    }
+  }
+
+  function drawLeaf(leaf) {
+    const c = ctx;
+    const tone = LEAF_TONES[leaf.tone];
+    c.save();
+    c.translate(leaf.x, leaf.y);
+    c.rotate(leaf.angle);
+    c.scale(leaf.size, leaf.size);
+    // Drop shadow on the stem side.
+    c.save();
+    c.translate(.022, .030);
+    c.fillStyle = 'rgba(0,0,0,.34)';
+    c.fill(LEAF);
+    c.restore();
+    // Two-tone patinated copper lamina.
+    c.fillStyle = tone[0];
+    c.fill(LEAF);
+    c.save();
+    c.translate(0, -.014);
+    c.scale(.82, .93);
+    c.fillStyle = tone[1];
+    c.fill(LEAF);
+    c.restore();
+    c.strokeStyle = tone[2];
+    c.globalAlpha = .55;
+    c.lineWidth = .016;
+    c.stroke(LEAF);
+    c.globalAlpha = 1;
+    // Midrib and side veins in brass.
+    c.strokeStyle = tone[3];
+    c.globalAlpha = .66;
+    c.lineWidth = .012;
+    c.beginPath();
+    c.moveTo(0, -.02);
+    c.lineTo(0, -.92);
+    for (let i = 1; i <= 3; i++) {
+      const y = -.20 - i * .18;
+      c.moveTo(0, y);
+      c.quadraticCurveTo(-.10, y - .06, -.17, y - .17);
+      c.moveTo(0, y);
+      c.quadraticCurveTo(.10, y - .06, .17, y - .17);
+    }
+    c.stroke();
+    c.globalAlpha = 1;
+    // A single thin highlight on the moonlit edge.
+    c.beginPath();
+    c.moveTo(-.015, -.06);
+    c.bezierCurveTo(-.20, -.24, -.24, -.58, -.012, -.92);
+    c.strokeStyle = 'rgba(238,226,184,.44)';
+    c.lineWidth = .010;
+    c.stroke();
+    c.restore();
+  }
+
+  function drawPetalAt(rot, len, width, baseR, tone, open) {
+    const c = ctx;
+    c.save();
+    c.rotate(rot);
+    c.translate(0, -baseR);
+    c.scale(len * width, len);
+    // Thickness: a small offset shadow under the metal sheet.
+    c.save();
+    c.translate(.020, .024);
+    c.fillStyle = 'rgba(3,2,1,.46)';
+    c.fill(PETAL);
+    c.restore();
+    c.fillStyle = tone[0];
+    c.fill(PETAL);
+    c.save();
+    c.translate(0, -.018);    c.scale(.86, .92);
+    c.fillStyle = tone[1];
+    c.fill(PETAL);
+    c.restore();
+    c.strokeStyle = 'rgba(32,18,8,.88)';
+    c.lineWidth = .020;
+    c.stroke(PETAL);
+    // Hinge crease and the moonlit edge.
+    c.beginPath();
+    c.moveTo(-.012, -.02);
+    c.bezierCurveTo(-.21, -.22, -.28, -.58, -.018, -.93);
+    c.strokeStyle = tone[2];
+    c.globalAlpha = .46 + open * .28;
+    c.lineWidth = .014;
+    c.stroke();
+    c.beginPath();
+    c.moveTo(-.055, -.10);
+    c.quadraticCurveTo(-.075, -.30, -.032, -.48);
+    c.moveTo(.055, -.10);
+    c.quadraticCurveTo(.075, -.30, .032, -.48);
+    c.strokeStyle = 'rgba(48,27,12,.42)';
+    c.lineWidth = .008;
+    c.stroke();
+    c.restore();
+  }
+
+  function drawFlower(b, p) {
+    const c = ctx;
+    const open = clamp(p.open, 0, 1);
+    const r = b.r;
+    c.save();
+    c.translate(b.x, b.y);
+    c.rotate(Math.sin(time / 9.3 + p.phase + b.rot) * .035);
+
+    // Halo behind the bloom.
+    c.save();
+      c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = .10 + open * .17;
+      c.drawImage(glowSprite, -r * 1.85, -r * 1.85, r * 3.7, r * 3.7);
+      c.restore();
+
+    // The cam ring the petals are hinged to.
+    drawGear(c, 0, 0, r * .60, 32, p.gearPhase * .52 + b.rot, {
+      fill: 'rgba(74,43,20,.92)', stroke: '#1c1108', line: .0017, unit: true,
+      ring: 'rgba(227,192,122,.36)', ringLine: .0013, alpha: .82, spokeLine: .0015,
+    });
+
+    // Sepals.
+    for (let i = 0; i < 5; i++) {
+      c.save();
+      c.rotate(Math.PI + i * TAU / 5 + .22);
+      c.translate(0, -r * .19);
+      c.scale(r * .50, r * .50);
+      c.fillStyle = 'rgba(35,66,51,.92)';
+      c.fill(LEAF);
+      c.strokeStyle = 'rgba(121,151,116,.42)';
+      c.lineWidth = .020;
+      c.stroke(LEAF);
+      c.restore();
+    }
+
+    // Outer whorl, drawn from the back of the flower toward the viewer.
+    const petals = [];
+    for (let i = 0; i < b.outer; i++) {
+      const spread = (i - (b.outer - 1) / 2) * .018 + (hash(i * 5.7 + r * 71) - .5) * .018;
+      const radial = i * TAU / b.outer + b.rot + (hash(i * 2.3) - .5) * .05;
+      const rot = lerp(spread, radial, Math.pow(open, .86));
+      petals.push({
+        rot,
+        len: r * (.92 + hash(i * 3.1 + 1.7) * .10) * (1 + open * .06),
+        width: (.60 + .36 * open) * (.96 + hash(i * 8.9) * .08),
+        tone: BRASS_TONES[(i + Math.floor(r * 10)) % BRASS_TONES.length],
+        front: Math.sin(rot),
+      });
+    }
+    petals.sort((a, b2) => a.front - b2.front);
+    for (const pt of petals) drawPetalAt(pt.rot, pt.len, pt.width, r * .17, pt.tone, open);
+
+    // Inner whorl, shorter and brighter; it stays cupped a little longer.
+    for (let i = 0; i < b.inner; i++) {
+      const spread = (i - (b.inner - 1) / 2) * .025;
+      const radial = (i + .5) * TAU / b.inner + b.rot;
+      const rot = lerp(spread, radial, Math.pow(open, 1.0));
+      const tone = BRASS_TONES[(i + 1) % BRASS_TONES.length];
+      drawPetalAt(rot, r * (.50 + .05 * open), .64 + .18 * open, r * .10, tone, open);
+    }
+
+    // Central bearing and stamens.
+    drawGear(c, 0, 0, r * .215, 12, p.gearPhase * 1.35, {
+      fill: '#5d3a1b', stroke: '#241407', line: .0016, unit: true,
+      ring: 'rgba(255,231,179,.4)', ringLine: .0012, alpha: .9, spokeLine: .0013,
+    });
+    if (open > .22) {
+      c.globalAlpha = smooth(.22, .7, open);
+      for (let i = 0; i < 9; i++) {
+        const a = i * TAU / 9 + .2;
+        const len = r * (.30 + hash(i * 4.3) * .10);
+        const tipX = Math.cos(a) * len, tipY = Math.sin(a) * len - r * .05;
+        c.strokeStyle = 'rgba(202,160,94,.65)';
+        c.lineWidth = r * .012;
+        c.beginPath(); c.moveTo(Math.cos(a) * r * .12, Math.sin(a) * r * .12 - r * .03); c.lineTo(tipX, tipY); c.stroke();
+        ellipse(c, tipX, tipY, r * .020, r * .026, 'rgba(255,222,160,.9)');
+      }
+      c.globalAlpha = 1;
+    }
+    // The warm ruby at the heart of the mechanism.
+    const jr = r * .095;
+    const jewel = c.createRadialGradient(-jr * .35, -jr * .4, 0, 0, 0, jr);
+    jewel.addColorStop(0, '#fff1c8');
+    jewel.addColorStop(.32, '#f2c078');
+    jewel.addColorStop(.72, '#b96a2f');
+    jewel.addColorStop(1, '#54210f');
+    c.beginPath(); c.arc(0, 0, jr, 0, TAU); c.fillStyle = jewel; c.fill();
+    c.strokeStyle = 'rgba(255,240,200,.55)'; c.lineWidth = r * .008; c.stroke();
+
+    // Closed bud: a brass shell that hides the folded petals until the cam opens them.
+    const shell = 1 - smooth(.015, .30, open);
+    if (shell > .01) {
+      c.globalAlpha = shell;
+      c.beginPath();
+      c.moveTo(0, -r * 1.02);
+      c.bezierCurveTo(r * .30, -r * .86, r * .38, -r * .30, r * .25, r * .10);
+      c.quadraticCurveTo(0, r * .26, -r * .25, r * .10);
+      c.bezierCurveTo(-r * .38, -r * .30, -r * .30, -r * .86, 0, -r * 1.02);
+      c.closePath();
+      const shellMetal = c.createLinearGradient(-r * .36, 0, r * .36, 0);
+      shellMetal.addColorStop(0, '#2c1b0c');
+      shellMetal.addColorStop(.26, '#7a5128');
+      shellMetal.addColorStop(.52, '#b98545');
+      shellMetal.addColorStop(.76, '#e0b878');
+      shellMetal.addColorStop(1, '#3a2410');
+      c.fillStyle = shellMetal;
+      c.fill();
+      c.strokeStyle = 'rgba(28,16,7,.9)';
+      c.lineWidth = r * .035;
+      c.stroke();
+      // Hinged seams and a warm slit where the mechanism breathes.
+      c.strokeStyle = 'rgba(30,18,8,.55)';
+      c.lineWidth = r * .022;
+      for (let i = -1; i <= 1; i++) {
+        c.beginPath();
+        c.moveTo(i * r * .10, r * .16);
+        c.quadraticCurveTo(i * r * .24, -r * .34, i * r * .10, -r * .86);
+        c.stroke();
+      }
+      c.strokeStyle = 'rgba(255,220,156,.55)';
+      c.lineWidth = r * .016;
+      c.beginPath();
+      c.moveTo(-r * .02, -r * .55);
+      c.quadraticCurveTo(r * .10, -r * .60, r * .04, -r * .72);
+      c.stroke();
+      c.fillStyle = 'rgba(255,226,166,.82)';
+      c.beginPath();
+      c.arc(r * .015, -r * .70, r * .035, 0, TAU);
+      c.fill();
+      c.globalAlpha = 1;
+    }
+    c.restore();
+  }
+
+  function drawBell(b, p) {
+    const c = ctx;
+    const open = clamp(p.open, 0, 1);
+    const r = b.r;
+    const swing = Math.sin(time / 3.7 + b.swing + p.phase) * .045;
+    c.save();
+    c.translate(b.x, b.y);
+    c.rotate(swing);
+
+    // Crown: a small gear and a suspension eye.
+    c.strokeStyle = 'rgba(198,158,96,.55)';
+    c.lineWidth = r * .10;
+    c.beginPath(); c.arc(0, -r * .22, r * .18, 0, TAU); c.stroke();
+    drawGear(c, 0, 0, r * .38, 12, p.gearPhase * .9, {
+      fill: '#7a5128', stroke: '#1d1108', line: .0015, unit: true,
+      ring: 'rgba(227,192,122,.3)', ringLine: .0011, alpha: .95, spokeLine: .0013,
+    });
+
+    // The bell cup: a tapered lantern around the hanging petals.
+    const L = r * (2.15 + open * .10);
+    const W = r * (.55 + open * .22);
+    c.beginPath();
+    c.moveTo(-W * .62, r * .10);
+    c.bezierCurveTo(-W * .72, L * .40, -W * .96, L * .74, -W * 1.02, L * .96);
+    c.quadraticCurveTo(0, L * 1.14, W * 1.02, L * .96);
+    c.bezierCurveTo(W * .96, L * .74, W * .72, L * .40, W * .62, r * .10);
+    c.closePath();
+    const metal = c.createLinearGradient(-W, 0, W, 0);
+    metal.addColorStop(0, '#3a2410');
+    metal.addColorStop(.30, '#8f5f33');
+    metal.addColorStop(.52, '#c89550');
+    metal.addColorStop(.78, '#81552c');
+    metal.addColorStop(1, '#33200e');
+    c.fillStyle = metal;
+    c.fill();
+    c.strokeStyle = 'rgba(30,17,7,.9)';
+    c.lineWidth = r * .045;
+    c.stroke();
+    // Vertical ribs and the rim.
+    c.strokeStyle = 'rgba(226,190,124,.28)';
+    c.lineWidth = r * .022;
+    for (let i = -2; i <= 2; i++) {
+      const x = i * W * .27;
+      c.beginPath();
+      c.moveTo(x * .82, r * .16);
+      c.quadraticCurveTo(x * 1.24, L * .60, x * 1.55, L * .96);
+      c.stroke();
+    }
+    c.beginPath();
+    c.ellipse(0, L * .99, W * 1.02, r * .16, 0, 0, TAU);
+    c.strokeStyle = 'rgba(240,206,144,.55)';
+    c.lineWidth = r * .035;
+    c.stroke();
+    // Six petals hang inside the cup and flare at the mouth.
+    for (let i = 0; i < 6; i++) {
+      const spread = Math.PI + (i - 2.5) * (.10 + open * .20);
+      const tone = BRASS_TONES[(i + 1) % BRASS_TONES.length];
+      c.save();
+      c.rotate(spread);
+      c.translate(0, -r * .02);
+      c.scale(r * .48, L * (.86 + .08 * (i % 2)));
+      c.save(); c.translate(.015, .02); c.fillStyle = 'rgba(3,2,1,.42)'; c.fill(PETAL); c.restore();
+      c.fillStyle = tone[0]; c.fill(PETAL);
+      c.save(); c.translate(0, -.015); c.scale(.84, .94); c.fillStyle = tone[1]; c.fill(PETAL); c.restore();
+      c.strokeStyle = 'rgba(34,20,9,.82)'; c.lineWidth = .018; c.stroke(PETAL);
+      c.beginPath(); c.moveTo(-.01, -.05); c.bezierCurveTo(-.16, -.30, -.20, -.64, -.01, -.94);
+      c.strokeStyle = tone[2]; c.globalAlpha = .5; c.lineWidth = .012; c.stroke();
+      c.globalAlpha = 1;
+      c.restore();
+    }
+    // A drop of warm light suspended under the mouth.
+    if (open > .22) {
+      c.globalAlpha = smooth(.22, .8, open);
+      const drop = c.createRadialGradient(0, L * 1.10, 0, 0, L * 1.10, r * .52);
+      drop.addColorStop(0, 'rgba(255,228,166,.55)');
+      drop.addColorStop(1, 'rgba(255,210,140,0)');
+      c.fillStyle = drop;
+      c.beginPath(); c.arc(0, L * 1.10, r * .52, 0, TAU); c.fill();
+      c.strokeStyle = 'rgba(220,182,116,.76)';
+      c.lineWidth = r * .035;
+      c.beginPath(); c.moveTo(0, L * .98); c.lineTo(0, L * 1.10); c.stroke();
+      ellipse(c, 0, L * 1.14, r * .065, r * .085, 'rgba(255,226,166,.95)');
+      c.globalAlpha = 1;
+    }
+    c.restore();
+  }
+
+  function drawBud(b, p) {
+    const c = ctx;
+    const r = b.r;
+    c.save();
+    c.translate(b.x, b.y);
+    c.rotate(b.rot + Math.sin(time / 13 + b.x * 9) * .025);
+    // Tightly furled petals.
+    for (let i = 0; i < 5; i++) {
+      const rot = (i - 2) * .13;
+      const tone = BRASS_TONES[(i + 2) % BRASS_TONES.length];
+      drawPetalAt(rot, r * .95, .72, 0, tone, 0);
+    }
+    // Sepals wrap the base.
+    for (let i = 0; i < 3; i++) {
+      c.save();
+      c.rotate(-.5 + i * .5);
+      c.translate(0, -r * .10);
+      c.scale(r * .46, r * .46);
+      c.fillStyle = 'rgba(31,62,47,.95)';
+      c.fill(LEAF);
+      c.strokeStyle = 'rgba(128,156,118,.4)';
+      c.lineWidth = .022;
+      c.stroke(LEAF);
+      c.restore();
+    }
+    c.beginPath();
+    c.arc(0, -r * .05, r * .13, 0, TAU);
+    c.fillStyle = 'rgba(255,221,159,.22)';
+    c.fill();
+    c.restore();
+  }
+
+  function drawPendulum(p) {
+    const c = ctx;
+    const arm = p.pendulum;
+    const ang = Math.sin(time * TAU / 3.7 + p.phase) * .085;
+    c.save();
+    c.translate(arm.x, arm.y);
+    c.rotate(ang);
+    // Suspension spring.
+    c.strokeStyle = 'rgba(196,155,92,.55)';
+    c.lineWidth = .0035;
+    c.beginPath();
+    for (let i = 0; i < 9; i++) {
+      const y = -i * .004;
+      c.moveTo(i % 2 ? -.008 : .008, y);
+      c.lineTo(i % 2 ? .008 : -.008, y - .004);
+    }
+    c.stroke();
+    // Rod.
+    c.strokeStyle = 'rgba(35,21,10,.9)'; c.lineWidth = .006;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(0, arm.len); c.stroke();
+    c.strokeStyle = '#b07d42'; c.lineWidth = .0025;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(0, arm.len); c.stroke();
+    // Bob.
+    c.save();
+    c.translate(0, arm.len);
+    ellipse(c, 0, .006, .040, .048, 'rgba(0,0,0,.45)');
+    const bob = c.createRadialGradient(-.014, -.018, 0, 0, 0, .044);
+    bob.addColorStop(0, '#eac788');
+    bob.addColorStop(.45, '#b07a3d');
+    bob.addColorStop(1, '#4a2a10');
+    c.beginPath(); c.arc(0, 0, .040, 0, TAU); c.fillStyle = bob; c.fill();
+    c.strokeStyle = 'rgba(244,222,176,.42)'; c.lineWidth = .0028; c.stroke();
+    c.beginPath(); c.arc(0, 0, .026, 0, TAU); c.strokeStyle = 'rgba(58,34,14,.65)'; c.lineWidth = .0022; c.stroke();
+    ellipse(c, -.012, -.014, .010, .007, 'rgba(255,242,206,.6)');
+    c.restore();
+    c.restore();
+  }
+
+  function drawPlantLights(p) {
+    const c = ctx;
+    c.save();
+    c.globalCompositeOperation = 'lighter';
+    for (const light of p.lights) {
+      const bloomBoost = light.r > .08 ? .16 + p.open * .84 : 1;
+      c.globalAlpha = clamp((.16 + p.wound * .12) * bloomBoost, 0, .55);
+      c.drawImage(glowSprite, light.x - light.r, light.y - light.r, light.r * 2, light.r * 2);
+    }
+    c.restore();
+  }
+
+  function drawPlant(p) {
+    const c = ctx;
+    c.save();
+    c.translate(p.x, p.y);
+    c.rotate(p.fold * (p.id === 'secondary' ? -.11 : .09));
+    c.scale(p.scale, p.scale * (1 - p.fold * .085));
+    const sway = Math.sin(time / 7.1 + p.swayPhase) * .006 + Math.sin(time / 2.9 + p.swayPhase * 2) * .0022;
+    c.transform(1, 0, sway - p.fold * .085, 1, 0, 0);
+
+    // Contact shadow and a faint reflection on the stone.
+    c.beginPath();
+    c.ellipse(0, 0, .13, .022, 0, 0, TAU);
+    c.fillStyle = 'rgba(0,0,0,.62)';
+    c.fill();
+    c.beginPath();
+    c.ellipse(0, .004, .10, .014, 0, 0, TAU);
+    c.fillStyle = 'rgba(227,192,122,.10)';
+    c.fill();
+
+    drawBaseMech(p);
+
+    for (const g of p.gears) if (g.layer < 0) {
+      drawGear(c, g.x, g.y, g.r, g.teeth, p.gearPhase * g.ratio * g.dir + g.off, {
+        fill: 'rgba(92,60,30,.94)', stroke: '#211309', line: .0018, unit: true,
+        ring: 'rgba(227,192,122,.25)', ringLine: .0012, alpha: g.alpha, spokeLine: .0014,
+      });
+    }
+
+    drawBranches(p);
+    drawStem(p);
+
+    for (const g of p.gears) if (g.layer >= 0) {
+      drawGear(c, g.x, g.y, g.r, g.teeth, p.gearPhase * g.ratio * g.dir + g.off, {
+        fill: 'rgba(105,68,34,.94)', stroke: '#211309', line: .0018, unit: true,
+        ring: 'rgba(239,205,144,.30)', ringLine: .0012, alpha: g.alpha, spokeLine: .0014,
+      });
+    }
+
+    if (p.pendulum) drawPendulum(p);
+
+    for (const leaf of p.leaves) {
+      const distance = Math.hypot(leaf.x, leaf.y);
+      if (distance > .01) drawLeaf(leaf);
+    }
+
+    for (const b of p.blooms) {
+      if (b.type === 'flower') drawFlower(b, p);
+      else if (b.type === 'bell') drawBell(b, p);
+      else drawBud(b, p);
+    }
+
+    drawPlantLights(p);
+    c.restore();
+  }
+
+  /* ------------------------------ air, steam, vignette ------------------------------ */
+
+  function drawBeamAndDust() {
+    const c = ctx;
+    const ax = w * .80, ay = -h * .07;
+    const bx = w * .24, by = h * .96;
+    const widths = [[w * .19, .050], [w * .105, .037], [w * .045, .024]];
+    c.save();
+    for (const [width, alpha] of widths) {
+      const grad = c.createLinearGradient(ax, ay, bx, by);
+      grad.addColorStop(0, `rgba(244,224,180,${alpha})`);
+      grad.addColorStop(.45, `rgba(236,213,166,${alpha * .52})`);
+      grad.addColorStop(.86, `rgba(220,200,158,${alpha * .12})`);
+      grad.addColorStop(1, 'rgba(210,192,150,0)');
+      c.fillStyle = grad;
+      c.beginPath();
+      c.moveTo(ax - width * .5, ay);
+      c.lineTo(ax + width * .5, ay);
+      c.lineTo(bx + width * .5, by);
+      c.lineTo(bx - width * .5, by);
+      c.closePath();
+      c.fill();
+    }
+    // Dust motes suspended in the shaft.
+    const nx = (by - ay), ny = -(bx - ax);
+    const nl = Math.hypot(nx, ny) || 1;
+    for (const d of dust) {
+      const u = mod(d.u + time * d.speed, 1);
+      const spread = w * (.10 + u * .13);
+      const drift = Math.sin(time * .17 + d.twinkle) * w * .004;
+      const x = lerp(ax, bx, u) + nx / nl * d.v * spread + drift;
+      const y = lerp(ay, by, u) + ny / nl * d.v * spread + Math.sin(time * .13 + d.twinkle) * h * .003;
+      if (x < -10 || x > w + 10 || y < -10 || y > h + 10) continue;
+      const tw = .45 + .55 * Math.sin(time * .8 + d.twinkle);
+      c.globalAlpha = (.09 + u * .17) * tw;
+      c.fillStyle = 'rgba(246,230,194,1)';
+      c.beginPath();
+      c.arc(x, y, d.size * (.7 + u * .5), 0, TAU);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+    c.restore();
+  }
+
+  function spawnSteam(p, dt) {
+    p.steamBudget = (p.steamBudget || 0) + dt * 12;
+    while (p.steamBudget >= 1 && steam.length < MAX_STEAM) {
+      p.steamBudget -= 1;
+      const pt = plantToScreen(p, p.valve.x + (Math.random() - .5) * .16, p.valve.y + (Math.random() - .5) * .12);
+      steam.push({
+        x: pt.x, y: pt.y,
+        vx: (Math.random() - .5) * 34,
+        vy: -14 - Math.random() * 30,
+        life: 0,
+        max: 2.8 + Math.random() * 3.0,
+        size: 16 + Math.random() * 28,
+      });
+    }
+  }
+
+  function drawSteam() {
+    const c = ctx;
+    c.save();
+    for (const s of steam) {
+      const k = s.life / s.max;
+      if (k >= 1) continue;
+      const alpha = Math.sin(Math.PI * clamp(k, 0, 1)) * .21;
+      const size = s.size * (1 + k * 2.3);
+      c.globalAlpha = alpha;
+      c.drawImage(steamSprite, s.x - size, s.y - size, size * 2, size * 2);
+    }
+    c.restore();
+  }
+
+  function drawVignette() {
+    const c = ctx;
+    const vig = c.createRadialGradient(w * .5, h * .43, Math.min(w, h) * .20, w * .5, h * .43, Math.max(w, h) * .70);
+    vig.addColorStop(0, 'rgba(1,4,2,0)');
+    vig.addColorStop(.62, 'rgba(1,4,2,.22)');
+    vig.addColorStop(1, 'rgba(0,2,1,.72)');
+    c.fillStyle = vig;
+    c.fillRect(0, 0, w, h);
+    const top = c.createLinearGradient(0, 0, 0, h * .16);
+    top.addColorStop(0, 'rgba(0,3,1,.55)');
+    top.addColorStop(1, 'rgba(0,3,1,0)');
+    c.fillStyle = top;
+    c.fillRect(0, 0, w, h * .16);
+    // The thinnest brass frame, mostly read as a glass edge.
+    c.strokeStyle = 'rgba(201,155,92,.10)';
+    c.lineWidth = 1;
+    c.strokeRect(Math.max(6, w * .006), Math.max(6, h * .010), w - Math.max(12, w * .012), h - Math.max(12, h * .020));
+  }
+
+  /* ------------------------------ state, loop & HUD ------------------------------ */
+
+  const el = {
+    panel: document.getElementById('panel'),
+    settings: document.getElementById('settings'),
+    pause: document.getElementById('pauseBtn'),
+    full: document.getElementById('fullBtn'),
+    service: document.getElementById('serviceBtn'),
+    liveBloom: document.getElementById('liveBloom'),
+    roMain: document.getElementById('roMain'),
+    roService: document.getElementById('roService'),
+    toast: document.getElementById('toast'),
+    standButtons: Array.from(document.querySelectorAll('[data-stand]')),
+  };
+
+  let booted = false;
+
+  function initState() {
+    service = serviceState(time);
+    cam = cameraAt(time);
+    for (const p of plants) {
+      p.gearPhase = time / p.period * TAU;
+      p.open = autoOpen(p, time);
+      p.fold = service.active && service.index === p.index ? serviceFold(service.progress) : 0;
+      p.open *= (1 - p.fold * .95);
+      p.wound = 0;
+      p.woundTarget = 0;
+      p.pulseUntil = -1;
+      p.manualUntil = -1;
+      p.manualTarget = null;
+      p.steamBudget = 0;
+    }
+    steam = [];
+  }
+
+  function update(dt) {
+    time += dt;
+    service = serviceState(time);
+    for (const p of plants) {
+      const active = service.active && service.index === p.index;
+      const foldTarget = active ? serviceFold(service.progress) : 0;
+      p.fold += (foldTarget - p.fold) * Math.min(1, dt * 3.1);
+      const pulse = p.pulseUntil > time ? 1 : 0;
+      const targetWound = Math.max(p.woundTarget, pulse);
+      if (targetWound > p.wound) p.wound += (targetWound - p.wound) * Math.min(1, dt * 1.5);
+      else p.wound *= Math.exp(-dt / 4.2);
+      p.wound = clamp(p.wound, 0, 1);
+      p.gearPhase += dt * (TAU / p.period) * (1 + .4 * p.wound) * (active ? .16 : 1);
+      let target = autoOpen(p, time);
+      if (p.manualUntil > time && p.manualTarget !== null) target = p.manualTarget;
+      target *= (1 - p.fold * .95);
+      p.open += (target - p.open) * Math.min(1, dt * 3.5);
+      p.open = clamp(p.open, 0, 1);
+      if (p.pulseUntil > -1 && p.pulseUntil < time - 4) p.pulseUntil = -1;
+    }
+    if (service.active) {
+      const p = plants[service.index];
+      if (service.progress > .12 && service.progress < .74) spawnSteam(p, dt);
+    }
+    for (const s of steam) {
+      s.life += dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.vy -= 5 * dt;
+      s.vx *= Math.exp(-dt * .4);
+      s.size += dt * 4;
+    }
+    steam = steam.filter((s) => s.life < s.max);
+  }
+
+  function render() {
+    if (!w || !h) return;
+    cam = cameraAt(time);
+    const c = ctx;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.fillStyle = '#040906';
+    c.fillRect(0, 0, w, h);
+
+    // Background drifts at a third of the camera speed.
+    const bz = 1.035 + (cam.zoom - 1) * .35;
+    c.save();
+    c.translate(w / 2 + cam.x * .35, h / 2 + cam.y * .35);
+    c.scale(bz, bz);
+    c.translate(-w / 2, -h / 2);
+    c.drawImage(bgLayer, 0, 0, w, h);
+    c.restore();
+
+    drawFloor();
+    drawDistantStands();
+    drawBeamAndDust();
+
+    c.save();
+    c.translate(w / 2, h / 2);
+    c.scale(cam.zoom, cam.zoom);
+    c.translate(-w / 2, -h / 2);
+    c.translate(-cam.x, -cam.y);
+    for (const p of plants) {
+      if (p.shelf) drawShelf(p);
+      else drawPedestal(p);
+      drawPlant(p);
+    }
+    c.restore();
+
+    drawSteam();
+
+    // Foreground glass and railing move faster than anything behind them.
+    c.save();
+    c.translate(w / 2 + cam.x * 1.35, h / 2 + cam.y * 1.35);
+    c.scale(1.012, 1.012);
+    c.translate(-w / 2, -h / 2);
+    c.drawImage(fgLayer, 0, 0, w, h);
+    c.restore();
+
+    drawVignette();
+    frames++;
+    if (frames % 5 === 0) updateHud();
+  }
+
+  function updateHud() {
+    const main = plants[0];
+    const pct = Math.round(main.open * 100) + '%';
+    if (el.liveBloom.textContent !== pct) el.liveBloom.textContent = pct;
+    const mainText = 'CAMELLIA · ' + String(Math.round(main.open * 100)).padStart(2, '0') + '%';
+    if (el.roMain.textContent !== mainText) el.roMain.textContent = mainText;
+    let serviceText;
+    if (service.active) {
+      serviceText = 'IN SERVICE · ' + plants[service.index].label;
+    } else {
+      const sec = Math.max(0, Math.floor(nextServiceIn(time)));
+      const mm = Math.floor(sec / 60);
+      const ss = sec % 60;
+      serviceText = String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+    }
+    if (el.roService.textContent !== serviceText) el.roService.textContent = serviceText;
+    el.standButtons.forEach((b, i) => b.classList.toggle('active', i === hoverIndex || (i === focusStand && focusUntil > time)));
+  }
+
+  function showToast(message) {
+    el.toast.textContent = message;
+    el.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2600);
+    scheduleQuiet();
+  }
+
+  function scheduleQuiet() {
+    clearTimeout(quietTimer);
+    document.body.classList.remove('quiet');
+    quietTimer = setTimeout(() => document.body.classList.add('quiet'), 16000);
+  }
+
+  function toggleHud() {
+    document.body.classList.toggle('hud-off');
+    scheduleQuiet();
+  }
+
+  function togglePause() {
+    paused = !paused;
+    syncPlayback();
+    if (paused) render();
+    showToast(paused ? '时间停止 · 发条仍在弦上' : '时间继续');
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch { /* Wallpaper hosts often do not expose fullscreen. */ }
+  }
+
+  function syncPlayback() {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    last = 0;
+    accumulator = 0;
+    el.pause.textContent = paused ? '继续' : '暂停';
+    if (!paused && !document.hidden) raf = requestAnimationFrame(frame);
+    if (paused) render();
+  }
+
+  function frame(now) {
+    raf = 0;
+    if (paused || document.hidden) { last = 0; return; }
+    if (!last) last = now;
+    accumulator += Math.min((now - last) / 1000, .1);
+    last = now;
+    if (accumulator >= 1 / 30) {
+      const dt = Math.min(accumulator, .1);
+      accumulator = 0;
+      update(dt);
+      render();
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function worldAt(sx, sy) {
+    return {
+      x: w / 2 + (sx - w / 2) / cam.zoom + cam.x,
+      y: h / 2 + (sy - h / 2) / cam.zoom + cam.y,
+    };
+  }
+
+  function hitTest(sx, sy) {
+    const p = worldAt(sx, sy);
+    for (let i = plants.length - 1; i >= 0; i--) {
+      const q2 = plants[i].hit;
+      if (q2 && p.x >= q2.x && p.x <= q2.x + q2.w && p.y >= q2.y && p.y <= q2.y + q2.h) return i;
+    }
+    return -1;
+  }
+
+  function focusOn(index, wind = true) {
+    const i = clamp(Math.round(index), 0, 2);
+    focusStand = i;
+    focusUntil = time + 24;
+    if (wind) plants[i].pulseUntil = time + 3.2;
+    render();
+    updateHud();
+  }
+
+  function toggleBloom(index) {
+    const p = plants[clamp(index, 0, 2)];
+    if (!p) return;
+    if (paused) {
+      p.open = p.open > .45 ? 0 : 1;
+      render();
+      showToast(p.label + (p.open > .5 ? ' · 已开花' : ' · 已收拢'));
+      return;
+    }
+    const target = p.open > .45 ? 0 : 1;
+    p.manualTarget = target;
+    p.manualUntil = time + 24;
+    p.pulseUntil = time + 2.5;
+    showToast(p.label + (target ? ' · 开花' : ' · 收拢'));
+  }
+
+  function triggerService(index) {
+    const i = clamp(Math.round(index), 0, 2);
+    manualService = { index: i, start: time };
+    service = serviceState(time);
+    showToast(plants[i].label + ' · 检修开始');
+    render();
+  }
+
+  function reseed(nextSeed) {
+    seed = (Number.isFinite(nextSeed) ? nextSeed : 1 + Math.floor(Math.random() * 2147483645)) >>> 0;
+    for (const p of plants) buildPlant(p);
+    plants.forEach((p) => { p.wound = 0; p.woundTarget = 0; p.open = autoOpen(p, time); });
+    layout();
+    initState();
+    bakeBackground();
+    bakeForeground();
+    buildDust();
+    render();
+    updateHud();
+    showToast('新的温室已布置');
+  }
+
+  /* ------------------------------ resize & boot ------------------------------ */
+
+  function resizeCanvas() {
+    w = Math.max(1, innerWidth);
+    h = Math.max(1, innerHeight);
+    dpr = Math.min(devicePixelRatio || 1, 1.5, Math.sqrt(2600000 / (w * h)));
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function resize() {
+    resizeCanvas();
+    layout();
+    if (!booted) {
+      booted = true;
+      initState();
+    }
+    steam = [];
+    bakeBackground();
+    bakeForeground();
+    buildDust();
+    render();
+    updateHud();
+  }
+
+  /* ------------------------------ events ------------------------------ */
+
+  function pointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function onPointerMove(e) {
+    const p = pointerPos(e);
+    pointer.x = p.x; pointer.y = p.y; pointer.inside = true;
+    const hit = hitTest(p.x, p.y);
+    hoverIndex = hit;
+    canvas.style.cursor = hit >= 0 ? 'pointer' : 'default';
+    plants.forEach((pl, i) => { pl.woundTarget = i === hit ? 1 : 0; });
+    scheduleQuiet();
+  }
+
+  function onPointerDown(e) {
+    const p = pointerPos(e);
+    pointer.down = true;
+    pointer.downX = p.x; pointer.downY = p.y; pointer.downTime = Date.now();
+    pointer.x = p.x; pointer.y = p.y;
+    const hit = hitTest(p.x, p.y);
+    if (hit >= 0) {
+      hoverIndex = hit;
+      plants[hit].woundTarget = 1;
+    }
+    scheduleQuiet();
+  }
+
+  function onPointerUp(e) {
+    if (!pointer.down) return;
+    pointer.down = false;
+    const p = pointerPos(e);
+    const moved = Math.hypot(p.x - pointer.downX, p.y - pointer.downY);
+    const quick = Date.now() - pointer.downTime < 900;
+    const hit = hitTest(p.x, p.y);
+    if (moved < 12 && quick && hit >= 0) toggleBloom(hit);
+    else if (hit >= 0) plants[hit].pulseUntil = time + 2.4;
+    pointer.x = p.x; pointer.y = p.y;
+    scheduleQuiet();
+  }
+
+  function onPointerLeave() {
+    pointer.inside = false;
+    pointer.down = false;
+    hoverIndex = -1;
+    canvas.style.cursor = 'default';
+    plants.forEach((pl) => { pl.woundTarget = 0; });
+    if (paused) render();
+  }
+
+  function installEvents() {
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerLeave);
+    canvas.addEventListener('pointerleave', onPointerLeave);
+
+    el.settings.addEventListener('click', () => {
+      const open = el.panel.hidden;
+      el.panel.hidden = !open;
+      el.settings.setAttribute('aria-expanded', String(open));
+      if (open) scheduleQuiet();
+    });
+    el.pause.addEventListener('click', togglePause);
+    el.full.addEventListener('click', toggleFullscreen);
+    el.service.addEventListener('click', () => triggerService(focusUntil > time ? focusStand : hoverIndex >= 0 ? hoverIndex : 0));
+    el.standButtons.forEach((b) => b.addEventListener('click', () => focusOn(Number(b.dataset.stand) || 0)));
+
+    addEventListener('keydown', (e) => {
+      if (e.target && e.target.matches && e.target.matches('input, select, button')) return;
+      if (e.repeat) return;
+      if (e.code === 'Space') { e.preventDefault(); togglePause(); }
+      else if (e.key === '1' || e.key === '2' || e.key === '3') focusOn(Number(e.key) - 1);
+      else if (e.key && e.key.toLowerCase() === 'h') toggleHud();
+      else if (e.key && e.key.toLowerCase() === 'f') toggleFullscreen();
+      scheduleQuiet();
+    });
+
+    addEventListener('resize', resize);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) last = 0;
+      syncPlayback();
+    });
+    reducedMotion.addEventListener('change', (e) => {
+      if (!q.has('still')) {
+        paused = e.matches;
+        syncPlayback();
+        render();
+      }
+    });
+    if (q.get('hud') === '0') document.body.classList.add('hud-off');
+    scheduleQuiet();
+  }
+
+  /* ------------------------------ debug API ------------------------------ */
+
+  window.__lumenGarden = {
+    snapshot: () => ({
+      t: time, w, h, dpr, paused, frames,
+      cam: { x: cam.x, y: cam.y, zoom: cam.zoom },
+      focus: focusStand, focusUntil,
+      hover: hoverIndex,
+      service: { ...service },
+      steam: steam.length,
+      nextService: nextServiceIn(time),
+      plants: plants.map((p) => ({
+        id: p.id, x: p.x, y: p.y, scale: p.scale,
+        open: p.open, wound: p.wound, fold: p.fold,
+        gearPhase: p.gearPhase, manualUntil: p.manualUntil, manualTarget: p.manualTarget,
+        petals: p.petals, gears: p.gearCount, blooms: p.blooms.length,
+        hit: p.hit,
+      })),
+      totalPetals: plants.reduce((s, p) => s + p.petals, 0),
+      totalGears: plants.reduce((s, p) => s + p.gearCount, 0),
+      dust: dust.length,
+    }),
+    audit: () => {
+      let bad = 0;
+      for (const p of plants) {
+        const values = [p.x, p.y, p.scale, p.open, p.wound, p.fold, p.gearPhase];
+        if (values.some((v) => !Number.isFinite(v))) bad++;
+        if (p.open < -.001 || p.open > 1.001 || p.fold < -.001 || p.fold > 1.001) bad++;
+        if (p.petals > 120 || p.gearCount > 40) bad++;
+        if (p.blooms.length > 8) bad++;
+      }
+      for (const s of steam) {
+        if (![s.x, s.y, s.vx, s.vy, s.life, s.max, s.size].every(Number.isFinite)) bad++;
+      }
+      return {
+        bad,
+        steam: steam.length,
+        totalPetals: plants.reduce((s, p) => s + p.petals, 0),
+        totalGears: plants.reduce((s, p) => s + p.gearCount, 0),
+        serviceActive: service.active,
+        serviceIndex: service.index,
+        serviceProgress: service.progress,
+        paused,
+        hidden: document.hidden,
+        frames,
+      };
+    },
+    advance: (seconds) => {
+      const n = Math.max(1, Math.round(seconds * 30));
+      for (let i = 0; i < n; i++) update(1 / 30);
+      render();
+      return window.__lumenGarden.snapshot();
+    },
+    setTime: (t) => {
+      time = clamp(Number(t) || 0, 0, 86400);
+      initState();
+      render();
+      return window.__lumenGarden.snapshot();
+    },
+    focusStand: (i) => { focusOn(i); return focusStand; },
+    windUp: (i) => {
+      const p = plants[clamp(i, 0, 2)];
+      p.pulseUntil = time + 3.2;
+      render();
+      return p.wound;
+    },
+    toggleBloom: (i) => { toggleBloom(i); return plants[clamp(i, 0, 2)].open; },
+    setOpen: (i, v) => {
+      const p = plants[clamp(i, 0, 2)];
+      p.open = clamp(Number(v) || 0, 0, 1);
+      p.manualTarget = p.open;
+      p.manualUntil = time + 30;
+      render();
+      return p.open;
+    },
+    setWound: (i, v) => {
+      const p = plants[clamp(i, 0, 2)];
+      p.wound = clamp(Number(v) || 0, 0, 1);
+      render();
+      return p.wound;
+    },
+    triggerService: (i) => { triggerService(i); return window.__lumenGarden.snapshot(); },
+    togglePause,
+    reseed,
+    render,
+    update,
+    layout,
+    steamBudget: () => MAX_STEAM,
+  };
+
+  /* ------------------------------ boot ------------------------------ */
+
+  buildSprites();
+  buildDust();
+  resizeCanvas();
+  layout();
+  installEvents();
+  booted = true;
+  initState();
+  bakeBackground();
+  bakeForeground();
+  render();
+  updateHud();
+  syncPlayback();
+})();
+</script>
+</body>
+</html>

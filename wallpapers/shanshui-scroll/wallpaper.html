@@ -1,0 +1,2586 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<meta name="theme-color" content="#e9dfc9">
+<title>山水长卷 · 四时流转</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #e9dfc9;
+    --paper-soft: #f0e7d4;
+    --ink: #29251f;
+    --ink-soft: #514a3e;
+    --muted: #7d7362;
+    --faint: #9d927e;
+    --line: rgba(72, 62, 47, .18);
+    --accent: #8a5a3b;
+    --seal: #9c5643;
+    --serif: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif;
+    --sans: "Helvetica Neue", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --pad: clamp(20px, 3.2vw, 54px);
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--paper); }
+  body {
+    position: fixed; inset: 0; font-family: var(--sans); color: var(--ink);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none;
+  }
+  #scene { position: fixed; inset: 0; z-index: 1; width: 100%; height: 100%; display: block; cursor: crosshair; }
+  body.dragging #scene { cursor: grabbing; }
+  .hud { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+  .hud button, .hud input, .hud label, .controls, #panel { pointer-events: auto; }
+
+  .masthead {
+    position: absolute; left: var(--pad); top: var(--pad);
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 8px; letter-spacing: .28em; color: var(--muted);
+    transition: opacity 1.6s ease;
+  }
+  .mark { width: 13px; height: 13px; border: 1px solid rgba(74, 61, 44, .55); border-radius: 50%; position: relative; }
+  .mark::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--accent); opacity: .78; }
+  .brand { color: var(--ink-soft); letter-spacing: .34em; }
+  .rule { width: 30px; height: 1px; background: var(--line); }
+  .collection { color: var(--faint); letter-spacing: .22em; }
+  .index { color: var(--accent); border: 1px solid var(--line); padding: 3px 6px; letter-spacing: .1em; }
+
+  .titleblock {
+    position: absolute; left: var(--pad); top: calc(var(--pad) + 48px); width: min(520px, 46vw);
+    transition: opacity 2s ease, transform 2s ease;
+  }
+  .eyebrow { margin: 0; font-family: var(--mono); font-size: 8px; letter-spacing: .28em; color: var(--accent); }
+  h1 {
+    margin: 15px 0 2px; font-family: var(--serif); font-weight: 400;
+    font-size: clamp(38px, 4.4vw, 68px); line-height: 1.05; letter-spacing: .20em;
+    color: #2b2720;
+  }
+  .subtitle {
+    display: flex; align-items: center; gap: 16px;
+    font-family: var(--serif); font-size: clamp(15px, 1.5vw, 21px);
+    letter-spacing: .42em; color: var(--ink-soft);
+  }
+  .seal {
+    display: inline-grid; place-items: center; width: 28px; height: 31px;
+    border: 1px solid rgba(156, 86, 67, .78); color: var(--seal);
+    font-family: var(--serif); font-size: 10px; line-height: 1.02; letter-spacing: 0;
+    transform: rotate(-3deg); padding: 3px;
+  }
+  .titleblock p {
+    margin: 22px 0 0; max-width: 360px; font-size: 11px; line-height: 2.05;
+    letter-spacing: .09em; color: var(--muted);
+  }
+  .measure { display: flex; align-items: center; gap: 13px; margin-top: 20px; }
+  .measure .line { width: 38px; height: 1px; background: rgba(138, 90, 59, .42); flex: none; }
+  .measure span { font-family: var(--mono); font-size: 8px; letter-spacing: .12em; color: var(--faint); }
+
+  .season-rail {
+    position: absolute; right: var(--pad); top: calc(var(--pad) + 12px);
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    writing-mode: vertical-rl; text-orientation: upright;
+    font-family: var(--serif); font-size: 12px; letter-spacing: .28em; color: var(--faint);
+    transition: opacity 1.8s ease;
+  }
+  .season-rail .now { color: var(--ink-soft); letter-spacing: .34em; }
+  .season-rail .tick { width: 1px; height: 26px; background: var(--line); }
+  .season-rail .quarter { opacity: .48; transition: opacity .8s, color .8s; }
+  .season-rail .quarter.active { opacity: 1; color: var(--accent); }
+
+  .readout {
+    position: absolute; left: var(--pad); bottom: var(--pad);
+    display: flex; gap: clamp(18px, 2.4vw, 40px); transition: opacity 1.6s ease;
+  }
+  .readout div { display: flex; flex-direction: column; gap: 5px; }
+  .readout span { font-family: var(--mono); font-size: 7px; letter-spacing: .18em; color: rgba(241, 231, 212, .52); text-shadow: 0 1px 6px rgba(24, 20, 14, .5); }
+  .readout b { font-family: var(--serif); font-size: 12px; font-weight: 400; letter-spacing: .1em; color: rgba(248, 240, 224, .84); text-shadow: 0 1px 7px rgba(24, 20, 14, .55); }
+
+  .controls {
+    position: absolute; right: var(--pad); bottom: var(--pad);
+    display: flex; flex-direction: column; align-items: flex-end; gap: 9px;
+    opacity: .44; transition: opacity .35s ease;
+  }
+  .controls:hover, .controls:focus-within, .controls:has([aria-expanded="true"]) { opacity: 1; }
+  .buttonbar { display: flex; gap: 6px; }
+  button {
+    font: inherit; cursor: pointer; color: var(--ink-soft);
+    background: rgba(239, 230, 211, .78); border: 1px solid rgba(84, 71, 53, .24);
+    border-radius: 3px; padding: 9px 12px; font-size: 10px; letter-spacing: .13em;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    transition: background .25s, border-color .25s, color .25s;
+  }
+  button:hover { background: rgba(246, 238, 222, .96); border-color: rgba(138, 90, 59, .48); }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid rgba(138, 90, 59, .72); outline-offset: 3px; }
+  #panel {
+    width: min(292px, calc(100vw - 36px)); padding: 19px;
+    border: 1px solid rgba(84, 71, 53, .30); border-radius: 4px;
+    background: rgba(239, 231, 214, .97); box-shadow: 0 18px 60px rgba(53, 41, 25, .20);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  #panel[hidden] { display: none; }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 15px; }
+  .panel-head b { font-family: var(--serif); font-size: 14px; font-weight: 400; letter-spacing: .22em; }
+  .panel-head span { font-family: var(--mono); font-size: 7px; letter-spacing: .12em; color: var(--faint); }
+  .panel-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0; font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); }
+  .panel-row select { width: 128px; padding: 6px; color: var(--ink); background: #e7dcc4; border: 1px solid rgba(84, 71, 53, .32); font: 11px var(--serif); }
+  .panel-row input[type=range] { width: 128px; accent-color: var(--accent); }
+  .panel-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 16px; }
+  .panel-actions button { width: 100%; }
+  .panel-note { margin: 15px 0 0; padding-top: 11px; border-top: 1px solid var(--line); font-size: 9px; line-height: 1.95; letter-spacing: .04em; color: var(--muted); }
+
+  .hint {
+    position: absolute; left: 50%; bottom: calc(var(--pad) + 4px); transform: translateX(-50%);
+    font-family: var(--serif); font-size: 10px; letter-spacing: .22em; color: rgba(245, 236, 220, .62);
+    white-space: nowrap; pointer-events: none; transition: opacity 1.6s ease; text-shadow: 0 1px 7px rgba(24, 20, 14, .55);
+  }
+  .toast {
+    position: absolute; left: 50%; bottom: 14%; transform: translate(-50%, 10px);
+    padding: 8px 15px; border: 1px solid var(--line); border-radius: 999px;
+    background: rgba(239, 231, 214, .82); color: var(--ink-soft);
+    font-family: var(--serif); font-size: 10px; letter-spacing: .16em;
+    opacity: 0; transition: opacity .6s, transform .6s; pointer-events: none;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  body.idle .titleblock { opacity: 0; transform: translateY(-6px); }
+  body.idle .masthead, body.idle .season-rail, body.idle .readout, body.idle .hint { opacity: 0; }
+  body.hud-off .masthead, body.hud-off .titleblock, body.hud-off .season-rail,
+  body.hud-off .readout, body.hud-off .hint, body.hud-off .controls { opacity: 0; pointer-events: none; }
+  body.hud-off #panel { display: none; }
+
+  @media (max-width: 760px) {
+    :root { --pad: 22px; }
+    .masthead { font-size: 7px; letter-spacing: .18em; gap: 7px; }
+    .rule, .collection { display: none; }
+    .titleblock { top: calc(var(--pad) + 40px); width: min(76vw, 330px); }
+    h1 { font-size: clamp(33px, 10vw, 46px); letter-spacing: .14em; }
+    .titleblock p { display: none; }
+    .measure { margin-top: 13px; }
+    .season-rail { top: auto; bottom: 118px; right: 18px; font-size: 10px; gap: 8px; }
+    .readout { display: none; }
+    .controls { right: 16px; bottom: 16px; opacity: .68; }
+    .hint { display: none; }
+    button { padding: 9px 10px; font-size: 9.5px; }
+    .toast { bottom: 20%; font-size: 9px; }
+  }
+  @media (max-height: 560px) {
+    .titleblock { top: 58px; width: 44vw; }
+    h1 { font-size: 34px; }
+    .titleblock p { display: none; }
+    .measure { margin-top: 10px; }
+    .season-rail { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .masthead, .titleblock, .season-rail, .readout, .hint, .controls, .toast { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" role="img" aria-label="一幅会自己展开的水墨山水长卷：远山、主峰、松林、寺观、瀑布与江面小舟，四季和昼夜在画面里缓慢流转，可用鼠标掠过江面、拖动生风、点击换季"></canvas>
+
+<div class="hud" id="hud">
+  <div class="masthead">
+    <span class="mark"></span><span class="brand">LUMEN</span><span class="rule"></span>
+    <span class="collection">山水档案 / LANDSCAPE ARCHIVE</span><span class="index">卷 04</span>
+  </div>
+
+  <div class="titleblock" id="caption">
+    <p class="eyebrow">A HANDSCROLL THAT UNFOLDS BY ITSELF</p>
+    <h1>山水长卷</h1>
+    <div class="subtitle"><span>四时流转</span><span class="seal">四時</span></div>
+    <p>一卷会自己展开的水墨山水。云、舟、雪、雨都从同一套笔法里长出来，四时在二十四分钟里走完一轮。</p>
+    <div class="measure"><span class="line"></span><span>24 MIN · FOUR SEASONS · ONE BREATH</span></div>
+  </div>
+
+  <div class="season-rail" aria-hidden="true">
+    <span class="now" id="railNow">春</span>
+    <span class="tick"></span>
+    <span class="quarter" data-season="0">春</span>
+    <span class="quarter" data-season="1">夏</span>
+    <span class="quarter" data-season="2">秋</span>
+    <span class="quarter" data-season="3">冬</span>
+  </div>
+
+  <div class="readout" aria-hidden="true">
+    <div><span>SEASON</span><b id="readSeason">春 · 晴</b></div>
+    <div><span>HOUR</span><b id="readHour">晨</b></div>
+    <div><span>WIND</span><b id="readWind">微风</b></div>
+    <div><span>SCROLL</span><b id="readScroll">展卷</b></div>
+  </div>
+
+  <div class="hint" id="hint">掠过江面 生涟漪　·　拖动 生风　·　轻点 换季</div>
+
+  <div class="controls">
+    <section id="panel" hidden aria-label="观卷设置">
+      <div class="panel-head"><b>观卷</b><span>SCROLL SETTINGS</span></div>
+      <div class="panel-row"><label for="seasonSelect">时令</label>
+        <select id="seasonSelect">
+          <option value="auto">自动流转</option>
+          <option value="0">春 · 青绿</option>
+          <option value="1">夏 · 石青</option>
+          <option value="2">秋 · 赭石</option>
+          <option value="3">冬 · 冷灰</option>
+        </select>
+      </div>
+      <div class="panel-row"><label for="weatherSelect">天气</label>
+        <select id="weatherSelect">
+          <option value="auto">随季而变</option>
+          <option value="clear">晴</option>
+          <option value="mist">雾</option>
+          <option value="rain">雨</option>
+          <option value="snow">雪</option>
+        </select>
+      </div>
+      <div class="panel-row"><label for="windRange">风向</label><input id="windRange" type="range" min="-1" max="1" step="0.05" value="0"></div>
+      <div class="panel-actions">
+        <button id="pause">暂停</button>
+        <button id="nextSeason">下一季</button>
+        <button id="rainNow">落雨</button>
+        <button id="fullscreen">全屏</button>
+      </div>
+      <p class="panel-note">Space 暂停 · H 隐藏画面文字 · F 全屏<br>← / → 上一季 / 下一季 · Esc 关闭本页设置<br>画面全部由种子程序生成，无外部素材。</p>
+    </section>
+    <div class="buttonbar">
+      <button id="settings" aria-expanded="false" aria-controls="panel">观卷</button>
+      <button id="playPause" title="空格：暂停或继续">Ⅱ</button>
+      <button id="hideHud" title="H：隐藏画面文字">净览</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------- 0. params
+  const params = new URLSearchParams(location.search);
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const bgCanvas = document.createElement('canvas');
+  const fgCanvas = document.createElement('canvas');
+  const bg = bgCanvas.getContext('2d');
+  const fg = fgCanvas.getContext('2d');
+  const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const mod = (n, m) => ((n % m) + m) % m;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smoothstep = (a, b, v) => { const x = clamp((v - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+  const TAU = Math.PI * 2;
+
+  function numberParam(key, fallback, min, max) {
+    if (!params.has(key)) return fallback;
+    const value = Number(params.get(key));
+    return Number.isFinite(value) ? clamp(value, min, max) : fallback;
+  }
+  function stringParam(key, allowed, fallback) {
+    const value = params.get(key);
+    return allowed.includes(value) ? value : fallback;
+  }
+
+  const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+  const SEASON_CN = ['春', '夏', '秋', '冬'];
+  const SEASON_SUB = ['青绿', '石青', '赭石', '冷灰'];
+  const WEATHERS = ['clear', 'mist', 'rain', 'snow'];
+  const WEATHER_CN = { clear: '晴', mist: '雾', rain: '雨', snow: '雪' };
+
+  let seed = Math.floor(numberParam('seed', 20261110, 1, 2147483646)) >>> 0;
+  let initialT = numberParam('t', 150, 0, 86400);
+  const initialSeason = params.get('season');
+  let forcedWeather = stringParam('weather', WEATHERS, null);
+  let forcedSeason = SEASONS.includes(initialSeason) ? SEASONS.indexOf(initialSeason) : -1;
+  let quality = numberParam('quality', 1, .45, 1);
+  let forcedWind = params.has('wind') ? numberParam('wind', 0, -1, 1) : null;
+
+  const WORLD = { w: 4800, h: 1280, water: 790, bank: 1040, fgTop: 760 };
+  const SEASON_PERIOD = 1440;
+  const SEASON_LENGTH = 360;
+  const DAY_LENGTH = 960;
+  const SCROLL_SPEED = 7;
+  const CYCLE_SECONDS = 1440;
+
+  // ---------------------------------------------------------------- 1. math / color
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hash1(n) {
+    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453123;
+    return x - Math.floor(x);
+  }
+  function hash2(a, b) { return hash1(a * 17.31 + b * 71.73 + 3.17); }
+
+  function rgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function mix(a, b, t) {
+    const A = rgb(a), B = rgb(b);
+    return '#' + A.map((v, i) => Math.round(lerp(v, B[i], t)).toString(16).padStart(2, '0')).join('');
+  }
+  function mixRGB(a, b, t) {
+    const A = rgb(a), B = rgb(b);
+    return A.map((v, i) => Math.round(lerp(v, B[i], t)));
+  }
+  function rgba(hex, a) {
+    const c = rgb(hex);
+    return `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  }
+
+  const PAPER = '#e9dfc9';
+  const PAPER_LIGHT = '#f1e8d6';
+  const INK = '#1d1b18';
+  const INK_SOFT = '#4b463b';
+  const SEASON_COLORS = ['#7c9a6a', '#5a7f8c', '#a8642f', '#8d9297'];
+  const NIGHT_PAPER = '#b8b9b3';
+  const NIGHT_INK = '#3d4144';
+
+  // ---------------------------------------------------------------- 2. time state
+  let timeBase = initialT;
+  let elapsed = 0;
+  let clock = initialT;
+  let paused = params.get('still') === '1' || (params.get('still') !== '0' && reducedQuery.matches);
+  let wind = forcedWind === null ? 0 : forcedWind;
+  let windTarget = forcedWind === null ? 0 : forcedWind;
+  let windDecay = 0;
+  let hudHidden = params.get('hud') === '0';
+  let raf = 0, lastFrame = 0, lastRender = 0, accumulator = 0, frameNo = 0;
+  let toastTimer = 0, idleTimer = 0;
+  let w = 1, h = 1, dpr = 1, scale = 1, camX = 0, camY = 0, zoom = 1, portrait = false;
+  let paperPattern = null;
+  let viewLeft = 0, viewRight = 0, viewTop = 0, viewBottom = 0;
+
+  let ripples = [];
+  let birds = [];
+  let nextAutoBird = 22 + hash1(seed) * 70;
+  let lastRippleAt = -10;
+  let pointer = { x: -1, y: -1, moved: false, down: false, startX: 0, startY: 0, startTime: 0, lastWaterRipple: -10 };
+
+  // ---------------------------------------------------------------- 3. static world
+  const layers = [];
+  let bgReady = false;
+
+  function wrapDist(a, b) {
+    const d = Math.abs(a - b);
+    return Math.min(d, WORLD.w - d);
+  }
+
+  function makePeakProfile(rng, craggy) {
+    // Piecewise-linear profiles give cliffs, ledges and small secondary
+    // teeth. A smooth power curve reads as a cone at wallpaper scale.
+    if (!craggy) {
+      return [[0, 0], [.12, .14], [.28, .32], [.40, .56], [.52, 1], [.64, .62], [.80, .26], [1, 0]]
+        .map(([u, f]) => ({ u: clamp(u + (rng() - .5) * .025, 0, 1), f: clamp(f + (rng() - .5) * .07, 0, 1) }));
+    }
+    const shape = [
+      [0, 0], [.04, .16], [.12, .22], [.18, .46], [.24, .54], [.31, .70],
+      [.37, .78], [.42, .90], [.45, .98], [.50, 1], [.555, .94], [.58, .80],
+      [.615, .85], [.65, .66], [.71, .58], [.77, .38], [.84, .30], [.91, .14], [1, 0]
+    ];
+    return shape.map(([u, f]) => ({
+      u: clamp(u + (rng() - .5) * .018, 0, 1),
+      f: clamp(f + (rng() - .5) * .07, 0, 1)
+    }));
+  }
+
+  function profileAt(profile, u) {
+    if (u <= 0 || u >= 1) return 0;
+    for (let i = 1; i < profile.length; i++) {
+      if (u <= profile[i].u) {
+        const a = profile[i - 1], b = profile[i];
+        const t = (u - a.u) / Math.max(1e-6, b.u - a.u);
+        return lerp(a.f, b.f, t);
+      }
+    }
+    return 0;
+  }
+  function makePeaks(rng, layer) {
+    const peaks = [];
+    const count = 12;
+    const spacing = WORLD.w / count;
+    for (let i = 0; i < count; i++) {
+      const x = mod(i * spacing + (rng() - .5) * spacing * .72 + spacing * .5, WORLD.w);
+      const major = layer.major && (i === layer.major[0] || i === layer.major[1] || i === layer.major[2]);
+      peaks.push({
+        x,
+        h: major ? layer.majorH * (0.9 + rng() * .18) : layer.minH + rng() * (layer.maxH - layer.minH),
+        width: major ? layer.majorW * (0.9 + rng() * .16) : layer.minW + rng() * (layer.maxW - layer.minW),
+        sharp: layer.sharp + rng() * .55,
+        lean: (rng() - .5) * .16,
+        profile: makePeakProfile(rng, layer.name === 'mid'),
+        major: !!major
+      });
+    }
+    return peaks;
+  }
+
+  function ridgeAt(x, layer) {
+    let lift = 0;
+    const allPeaks = layer.extraPeaks ? layer.peaks.concat(layer.extraPeaks) : layer.peaks;
+    for (let i = 0; i < allPeaks.length; i++) {
+      const p = allPeaks[i];
+      let dx = x - p.x;
+      if (dx > WORLD.w / 2) dx -= WORLD.w;
+      if (dx < -WORLD.w / 2) dx += WORLD.w;
+      const leftW = p.width * (.92 - p.lean * 1.8);
+      const rightW = p.width * (.92 + p.lean * 1.8);
+      const half = dx < 0 ? leftW : rightW;
+      if (Math.abs(dx) < half) {
+        const u = .5 + dx / (2 * half);
+        const f = profileAt(p.profile, u);
+        lift = Math.max(lift, p.h * f);
+      }
+    }
+    // A broad, soft foot joins the teeth into one mountain rather than a
+    // row of separate cones; its height stays below the summits.
+    let mass = 0;
+    for (const p of allPeaks) {
+      if (p.h < 300) continue;
+      const d = wrapDist(x, p.x);
+      const reach = p.width * 2.15;
+      if (d >= reach) continue;
+      const t = 1 - d / reach;
+      mass = Math.max(mass, p.h * .38 * (t * t * (3 - 2 * t)));
+    }
+    lift = Math.max(lift, mass, layer.name === 'near' ? 22 : 10);
+    const wave = Math.sin(x * TAU * 13 / WORLD.w + layer.phase) * .55
+      + Math.sin(x * TAU * 23 / WORLD.w + 1.7 + layer.phase) * .28
+      + Math.sin(x * TAU * 37 / WORLD.w + 2.9) * .17;
+    const jag = 1 + wave * .07;
+    const rough = Math.min(1, lift / 360) * (layer.name === 'mid' ? 18 : 7);
+    const y = layer.base - lift * jag - (3.5 + layer.jag * 6.5) * Math.sin(x * TAU * 29 / WORLD.w + layer.phase)
+      - (1.5 + layer.jag * 2.4) * Math.sin(x * TAU * 43 / WORLD.w + 2.2)
+      - rough * (.5 + .5 * Math.sin(x * TAU * 61 / WORLD.w + 1.3))
+      - rough * .6 * (.5 + .5 * Math.sin(x * TAU * 97 / WORLD.w + 2.7));
+    return Math.max(layer.ceiling, y);
+  }
+
+  function buildRidgeSamples(layer) {
+    const step = 6;
+    const pts = [];
+    for (let x = 0; x <= WORLD.w; x += step) pts.push({ x, y: ridgeAt(x, layer) });
+    if (pts[pts.length - 1].x < WORLD.w) pts.push({ x: WORLD.w, y: ridgeAt(WORLD.w, layer) });
+    layer.ridge = pts;
+    const p = new Path2D();
+    p.moveTo(0, WORLD.h + 60);
+    for (const pt of pts) p.lineTo(pt.x, pt.y);
+    p.lineTo(WORLD.w, WORLD.h + 60);
+    p.closePath();
+    layer.path = p;
+    const line = new Path2D();
+    line.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) line.lineTo(pts[i].x, pts[i].y);
+    layer.ridgePath = line;
+
+    // Snow caps follow the summit of each peak, clipped to the silhouette later.
+    layer.snowPaths = layer.peaks.map((peak) => {
+      const summit = Math.min(...pts.filter(pt => wrapDist(pt.x, peak.x) < peak.width * .38).map(pt => pt.y));
+      const capW = Math.min(peak.width * .34, 150);
+      const capH = Math.max(8, Math.min(56, peak.h * .17));
+      const cap = new Path2D();
+      const left = peak.x - capW;
+      const right = peak.x + capW;
+      cap.moveTo(left, summit + capH * .65);
+      for (let k = 0; k <= 12; k++) {
+        const t = k / 12;
+        const x = lerp(left, right, t);
+        const edge = ridgeAt(x, layer);
+        cap.lineTo(x, edge + capH * (.48 + .22 * Math.sin(k * 2.2 + peak.x)));
+      }
+      cap.lineTo(right, summit + capH * .65);
+      cap.closePath();
+      return { path: cap, peak };
+    });
+  }
+
+  function initLayers() {
+    const rng = mulberry32(seed ^ 0x9e3779b9);
+    layers.length = 0;
+    const defs = [
+      { name: 'far', base: 604, ceiling: 236, tone: .24, alpha: .15, detail: .42, jag: .55, phase: .4,
+        count: 12, minH: 90, maxH: 235, minW: 280, maxW: 620, sharp: 1.32, major: [], majorH: 340, majorW: 580 },
+      { name: 'mid', base: 844, ceiling: 206, tone: .66, alpha: .46, detail: .9, jag: .9, phase: 2.1,
+        count: 12, minH: 75, maxH: 180, minW: 120, maxW: 250, sharp: 1.38, major: [1, 4, 7], majorH: 548, majorW: 300 },
+      { name: 'near', base: 880, ceiling: 604, tone: .86, alpha: .74, detail: .7, jag: .6, phase: 4.2,
+        count: 12, minH: 50, maxH: 160, minW: 130, maxW: 300, sharp: 1.28, major: [], majorH: 210, majorW: 260 }
+    ];
+    for (const def of defs) {
+      const layer = { ...def };
+      layer.peaks = makePeaks(rng, layer);
+      layer.extraPeaks = [];
+      // Keep three deliberate main peaks in the middle layer so the long
+      // scroll has a recurring left/right-third composition.
+      if (layer.name === 'mid') {
+        const wanted = [760, 2260, 3800];
+        wanted.forEach((x, i) => {
+          const p = layer.peaks[i * 3 + 1];
+          p.x = x + (rng() - .5) * 36;
+          p.h = 500 + rng() * 70;
+          p.width = 220 + rng() * 50;
+          p.sharp = 1.30 + rng() * .30;
+          p.major = true;
+          // Two high teeth and two lower shoulders turn the main peak into
+          // a small massif rather than a single cone.
+          for (const side of [-1, 1]) {
+            layer.extraPeaks.push({
+              x: p.x + side * p.width * (.54 + rng() * .10),
+              h: p.h * (.56 + rng() * .12),
+              width: p.width * (.32 + rng() * .10),
+              sharp: 1.10 + rng() * .28,
+              profile: makePeakProfile(rng, true),
+              lean: (rng() - .5) * .1
+            });
+            layer.extraPeaks.push({
+              x: p.x + side * p.width * (1.02 + rng() * .22),
+              h: p.h * (.34 + rng() * .16),
+              width: p.width * (.34 + rng() * .18),
+              sharp: 1.08 + rng() * .25,
+              profile: makePeakProfile(rng, true),
+              lean: (rng() - .5) * .1
+            });
+          }
+        });
+      }
+      buildRidgeSamples(layer);
+      layers.push(layer);
+    }
+  }
+
+  function drawDryStroke(g, points, width, color, alpha, rng, dash = 0) {
+    if (!points || points.length < 2) return;
+    g.save();
+    g.strokeStyle = rgba(color, alpha);
+    g.lineWidth = width;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    if (dash) g.setLineDash([dash * (0.5 + rng() * .8), dash * (.35 + rng() * .7)]);
+    g.beginPath();
+    g.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) g.lineTo(points[i].x, points[i].y);
+    g.stroke();
+    g.restore();
+  }
+
+  function segmentAlongRidge(samples, start, count) {
+    return samples.slice(start, Math.min(samples.length, start + count));
+  }
+
+  function drawMountain(g, layer, rng) {
+    const base = layer.base;
+    const grad = g.createLinearGradient(0, layer.ceiling, 0, base + 90);
+    const dark = layer.name === 'far' ? .16 : layer.name === 'mid' ? .58 : .72;
+    grad.addColorStop(0, rgba(INK, dark * .92));
+    grad.addColorStop(.42, rgba(INK, dark * .64));
+    grad.addColorStop(.78, rgba(INK, dark * .28));
+    grad.addColorStop(1, rgba(INK, dark * .07));
+    g.fillStyle = grad;
+    g.fill(layer.path);
+
+    // Wet edges and pale internal washes.
+    g.save();
+    g.clip(layer.path);
+    // Dark crest, pale foot: the classic ink value structure.
+    const crest = g.createLinearGradient(0, layer.ceiling, 0, layer.base * .78);
+    crest.addColorStop(0, rgba(INK, layer.name === 'far' ? .10 : .40));
+    crest.addColorStop(.36, rgba(INK, layer.name === 'far' ? .04 : .16));
+    crest.addColorStop(1, rgba(INK, 0));
+    g.fillStyle = crest;
+    g.fillRect(0, 0, WORLD.w, WORLD.h);
+    // Broad vertical rock faces catch the ink differently from the pale wash.
+    if (layer.name !== 'far') {
+      for (const p of layer.peaks) {
+        if (p.h < 220) continue;
+        for (let k = 0; k < 7; k++) {
+          const x = p.x + (rng() - .5) * p.width * 1.55;
+          const top = ridgeAt(x, layer) + 6;
+          const drop = p.h * (.24 + rng() * .52);
+          const w0 = 9 + rng() * 30;
+          g.beginPath();
+          g.moveTo(x - w0 * .5, top);
+          g.lineTo(x + w0 * .5, top + 3);
+          g.lineTo(x + w0 * .18 + (rng() - .5) * 12, top + drop);
+          g.lineTo(x - w0 * .55 + (rng() - .5) * 10, top + drop * .72);
+          g.closePath();
+          g.fillStyle = rgba(INK, .030 + rng() * .055);
+          g.fill();
+          g.strokeStyle = rgba(INK, .065 + rng() * .075);
+          g.lineWidth = .7 + rng() * 1.2;
+          g.stroke();
+        }
+      }
+    }
+    const washCount = Math.round((layer.name === 'mid' ? 18 : 6) * quality);
+    for (let i = 0; i < washCount; i++) {
+      const x = rng() * WORLD.w;
+      const top = ridgeAt(x, layer);
+      const y = top + Math.pow(rng(), 1.35) * Math.max(12, base - top) * .82;
+      const rx = 45 + rng() * (layer.name === 'mid' ? 180 : 80);
+      const ry = 10 + rng() * 52;
+      g.fillStyle = rgba(INK, .012 + rng() * .028);
+      g.beginPath();
+      g.ellipse(x, y, rx, ry, (rng() - .5) * .12, 0, TAU);
+      g.fill();
+    }
+
+    // Darker damp folds at the foot of the mountain.
+    const folds = layer.name === 'mid' ? 20 : 10;
+    for (let i = 0; i < folds; i++) {
+      const x = rng() * WORLD.w;
+      const top = ridgeAt(x, layer);
+      const y0 = top + (base - top) * (.42 + rng() * .4);
+      const len = 30 + rng() * 160;
+      const pts = [{ x, y: y0 }];
+      for (let k = 1; k <= 4; k++) {
+        pts.push({ x: x + Math.sin(k * .8 + i) * (5 + rng() * 9), y: y0 + len * k / 4 });
+      }
+      drawDryStroke(g, pts, 5 + rng() * 14, INK, .022 + rng() * .034, rng, 8 + rng() * 16);
+    }
+
+    // Hemp-fibre and axe-cut texture. The slope is read from the ridge so the
+    // strokes lean with the mountain instead of looking like a hatched fill.
+    const strokes = Math.round((layer.name === 'mid' ? 1120 : layer.name === 'far' ? 260 : 360) * quality);
+    for (let i = 0; i < strokes; i++) {
+      const x = rng() * WORLD.w;
+      const top = ridgeAt(x, layer);
+      const depth = Math.pow(rng(), 1.65) * (base - top) * .88;
+      const y = top + depth;
+      if (y > base - 8) continue;
+      const slope = (ridgeAt(x + 10, layer) - ridgeAt(x - 10, layer)) / 20;
+      const len = (8 + rng() * (layer.name === 'mid' ? 58 : 35)) * (0.6 + (y - top) / Math.max(1, base - top));
+      const lean = clamp(slope * len * .55, -len * .7, len * .7);
+      const pts = [
+        { x, y },
+        { x: x + lean * .35 + (rng() - .5) * 3, y: y + len * .45 },
+        { x: x + lean + (rng() - .5) * 4, y: y + len }
+      ];
+      const cunAlpha = (.030 + rng() * (.070 + layer.tone * .040)) * (i % 5 === 0 ? 2.5 : 1);
+      drawDryStroke(g, pts, .55 + rng() * (layer.name === 'mid' ? 1.9 : 1.1), INK,
+        cunAlpha, rng, 3 + rng() * 10);
+    }
+
+    // Long vertical ravines on the near and middle layers.
+    if (layer.name !== 'far') {
+      for (let i = 0; i < (layer.name === 'mid' ? 32 : 14); i++) {
+        const x = rng() * WORLD.w;
+        const top = ridgeAt(x, layer) + 10;
+        const bottom = top + 55 + rng() * 190;
+        const pts = [];
+        for (let k = 0; k <= 5; k++) {
+          pts.push({ x: x + Math.sin(k * 1.1 + i * 2) * (3 + rng() * 8), y: lerp(top, bottom, k / 5) });
+        }
+        drawDryStroke(g, pts, 1.8 + rng() * 4.5, INK, .045 + rng() * .065, rng, 6 + rng() * 13);
+      }
+    }
+
+    // Pale dry-brush lifted out of the wet ink: this is what keeps the
+    // mass from reading as a flat silhouette.
+    if (layer.name !== 'far') {
+      const lifts = Math.round((layer.name === 'mid' ? 470 : 170) * quality);
+      for (let i = 0; i < lifts; i++) {
+        const x = rng() * WORLD.w;
+        const top = ridgeAt(x, layer);
+        const depth = Math.pow(rng(), 1.5) * (base - top) * .92;
+        const y = top + depth;
+        if (y > base - 12) continue;
+        const slope = (ridgeAt(x + 12, layer) - ridgeAt(x - 12, layer)) / 24;
+        const len = 10 + rng() * 54;
+        const lean = clamp(slope * len * .6, -len * .6, len * .6);
+        drawDryStroke(g, [
+          { x, y },
+          { x: x + lean * .4 + (rng() - .5) * 3, y: y + len * .48 },
+          { x: x + lean, y: y + len }
+        ], .7 + rng() * 2.4, PAPER, (.045 + rng() * .18) * (i % 4 === 0 ? 1.7 : 1), rng, 5 + rng() * 14);
+      }
+    }
+
+    // Hatching that follows the ridge downhill reads as cun texture rather
+    // than random scratches.
+    const ridgePts = layer.ridge;
+    for (let i = 18; i < ridgePts.length - 18; i += 13) {
+      const a = ridgePts[i - 5], b = ridgePts[i], c = ridgePts[i + 5];
+      const slope = (c.y - a.y) / Math.max(1, c.x - a.x);
+      for (let k = 0; k < 3; k++) {
+        const len = (22 + rng() * (layer.name === 'mid' ? 86 : 38));
+        const x = b.x + (k - 1) * 5 + (rng() - .5) * 5;
+        const y = b.y + 5 + k * 3;
+        const lean = clamp(slope * len * .52, -len * .52, len * .52);
+        drawDryStroke(g, [
+          { x, y },
+          { x: x + lean * .38 + (rng() - .5) * 3, y: y + len * .55 },
+          { x: x + lean + (rng() - .5) * 4, y: y + len }
+        ], .8 + rng() * 1.4, INK, .035 + rng() * .07, rng, 4 + rng() * 8);
+      }
+    }
+
+    // Moss dots on shoulders and crevices.
+    const dots = Math.round((layer.name === 'mid' ? 900 : 260) * quality);
+    for (let i = 0; i < dots; i++) {
+      const x = rng() * WORLD.w;
+      const top = ridgeAt(x, layer);
+      const y = top + Math.pow(rng(), 2) * (base - top) * .5;
+      const r = .8 + rng() * (layer.name === 'mid' ? 2.3 : 1.4);
+      g.fillStyle = rgba(INK, .05 + rng() * .12);
+      g.beginPath();
+      g.ellipse(x, y, r * (1 + rng() * 1.2), r, 0, 0, TAU);
+      g.fill();
+    }
+    g.restore();
+
+    // A darker ridge and a lifted paper edge make the crest readable even
+    // when the interior wash is pale.
+    if (layer.name !== 'far') {
+      g.strokeStyle = rgba(INK, .62);
+      g.lineWidth = 1.4;
+      g.stroke(layer.ridgePath);
+      g.save();
+      g.translate(0, 2.4);
+      g.strokeStyle = rgba(PAPER, .34);
+      g.lineWidth = 1.05;
+      g.stroke(layer.ridgePath);
+      g.restore();
+    }
+
+    // Contour line: several discontinuous passes, darker on the lit ridge.
+    const stepCount = layer.ridge.length;
+    for (let pass = 0; pass < 2; pass++) {
+      const offset = pass ? 1.2 : 0;
+      for (let i = 2; i < stepCount - 2; i += 34) {
+        if (rng() < .24) continue;
+        const seg = layer.ridge.slice(i, Math.min(stepCount, i + 24 + Math.floor(rng() * 26)));
+        if (seg.length < 2) continue;
+        drawDryStroke(g, seg.map(p => ({ x: p.x, y: p.y + offset })), pass ? .7 : 1.25 + layer.tone,
+          INK, pass ? .10 + rng() * .14 : .22 + layer.tone * .18, rng, 5 + rng() * 8);
+      }
+    }
+  }
+
+  function drawPine(g, x, y, size, rng, alpha = .6) {
+    const ink = rgba(INK, alpha);
+    g.save();
+    g.translate(x, y);
+    g.strokeStyle = ink;
+    g.fillStyle = ink;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    if (size < 16) {
+      // At this scale a trunk-and-needles pine collapses into a matchstick.
+      // A small tiered silhouette reads as a tree instead.
+      g.fillStyle = rgba(INK, alpha * .86);
+      const w = size * .38;
+      g.beginPath();
+      g.moveTo(0, 0);
+      g.lineTo(-w * .55, -size * .28);
+      g.lineTo(-w * .28, -size * .27);
+      g.lineTo(-w, -size * .62);
+      g.lineTo(-w * .42, -size * .60);
+      g.lineTo(0, -size);
+      g.lineTo(w * .42, -size * .60);
+      g.lineTo(w, -size * .62);
+      g.lineTo(w * .28, -size * .27);
+      g.lineTo(w * .55, -size * .28);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = rgba(INK, alpha);
+      g.lineWidth = .7;
+      g.beginPath(); g.moveTo(0, 1); g.lineTo(0, -size * .2); g.stroke();
+      g.restore();
+      return;
+    }
+    const s = size / 30;
+    g.lineWidth = Math.max(.6, 1.4 * s);
+    // Crooked trunk.
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.quadraticCurveTo(-2.5 * s, -9 * s, 1.5 * s, -18 * s);
+    g.quadraticCurveTo(4 * s, -24 * s, 2 * s, -31 * s);
+    g.stroke();
+    // Five uneven boughs.
+    for (let b = 0; b < 5; b++) {
+      const by = -10 * s - b * 4.2 * s;
+      const dir = b % 2 ? 1 : -1;
+      const len = (10 + rng() * 11) * s * (1 - b * .08);
+      g.lineWidth = Math.max(.5, 1.05 * s);
+      g.beginPath();
+      g.moveTo(1 * s, by);
+      g.quadraticCurveTo(dir * len * .45, by - 2.2 * s, dir * len, by - (1 + rng() * 2.5) * s);
+      g.stroke();
+      // Needle fans: short radial strokes, not fuzzy blobs.
+      const n = 9;
+      for (let k = 0; k < n; k++) {
+        const a = -Math.PI * .95 + k / (n - 1) * Math.PI * .9 + (rng() - .5) * .12;
+        const cx = dir * len * (.44 + .56 * k / n);
+        const cy = by - 2 * s;
+        const rr = (4.5 + rng() * 4.5) * s;
+        g.lineWidth = Math.max(.4, .65 * s);
+        g.beginPath();
+        g.moveTo(cx, cy);
+        g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr - 1.5 * s);
+        g.stroke();
+      }
+    }
+    g.restore();
+  }
+
+  function drawFarTrees(g, rng) {
+    const mid = layers[1];
+    let placed = 0;
+    for (let i = 0; i < 44 && placed < 24; i++) {
+      const x = rng() * WORLD.w;
+      const y = ridgeAt(x, mid);
+      if (y > mid.base - 24 || y < mid.ceiling + 8) continue;
+      if (rng() < .3) {
+        drawPine(g, x, y + 2, 10 + rng() * 12, rng, .28 + rng() * .20);
+        placed++;
+      }
+    }
+    // A denser pine stand on the main massif gives the peak a sense of scale.
+    for (let i = 0; i < 22; i++) {
+      const x = 2050 + (rng() - .5) * 260 + (i > 11 ? 420 : 0);
+      const y = ridgeAt(x, mid);
+      if (y < mid.base - 45) drawPine(g, x, y + 3, 17 + rng() * 18, rng, .42 + rng() * .18);
+    }
+    // Two groups of dark pines on the near shoulders.
+    for (let i = 0; i < 12; i++) {
+      const x = (i < 6 ? 650 : 3660) + (rng() - .5) * 220;
+      const y = ridgeAt(x, mid);
+      if (y < mid.base - 35) drawPine(g, x, y + 3, 15 + rng() * 14, rng, .36 + rng() * .20);
+    }
+  }
+
+  function drawTemple(g, x, y, s, rng) {
+    g.save();
+    g.translate(x, y);
+    g.strokeStyle = rgba(INK, .64);
+    g.fillStyle = rgba(INK, .46);
+    g.lineWidth = Math.max(.7, 1.1 * s);
+    g.lineCap = 'square';
+    // Platform, retaining wall and a few cliff strokes that root the
+    // pavilion in the rock instead of letting it float.
+    g.beginPath();
+    g.moveTo(-18 * s, 2 * s); g.lineTo(22 * s, 0); g.lineTo(22 * s, 6 * s); g.lineTo(-18 * s, 8 * s); g.closePath();
+    g.fill();
+    g.strokeStyle = rgba(INK, .34);
+    g.lineWidth = .8;
+    for (let i = 0; i < 7; i++) {
+      const xx = (-16 + i * 5.2) * s;
+      g.beginPath();
+      g.moveTo(xx, 7 * s);
+      g.quadraticCurveTo(xx - 2 * s, 20 * s, xx + (rng() - .5) * 8 * s, (30 + rng() * 22) * s);
+      g.stroke();
+    }
+    // A small hall, one storey.
+    g.fillStyle = rgba(INK, .38);
+    g.fillRect(-13 * s, -14 * s, 17 * s, 15 * s);
+    g.beginPath();
+    g.moveTo(-17 * s, -14 * s); g.lineTo(-4 * s, -21 * s); g.lineTo(10 * s, -15 * s); g.closePath();
+    g.fill();
+    for (let i = -10; i <= 1; i += 4) {
+      g.strokeStyle = rgba(PAPER, .7); g.lineWidth = Math.max(.4, .55 * s);
+      g.beginPath(); g.moveTo(i * s, -9 * s); g.lineTo(i * s, 0); g.stroke();
+    }
+    // Three-tier pagoda.
+    g.strokeStyle = rgba(INK, .7);
+    g.lineWidth = Math.max(.6, 1 * s);
+    for (let i = 0; i < 3; i++) {
+      const yy = -12 * s - i * 10 * s;
+      const ww = (10 - i * 2.1) * s;
+      g.beginPath(); g.moveTo(10 * s - ww, yy); g.lineTo(10 * s + ww, yy); g.stroke();
+      g.beginPath(); g.moveTo(10 * s - ww * .52, yy); g.lineTo(10 * s - ww * .52, yy - 7 * s); g.stroke();
+      g.beginPath(); g.moveTo(10 * s + ww * .52, yy); g.lineTo(10 * s + ww * .52, yy - 7 * s); g.stroke();
+      g.beginPath(); g.moveTo(10 * s - ww * .8, yy - 7 * s); g.lineTo(10 * s + ww * .8, yy - 7 * s); g.stroke();
+    }
+    g.restore();
+  }
+
+  let waterfall = { x: 3530, top: 500, bottom: 805, width: 14 };
+  function chooseWaterfall() {
+    const mid = layers[1];
+    let best = { x: 2400, y: 566, score: Infinity };
+    for (let x = 2420; x < 2540; x += 5) {
+      const y = ridgeAt(x, mid);
+      if (y > 430 && y < 560) {
+        const score = Math.abs(x - 2475) + Math.abs(y - 475) * 1.6;
+        if (score < best.score) best = { x, y, score };
+      }
+    }
+    const drop = 230 + hash1(seed + best.x) * 70;
+    waterfall = { x: best.x, top: best.y + 4, bottom: best.y + drop, width: 11 + hash1(best.x) * 6 };
+  }
+
+  function cutWaterfall(g) {
+    g.save();
+    g.globalCompositeOperation = 'destination-out';
+    const { x, top, bottom, width } = waterfall;
+    g.beginPath();
+    g.moveTo(x - width * .34, top);
+    g.bezierCurveTo(x - width * .7, top + 60, x - width * .18, top + 130, x - width * .5, bottom);
+    g.lineTo(x + width * .52, bottom);
+    g.bezierCurveTo(x + width * .36, bottom - 80, x + width * .66, top + 80, x + width * .3, top);
+    g.closePath();
+    g.fill();
+    g.globalCompositeOperation = 'source-over';
+    // Dark, wet rock on both sides of the channel.
+    g.strokeStyle = rgba(INK, .35);
+    g.lineWidth = 2.2;
+    g.beginPath();
+    g.moveTo(x - width * .55, top + 8);
+    g.bezierCurveTo(x - width * .95, top + 85, x - width * .35, bottom - 80, x - width * .68, bottom);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(x + width * .56, top + 10);
+    g.bezierCurveTo(x + width * .92, top + 75, x + width * .48, bottom - 70, x + width * .72, bottom);
+    g.stroke();
+    g.restore();
+  }
+
+  function buildBackground() {
+    bgCanvas.width = WORLD.w;
+    bgCanvas.height = WORLD.h;
+    bg.clearRect(0, 0, WORLD.w, WORLD.h);
+    bg.lineCap = 'round';
+    bg.lineJoin = 'round';
+    const rng = mulberry32(seed ^ 0x51ed270b);
+    const far = layers[0], mid = layers[1], near = layers[2];
+    drawMountain(bg, far, rng);
+    // Far tree dots sit right on the far ridge.
+    for (let i = 0; i < 90; i++) {
+      const x = rng() * WORLD.w;
+      const y = ridgeAt(x, far);
+      if (y < far.base - 14) {
+        bg.fillStyle = rgba(INK, .06 + rng() * .08);
+        bg.fillRect(x, y - 1, .8 + rng() * 1.5, 1.5 + rng() * 2.5);
+      }
+    }
+    drawMountain(bg, mid, rng);
+    drawFarTrees(bg, rng);
+    ridgeGroves.length = 0;
+    for (let i = 0; i < 64; i++) {
+      const x = rng() * WORLD.w;
+      const y = ridgeAt(x, mid);
+      if (y > mid.base - 80 || y < mid.ceiling + 20) continue;
+      ridgeGroves.push({ x, y: y + 2, size: 5 + rng() * 12, phase: rng() * TAU, n: 7 + Math.floor(rng() * 10) });
+    }
+    const templeX = 2120;
+    drawTemple(bg, templeX, ridgeAt(templeX, mid) + 3, 1.75, rng);
+    chooseWaterfall();
+    drawMountain(bg, near, rng);
+    // Reeds and tiny shrubs along the near ridge; the larger ones are live.
+    for (let i = 0; i < 90; i++) {
+      const x = rng() * WORLD.w;
+      const y = ridgeAt(x, near);
+      if (y > near.base - 8) continue;
+      bg.strokeStyle = rgba(INK, .15 + rng() * .15);
+      bg.lineWidth = .55 + rng() * .5;
+      bg.beginPath(); bg.moveTo(x, y); bg.lineTo(x + (rng() - .5) * 3, y - 4 - rng() * 11); bg.stroke();
+    }
+    bgReady = true;
+  }
+
+  // Foreground bank is cached separately so water and ripples can slip in
+  // front of the land without re-drawing a thousand rock strokes per frame.
+  const ridgeGroves = [];
+  const reeds = [];
+  const bankGrass = [];
+  const accentTrees = [];
+  function buildForeground() {
+    fgCanvas.width = WORLD.w;
+    fgCanvas.height = 520;
+    fg.clearRect(0, 0, WORLD.w, 520);
+    fg.lineCap = 'round';
+    fg.lineJoin = 'round';
+    const rng = mulberry32(seed ^ 0x2f6e2b1d);
+    const top = 282;
+    const bank = new Path2D();
+    bank.moveTo(0, 520);
+    bank.lineTo(0, 420);
+    for (let x = 0; x <= WORLD.w; x += 8) {
+      const yy = top + Math.sin(x * TAU * 7 / WORLD.w + .5) * 15
+        + Math.sin(x * TAU * 17 / WORLD.w + 1.4) * 7.5
+        + Math.sin(x * TAU * 31 / WORLD.w + 2.7) * 3
+        - 40 * Math.exp(-Math.pow((x - 660) / 150, 2))
+        - 27 * Math.exp(-Math.pow((x - 3180) / 190, 2))
+        - 20 * smoothstep(4080, 4320, x)
+        + 12 * Math.exp(-Math.pow((x - 2360) / 280, 2));
+      bank.lineTo(x, yy);
+    }
+    bank.lineTo(WORLD.w, 520);
+    bank.closePath();
+    const grad = fg.createLinearGradient(0, top, 0, 520);
+    grad.addColorStop(0, rgba(INK, .86));
+    grad.addColorStop(.30, rgba(INK, .72));
+    grad.addColorStop(1, rgba(INK, .92));
+    fg.fillStyle = grad;
+    fg.fill(bank);
+    fg.save();
+    fg.clip(bank);
+    // Rock faces: angular wet-ink planes.
+    for (let i = 0; i < 24; i++) {
+      const x = rng() * WORLD.w;
+      const y = top + 18 + rng() * 190;
+      const rw = 18 + rng() * 85;
+      const rh = 13 + rng() * 58;
+      fg.beginPath();
+      fg.moveTo(x - rw, y + rh * .25);
+      fg.lineTo(x - rw * .45, y - rh * .62);
+      fg.lineTo(x + rw * .35, y - rh * .35);
+      fg.lineTo(x + rw, y + rh * .22);
+      fg.lineTo(x + rw * .15, y + rh * .65);
+      fg.closePath();
+      fg.fillStyle = rgba(INK, .05 + rng() * .1);
+      fg.fill();
+      fg.strokeStyle = rgba(INK, .22 + rng() * .18);
+      fg.lineWidth = .7 + rng() * 1.4;
+      fg.stroke();
+    }
+    // Vertical fissures and pale dry-brush edges.
+    for (let i = 0; i < 150; i++) {
+      const x = rng() * WORLD.w;
+      const y = top + rng() * 210;
+      const len = 3 + rng() * 22;
+      fg.strokeStyle = rgba(PAPER, .04 + rng() * .10);
+      fg.lineWidth = .5 + rng() * 1.2;
+      fg.beginPath();
+      fg.moveTo(x, y);
+      fg.quadraticCurveTo(x + (rng() - .5) * 8, y + len * .5, x + (rng() - .5) * 11, y + len);
+      fg.stroke();
+    }
+    // Moss and dark pebbles.
+    for (let i = 0; i < 320; i++) {
+      const x = rng() * WORLD.w;
+      const y = top + rng() * 240;
+      fg.fillStyle = rgba(INK, .15 + rng() * .32);
+      fg.beginPath();
+      fg.ellipse(x, y, .6 + rng() * 2.4, .5 + rng() * 1.2, rng() * 2, 0, TAU);
+      fg.fill();
+    }
+    fg.restore();
+
+    // Big boulders that break the bank silhouette.
+    for (const bx of [520, 1680, 3120, 4130]) {
+      const by = top + 14 + hash1(bx) * 10;
+      const s = 24 + hash1(bx + 9) * 34;
+      fg.fillStyle = rgba(INK, .78);
+      fg.beginPath();
+      fg.moveTo(bx - s * 1.5, by + s * .7);
+      fg.quadraticCurveTo(bx - s * 1.2, by - s * .8, bx - s * .2, by - s);
+      fg.quadraticCurveTo(bx + s * .9, by - s * .85, bx + s * 1.25, by + s * .2);
+      fg.quadraticCurveTo(bx + s * .7, by + s * .8, bx - s * 1.5, by + s * .7);
+      fg.fill();
+      fg.strokeStyle = rgba(INK, .5);
+      fg.lineWidth = 1;
+      fg.stroke();
+      fg.strokeStyle = rgba(PAPER, .16);
+      fg.lineWidth = .8;
+      fg.beginPath();
+      fg.moveTo(bx - s * .7, by - s * .6);
+      fg.quadraticCurveTo(bx - s * .2, by - s * .9, bx + s * .45, by - s * .5);
+      fg.stroke();
+    }
+
+    reeds.length = 0;
+    for (let i = 0; i < 76; i++) {
+      const x = rng() * WORLD.w;
+      const ground = 284 + Math.sin(x * TAU * 7 / WORLD.w + .5) * 15 + Math.sin(x * TAU * 17 / WORLD.w + 1.4) * 7.5;
+      reeds.push({
+        x, y: ground, n: 4 + Math.floor(rng() * 7), height: 28 + rng() * 44,
+        phase: rng() * TAU, width: .55 + rng() * .7
+      });
+    }
+    bankGrass.length = 0;
+    for (let i = 0; i < 160; i++) {
+      const x = rng() * WORLD.w;
+      const gy = 284 + Math.sin(x * TAU * 7 / WORLD.w + .5) * 15 + Math.sin(x * TAU * 17 / WORLD.w + 1.4) * 7.5;
+      bankGrass.push({ x, y: gy, h: 5 + rng() * 16, phase: rng() * TAU, blades: 3 + Math.floor(rng() * 3) });
+    }
+    accentTrees.length = 0;
+    for (const x of [880, 1450, 2740, 3350, 3920, 4520]) {
+      accentTrees.push({
+        x, y: 292 + Math.sin(x * TAU * 7 / WORLD.w + .5) * 15,
+        h: 76 + hash1(x) * 62, phase: hash1(x + 2) * TAU
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- 4. paper
+  function buildPaper() {
+    const tile = document.createElement('canvas');
+    tile.width = 768; tile.height = 768;
+    const g = tile.getContext('2d');
+    const rng = mulberry32(seed ^ 0x7a11ce);
+    g.clearRect(0, 0, 768, 768);
+    for (let i = 0; i < 2600; i++) {
+      const x = rng() * 768, y = rng() * 768;
+      const len = 2 + rng() * 24;
+      const a = rng() * .45;
+      g.strokeStyle = rng() > .55 ? `rgba(97,79,55,${.018 + rng() * .028})` : `rgba(255,250,235,${.035 + rng() * .05})`;
+      g.lineWidth = .45 + rng() * .7;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.quadraticCurveTo(x + Math.cos(a) * len * .5, y + Math.sin(a) * len * .5, x + Math.cos(a) * len, y + Math.sin(a) * len);
+      g.stroke();
+    }
+    for (let i = 0; i < 650; i++) {
+      g.fillStyle = `rgba(75,61,42,${.012 + rng() * .03})`;
+      g.beginPath();
+      g.arc(rng() * 768, rng() * 768, .35 + rng() * 1.3, 0, TAU);
+      g.fill();
+    }
+    // A few long fibres give the paper a direction.
+    for (let i = 0; i < 40; i++) {
+      const y = rng() * 768;
+      g.strokeStyle = `rgba(255,250,238,${.04 + rng() * .05})`;
+      g.lineWidth = .5;
+      g.beginPath();
+      g.moveTo(0, y);
+      g.bezierCurveTo(180, y + rng() * 6, 500, y - rng() * 6, 768, y);
+      g.stroke();
+    }
+    paperPattern = ctx.createPattern(tile, 'repeat');
+  }
+
+  // ---------------------------------------------------------------- 5. season / weather
+  function seasonWeights(t) {
+    const phase = mod(t, SEASON_PERIOD);
+    const weights = [0, 0, 0, 0];
+    let sum = 0;
+    for (let i = 0; i < 4; i++) {
+      let d = Math.abs(phase - (i * SEASON_LENGTH + 180));
+      d = Math.min(d, SEASON_PERIOD - d);
+      const w = Math.exp(-0.5 * Math.pow(d / 72, 2));
+      weights[i] = w; sum += w;
+    }
+    for (let i = 0; i < 4; i++) weights[i] /= sum;
+    return weights;
+  }
+  function seasonIndexAt(t) { return Math.floor(mod(t, SEASON_PERIOD) / SEASON_LENGTH) % 4; }
+  function daylightAt(t) {
+    const p = mod(t, SEASON_PERIOD);
+    if (p < 60) return lerp(.42, 1, smoothstep(0, 60, p));
+    if (p < 840) return 1;
+    if (p < 960) return lerp(1, .10, smoothstep(840, 960, p));
+    if (p < 1350) return .10;
+    return lerp(.10, .42, smoothstep(1350, 1440, p));
+  }
+  function mix4(weights, colors) {
+    let out = [0, 0, 0];
+    for (let i = 0; i < 4; i++) {
+      const c = rgb(colors[i]);
+      for (let k = 0; k < 3; k++) out[k] += c[k] * weights[i];
+    }
+    return '#' + out.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+  }
+
+  let weatherSchedule = [];
+  function buildWeatherSchedule() {
+    const rng = mulberry32(seed ^ 0x4c2f8a1b);
+    const out = [];
+    let cursor = 0;
+    const choices = [
+      ['clear', 'mist', 'rain'],
+      ['clear', 'rain', 'mist'],
+      ['clear', 'mist', 'clear'],
+      ['clear', 'snow', 'snow']
+    ];
+    let guard = 0;
+    while (cursor < SEASON_PERIOD && guard++ < 40) {
+      const season = Math.floor((cursor + 20) / SEASON_LENGTH) % 4;
+      const pool = choices[season];
+      const type = pool[Math.floor(rng() * pool.length)];
+      let length = 90 + rng() * 95;
+      if (cursor + length > SEASON_PERIOD) length = SEASON_PERIOD - cursor;
+      if (length < 90 && out.length) {
+        out[out.length - 1].end = SEASON_PERIOD;
+        cursor = SEASON_PERIOD;
+        break;
+      }
+      out.push({ start: cursor, end: cursor + length, type });
+      cursor += length;
+    }
+    if (!out.length) out.push({ start: 0, end: SEASON_PERIOD, type: 'clear' });
+    weatherSchedule = out;
+  }
+
+  function weatherWeights(t) {
+    if (forcedWeather) {
+      const w = [0, 0, 0, 0];
+      w[WEATHERS.indexOf(forcedWeather)] = 1;
+      return w;
+    }
+    const p = mod(t, SEASON_PERIOD);
+    const w = [0, 0, 0, 0];
+    let seg = weatherSchedule[0];
+    let idx = 0;
+    for (let i = 0; i < weatherSchedule.length; i++) {
+      if (p >= weatherSchedule[i].start && p < weatherSchedule[i].end) { seg = weatherSchedule[i]; idx = i; break; }
+    }
+    const index = WEATHERS.indexOf(seg.type);
+    w[index] = 1;
+    // 12s crossfade at the tail of each segment.
+    const remain = seg.end - p;
+    if (remain < 12) {
+      const next = weatherSchedule[(idx + 1) % weatherSchedule.length];
+      const nextIndex = WEATHERS.indexOf(next.type);
+      const k = smoothstep(0, 12, 12 - remain);
+      w[index] = 1 - k;
+      w[nextIndex] += k;
+    }
+    return w;
+  }
+
+  function weatherName() {
+    const ww = weatherWeights(clock);
+    let best = 0;
+    for (let i = 1; i < 4; i++) if (ww[i] > ww[best]) best = i;
+    return WEATHERS[best];
+  }
+
+  function seasonState(t) {
+    const weights = seasonWeights(t);
+    const idx = seasonIndexAt(t);
+    const daylight = daylightAt(t);
+    const seasonColor = mix4(weights, SEASON_COLORS);
+    const snow = clamp(weights[3] * (.55 + weatherWeights(t)[3] * .65) + weatherWeights(t)[3] * .12, 0, 1);
+    const foliage = mix4(weights, ['#8eaa78', '#5e866b', '#b0703b', '#8d9297']);
+    return { weights, idx, daylight, night: 1 - daylight, seasonColor, snow, foliage };
+  }
+
+  function paletteAt(t) {
+    const st = seasonState(t);
+    const day = st.daylight;
+    const season = st.seasonColor;
+    const paper = mix(mix(NIGHT_PAPER, PAPER, day), season, .055 + .025 * day);
+    const skyTop = mix(mix(paper, '#c8c3b4', .16 * st.night), season, .055);
+    const skyBottom = mix(paper, season, .11 + .06 * st.night);
+    const waterTint = mix(season, '#647273', .44);
+    const waterTop = mix(paper, waterTint, .18 + .07 * day);
+    const waterBottom = mix(paper, mix('#596466', waterTint, .28), .26 + .18 * st.night);
+    const ink = mix(INK, NIGHT_INK, .20 * st.night);
+    return { ...st, paper, skyTop, skyBottom, waterTop, waterBottom, ink };
+  }
+
+  // ---------------------------------------------------------------- 6. camera / layout
+  let timeShift = 0;
+  let viewCenterX = 0, viewCenterY = 0, viewWorldW = 1, viewWorldH = 1;
+
+  function landscapeStart() {
+    const nominal = w / (h / WORLD.h);
+    return mod(2260 - nominal * .62, WORLD.w);
+  }
+
+  function updateCamera() {
+    portrait = h > w * 1.12;
+    if (portrait) {
+      scale = Math.min(w / 500, h / 1050);
+      const viewW = w / scale;
+      const viewH = h / scale;
+      const anchor = 2260;
+      camX = anchor - viewW * .5;
+      const maxY = Math.max(0, WORLD.h - viewH);
+      camY = Math.min(maxY, 68 + 76 * (.5 - .5 * Math.cos(TAU * mod(clock, 480) / 480)));
+      zoom = 1;
+      viewWorldW = viewW;
+      viewWorldH = viewH;
+    } else {
+      scale = h / WORLD.h;
+      viewWorldW = w / scale;
+      viewWorldH = h / scale;
+      camX = mod(landscapeStart() + SCROLL_SPEED * clock + seed * .013, WORLD.w);
+      camY = 0;
+      zoom = 1 + .022 * Math.sin(TAU * clock / 300);
+    }
+    viewCenterX = camX + viewWorldW * .5;
+    viewCenterY = camY + viewWorldH * .5;
+    const halfW = viewWorldW / (2 * zoom);
+    const halfH = viewWorldH / (2 * zoom);
+    viewLeft = viewCenterX - halfW;
+    viewRight = viewCenterX + halfW;
+    viewTop = Math.max(0, viewCenterY - halfH);
+    viewBottom = Math.min(WORLD.h, viewCenterY + halfH);
+  }
+
+  function screenToWorld(x, y) {
+    const s = scale * zoom;
+    return {
+      x: viewCenterX + (x - w * .5) / s,
+      y: viewCenterY + (y - h * .5) / s
+    };
+  }
+
+  // ---------------------------------------------------------------- 7. drawing helpers
+  function paperBase(palette) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = palette.paper;
+    ctx.fillRect(0, 0, w, h);
+    if (paperPattern) {
+      ctx.save();
+      ctx.globalAlpha = .58;
+      ctx.fillStyle = paperPattern;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+    const wash = ctx.createLinearGradient(0, 0, w, h);
+    wash.addColorStop(0, rgba('#fff8e7', .055 + .02 * palette.daylight));
+    wash.addColorStop(.48, rgba('#8a7658', .012));
+    wash.addColorStop(1, rgba('#594a37', .035 + .025 * palette.night));
+    ctx.fillStyle = wash;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  function drawSky(palette) {
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, palette.skyTop);
+    sky.addColorStop(.42, palette.paper);
+    sky.addColorStop(.78, palette.skyBottom);
+    sky.addColorStop(1, palette.waterBottom);
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+
+    if (palette.night > .58) {
+      const alpha = (palette.night - .58) / .42 * (.28 + .24 * palette.weights[3]);
+      for (let i = 0; i < 76; i++) {
+        const x = hash2(i, 11) * w;
+        const y = hash2(i, 19) * h * .52;
+        const r = .35 + hash2(i, 23) * .85;
+        ctx.fillStyle = rgba('#f6efdc', alpha * (.35 + hash2(i, 29) * .65));
+        ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+      }
+    }
+
+    const p = mod(clock, SEASON_PERIOD);
+    if (palette.daylight > .28) {
+      const arc = clamp(p / 840, 0, 1);
+      const x = w * (.16 + arc * .58);
+      const y = h * (.30 - Math.sin(arc * Math.PI) * .16);
+      const r = Math.min(w, h) * .042;
+      ctx.fillStyle = rgba('#f7eed7', .22 + .22 * palette.daylight);
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = rgba('#9f7f53', .10 + .06 * palette.daylight);
+      ctx.lineWidth = .8;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+    } else {
+      const x = w * .722, y = h * .19;
+      const r = Math.min(w, h) * .032;
+      ctx.fillStyle = rgba('#f4eedf', .72);
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = rgba('#5e625e', .17);
+      ctx.lineWidth = .9;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = rgba('#7c7d77', .12);
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 2.1, y + r * .32);
+      ctx.bezierCurveTo(x - r * .8, y + r * .1, x + r * .6, y + r * .5, x + r * 2.4, y + r * .15);
+      ctx.stroke();
+    }
+  }
+
+  function applyWorld() {
+    ctx.save();
+    ctx.translate(w * .5, h * .5);
+    ctx.scale(scale * zoom, scale * zoom);
+    ctx.translate(-viewCenterX, -viewCenterY);
+  }
+
+  function drawWorldImage(image, offsetY = 0) {
+    for (let k = -1; k <= 1; k++) {
+      const x = k * WORLD.w;
+      if (x + WORLD.w < viewLeft - 40 || x > viewRight + 40) continue;
+      ctx.drawImage(image, x, offsetY);
+    }
+  }
+
+  function drawSeasonTint(palette) {
+    const tint = mix(palette.seasonColor, '#8a6a48', .22);
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = .070 + .035 * palette.daylight;
+    ctx.fillStyle = tint;
+    for (const copy of [0, WORLD.w]) {
+      ctx.save();
+      ctx.translate(copy, 0);
+      for (const layer of layers) {
+        ctx.save();
+        ctx.clip(layer.path);
+        ctx.fillRect(viewLeft - copy - 20, 0, viewRight - viewLeft + 40, WORLD.h);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function drawSnowCaps(palette) {
+    if (palette.snow < .02) return;
+    ctx.save();
+    ctx.globalAlpha = .34 + palette.snow * .52;
+    ctx.fillStyle = mix(palette.paper, '#fbf8ee', .42);
+    ctx.strokeStyle = rgba('#6f7474', .18);
+    ctx.lineWidth = .8;
+    for (const copy of [0, WORLD.w]) {
+      ctx.save();
+      ctx.translate(copy, 0);
+      for (const layer of layers) {
+        ctx.save();
+        ctx.clip(layer.path);
+        for (const cap of layer.snowPaths) {
+          ctx.fill(cap.path);
+          ctx.stroke(cap.path);
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function drawWaterfall(palette) {
+    for (const copy of [0, WORLD.w]) {
+      ctx.save();
+      ctx.translate(copy, 0);
+      drawWaterfallLayer(palette);
+      ctx.restore();
+    }
+  }
+
+  function drawWaterfallLayer(palette) {
+    const { x, top, bottom, width } = waterfall;
+    const snow = palette.snow;
+    const paper = mix(palette.paper, '#f8f4e9', .28);
+    ctx.save();
+    const grad = ctx.createLinearGradient(0, top, 0, bottom);
+    grad.addColorStop(0, rgba(paper, .18 + .14 * (1 - snow)));
+    grad.addColorStop(.18, rgba(paper, .52));
+    grad.addColorStop(.55, rgba(paper, .42));
+    grad.addColorStop(1, rgba(mix(palette.paper, palette.waterTop, .68), .22));
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(x - width * .34, top);
+    ctx.bezierCurveTo(x - width * .65, top + 60, x - width * .16, top + 135, x - width * .48, bottom);
+    ctx.lineTo(x + width * .55, bottom);
+    ctx.bezierCurveTo(x + width * .34, bottom - 70, x + width * .64, top + 85, x + width * .31, top);
+    ctx.closePath();
+    ctx.fill();
+
+    // Wet rock lips and side walls keep the white water inside the mountain.
+    ctx.strokeStyle = rgba(palette.ink, .34);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(x - width * .55, top + 2);
+    ctx.bezierCurveTo(x - width * .82, top + 60, x - width * .35, bottom - 80, x - width * .62, bottom);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + width * .55, top + 2);
+    ctx.bezierCurveTo(x + width * .82, top + 65, x + width * .42, bottom - 80, x + width * .68, bottom);
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      const side = i % 2 ? 1 : -1;
+      ctx.fillStyle = rgba(palette.ink, .18 + i * .04);
+      ctx.beginPath();
+      ctx.ellipse(x + side * width * (.8 + i * .2), top + 4 + i * 7, 5 + i * 2, 2.2, side * .2, 0, TAU);
+      ctx.fill();
+    }
+    // Small stepped pools catch the falling water.
+    for (let i = 1; i <= 2; i++) {
+      const py = top + (bottom - top) * (i / 3);
+      ctx.strokeStyle = rgba(paper, .32);
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(x - width * .7, py);
+      ctx.quadraticCurveTo(x, py + 3, x + width * .7, py);
+      ctx.stroke();
+      ctx.strokeStyle = rgba(palette.ink, .12);
+      ctx.beginPath();
+      ctx.moveTo(x - width * .45, py + 2);
+      ctx.quadraticCurveTo(x, py + 5, x + width * .5, py + 2);
+      ctx.stroke();
+    }
+
+    ctx.lineCap = 'round';
+    const strands = 5;
+    for (let i = 0; i < strands; i++) {
+      const xx = x + (i / (strands - 1) - .5) * width * .75 + Math.sin(clock * .8 + i * 2) * 1.2;
+      const y0 = top + 18 + mod(clock * (22 + i * 4) + i * 41, 150);
+      const len = 22 + (i % 3) * 12;
+      ctx.strokeStyle = rgba('#ffffff', .20 + .12 * (1 - snow));
+      ctx.lineWidth = .65 + (i % 2) * .5;
+      ctx.beginPath();
+      ctx.moveTo(xx, y0);
+      ctx.quadraticCurveTo(xx - 2, y0 + len * .5, xx + 1, Math.min(bottom - 5, y0 + len));
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = rgba(paper, .20 + .10 * (1 - snow));
+    ctx.beginPath();
+    ctx.ellipse(x, bottom + 5, width * 2.2, 5 + snow * 2, 0, 0, TAU);
+    ctx.fill();
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeStyle = rgba(paper, .12);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(x + Math.sin(clock * .3 + i) * 5, bottom + 4, 16 + i * 18, 3 + i * 2, 0, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawWater(palette) {
+    const horizon = WORLD.water;
+    const grad = ctx.createLinearGradient(0, horizon, 0, WORLD.h);
+    grad.addColorStop(0, palette.waterTop);
+    grad.addColorStop(.42, mix(palette.waterTop, palette.waterBottom, .42));
+    grad.addColorStop(1, palette.waterBottom);
+    ctx.fillStyle = grad;
+    ctx.fillRect(viewLeft - 80, horizon, viewRight - viewLeft + 160, WORLD.h - horizon + 20);
+    ctx.strokeStyle = rgba(palette.ink, .10);
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(viewLeft - 20, horizon + .5);
+    ctx.lineTo(viewRight + 20, horizon + .5);
+    ctx.stroke();
+    // A pale band just below the far bank separates water from air.
+    const hz = ctx.createLinearGradient(0, horizon, 0, horizon + 55);
+    hz.addColorStop(0, rgba(palette.paper, .18));
+    hz.addColorStop(1, rgba(palette.paper, 0));
+    ctx.fillStyle = hz;
+    ctx.fillRect(viewLeft - 20, horizon, viewRight - viewLeft + 40, 55);
+
+    // A few vertical, broken strokes under the peaks stand in for a
+    // reflection; the river is paper, not a mirror.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(viewLeft - 20, horizon, viewRight - viewLeft + 40, 210);
+    ctx.clip();
+    for (let i = 0; i < 26; i++) {
+      const x = viewLeft + hash2(i, 167) * (viewRight - viewLeft);
+      const y = horizon + 8 + hash2(i, 173) * 150;
+      ctx.strokeStyle = rgba(palette.ink, .018 + hash2(i, 179) * .026);
+      ctx.lineWidth = 1.4 + hash2(i, 181) * 3.4;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + Math.sin(clock * .2 + i) * 5, y + 30, x + Math.sin(clock * .13 + i) * 9, y + 72);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    const count = Math.round(96 * quality);
+    for (let i = 0; i < count; i++) {
+      const yy = horizon + Math.pow(hash2(i, 5), 1.55) * (WORLD.h - horizon - 6);
+      const len = 24 + hash2(i, 9) * 280 * (1 - (yy - horizon) / (WORLD.h - horizon) * .35);
+      const sx = mod(hash2(i, 13) * WORLD.w + clock * (2 + hash2(i, 17) * 5) + wind * (yy - horizon) * .42, WORLD.w);
+      const x = sx < viewLeft - len ? sx + WORLD.w : sx;
+      ctx.strokeStyle = rgba(palette.ink, .040 + hash2(i, 21) * .070);
+      ctx.lineWidth = .45 + hash2(i, 25) * .95;
+      ctx.beginPath();
+      ctx.moveTo(x, yy);
+      const bend = Math.sin(clock * .08 + i) * 1.8;
+      ctx.quadraticCurveTo(x + len * .5, yy + bend, x + len, yy + bend * .4);
+      ctx.stroke();
+    }
+    for (let i = 0; i < 22; i++) {
+      const yy = horizon + .18 * (WORLD.h - horizon) + hash2(i, 31) * .72 * (WORLD.h - horizon);
+      const x = viewLeft + hash2(i, 37) * (viewRight - viewLeft);
+      const len = 30 + hash2(i, 41) * 210;
+      ctx.strokeStyle = rgba('#fff9e9', .08 + hash2(i, 43) * .10);
+      ctx.lineWidth = .6 + hash2(i, 47) * 1.2;
+      ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + len, yy + .6); ctx.stroke();
+    }
+  }
+
+  const boats = [
+    { x0: 720, y: 912, s: .78, speed: 4.4, phase: .4, sail: false },
+    { x0: 1840, y: 956, s: 1.14, speed: 6.7, phase: 2.3, sail: true },
+    { x0: 3460, y: 878, s: .64, speed: 3.1, phase: 4.8, sail: false }
+  ];
+
+  function drawBoat(g, b, palette) {
+    const x = mod(b.x0 + b.speed * clock + seed * .004, WORLD.w + 360) - 180;
+    const bob = Math.sin(clock * .55 + b.phase) * 2.2 + Math.sin(clock * .13 + b.phase) * 1.4;
+    const y = b.y + bob;
+    g.save();
+    g.translate(x, y);
+    g.scale(b.s, b.s);
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    const ink = mix(palette.ink, '#313b3b', .16);
+    g.strokeStyle = rgba(ink, .76);
+    g.lineWidth = 1.8;
+    g.beginPath();
+    g.moveTo(-22, 2);
+    g.quadraticCurveTo(-8, 9, 8, 7);
+    g.quadraticCurveTo(22, 5, 31, -5);
+    g.stroke();
+    g.strokeStyle = rgba(ink, .50);
+    g.lineWidth = .9;
+    g.beginPath(); g.moveTo(-15, 1); g.quadraticCurveTo(0, 5, 17, 2); g.stroke();
+    g.strokeStyle = rgba(ink, .66);
+    g.lineWidth = 1.1;
+    g.beginPath();
+    g.moveTo(-7, 0);
+    g.quadraticCurveTo(-5, -13, 7, -13);
+    g.quadraticCurveTo(14, -12, 15, 1);
+    g.stroke();
+    for (let i = -4; i <= 11; i += 5) {
+      g.strokeStyle = rgba(ink, .34);
+      g.lineWidth = .6;
+      g.beginPath(); g.moveTo(i, 0); g.lineTo(i, -11); g.stroke();
+    }
+    g.strokeStyle = rgba(ink, .72);
+    g.lineWidth = 1.1;
+    g.beginPath(); g.moveTo(18, 0); g.quadraticCurveTo(23, -7, 26, -1); g.stroke();
+    g.beginPath(); g.moveTo(21, -8); g.lineTo(29, -8); g.lineTo(25, -12); g.closePath(); g.fillStyle = rgba(ink, .6); g.fill();
+    g.lineWidth = .7;
+    g.beginPath(); g.moveTo(29, -8); g.lineTo(48, -21); g.stroke();
+    g.beginPath(); g.moveTo(20, -1); g.lineTo(18, 7); g.stroke();
+    if (b.sail) {
+      g.strokeStyle = rgba(ink, .30);
+      g.lineWidth = .8;
+      g.beginPath();
+      g.moveTo(2, -12); g.lineTo(1, -46); g.lineTo(-13, -15); g.closePath();
+      g.stroke();
+      g.fillStyle = rgba(palette.paper, .24);
+      g.fill();
+    }
+    g.strokeStyle = rgba('#fff8e6', .16);
+    g.lineWidth = 1;
+    g.beginPath(); g.moveTo(-12, 11); g.lineTo(18, 11); g.stroke();
+    g.strokeStyle = rgba(ink, .14);
+    g.beginPath(); g.moveTo(-17, 14); g.lineTo(11, 14); g.stroke();
+    g.restore();
+  }
+
+  function drawRipples(palette) {
+    for (const r of ripples) {
+      const k = clamp(r.age / r.life, 0, 1);
+      for (let i = 0; i < 3; i++) {
+        const rr = 12 + k * (24 + i * 22) + i * 13;
+        ctx.strokeStyle = rgba(mix(palette.ink, '#ffffff', .12), (1 - k) * (.17 - i * .035));
+        ctx.lineWidth = .9 - i * .16;
+        ctx.beginPath();
+        ctx.ellipse(r.x, r.y, rr, rr * .26, 0, 0, TAU);
+        ctx.stroke();
+      }
+    }
+  }
+
+  function drawBirds(palette) {
+    for (const b of birds) {
+      const k = clamp(b.age / b.life, 0, 1);
+      const flap = Math.sin(b.age * 7.5 + b.phase) * .35;
+      const size = 4.4 + b.size * 2.8;
+      ctx.strokeStyle = rgba(mix(palette.ink, '#424844', .2), (1 - k) * .68);
+      ctx.lineWidth = 1.1;
+      ctx.lineCap = 'round';
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.angle);
+      ctx.beginPath();
+      ctx.moveTo(-size, flap * size);
+      ctx.quadraticCurveTo(-size * .35, -size * .55, 0, 0);
+      ctx.quadraticCurveTo(size * .35, -size * .55, size, flap * size);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawMist(palette) {
+    const ww = weatherWeights(clock);
+    const intensity = clamp(.12 + ww[1] * .72 + ww[2] * .22 + ww[3] * .14 + palette.night * .06, 0, .90);
+    const bands = [
+      { y: 610, h: 74, a: .32 },
+      { y: 705, h: 92, a: .26 },
+      { y: 790, h: 58, a: .18 }
+    ];
+    ctx.save();
+    // A low veil of river fog hides the join between mountain feet and water.
+    const low = ctx.createLinearGradient(0, 640, 0, 858);
+    low.addColorStop(0, rgba(palette.paper, 0));
+    low.addColorStop(.37, rgba(palette.paper, .12 * intensity));
+    low.addColorStop(.68, rgba(palette.paper, .26 * intensity));
+    low.addColorStop(1, rgba(palette.paper, 0));
+    ctx.fillStyle = low;
+    ctx.fillRect(viewLeft - 80 + wind * 30, 640, viewRight - viewLeft + 160, 218);
+    for (let bi = 0; bi < bands.length; bi++) {
+      const band = bands[bi];
+      const drift = wind * 44 + Math.sin(clock * .035 + bi * 1.7) * 12;
+      const y = band.y + Math.sin(clock * .027 + bi) * 4;
+      const grad = ctx.createLinearGradient(0, y - band.h, 0, y + band.h);
+      grad.addColorStop(0, rgba(palette.paper, 0));
+      grad.addColorStop(.42, rgba(mix(palette.paper, '#fff9ea', .3), band.a * intensity));
+      grad.addColorStop(.65, rgba(palette.paper, band.a * intensity * .55));
+      grad.addColorStop(1, rgba(palette.paper, 0));
+      ctx.fillStyle = grad;
+      ctx.fillRect(viewLeft - 120 + drift, y - band.h, viewRight - viewLeft + 240, band.h * 2);
+      for (let k = 0; k < 3; k++) {
+        ctx.strokeStyle = rgba(mix(palette.paper, '#fffdf2', .4), band.a * intensity * .34);
+        ctx.lineWidth = 8 + k * 7;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        const x0 = viewLeft + (k * .31 + .04) * (viewRight - viewLeft) + drift;
+        ctx.moveTo(x0, y + Math.sin(k + bi) * 8);
+        ctx.bezierCurveTo(x0 + 130, y - 13, x0 + 290, y + 15, x0 + 430, y - 3);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawForeground(palette) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    drawWorldImage(fgCanvas, WORLD.fgTop);
+    if (palette.snow > .12) {
+      ctx.globalAlpha = palette.snow * .42;
+      ctx.fillStyle = mix(palette.paper, '#fffdf5', .35);
+      for (let i = 0; i < 70; i++) {
+        const x = viewLeft + hash2(i, 51) * (viewRight - viewLeft);
+        const yy = WORLD.fgTop + 274 + Math.sin(x * TAU * 7 / WORLD.w + .5) * 11 + Math.sin(x * TAU * 17 / WORLD.w + 1.4) * 7;
+        ctx.beginPath();
+        ctx.ellipse(x, yy + 1, 8 + hash2(i, 53) * 20, 1.2 + hash2(i, 57) * 2.1, 0, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  function drawReeds(palette, season, shift = 0) {
+    const winter = season.weights[3];
+    for (const r of reeds) {
+      if (r.x + shift < viewLeft - 40 || r.x + shift > viewRight + 40) continue;
+      const bendBase = wind * 15 + Math.sin(clock * .75 + r.phase) * 1.8;
+      const reedInk = mix(palette.ink, season.foliage, .30);
+      ctx.strokeStyle = rgba(reedInk, .62 - winter * .16);
+      ctx.lineCap = 'round';
+      for (let i = 0; i < r.n; i++) {
+        const off = (hash2(r.x, i) - .5) * 12;
+        const hh = r.height * (.45 + hash2(i, r.x) * .65);
+        const sway = bendBase * (hh / 38) + Math.sin(clock * .9 + r.phase + i) * 2.2;
+        const x = r.x + off;
+        const y = WORLD.fgTop + r.y + 3;
+        ctx.lineWidth = r.width * .72;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + sway * .32, y - hh * .55, x + sway, y - hh);
+        ctx.stroke();
+        if (i % 2 === 0) {
+          ctx.fillStyle = rgba(mix(reedInk, season.foliage, .28), .46);
+          ctx.beginPath();
+          ctx.ellipse(x + sway, y - hh, .8 + r.width * .6, 3.4 + r.width * 1.4, sway * .01, 0, TAU);
+          ctx.fill();
+        }
+      }
+      if (palette.snow > .16) {
+        ctx.strokeStyle = rgba('#f7f1df', palette.snow * .55);
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(r.x - 3, WORLD.fgTop + r.y - r.height * .45);
+        ctx.quadraticCurveTo(r.x, WORLD.fgTop + r.y - r.height * .65, r.x + 3, WORLD.fgTop + r.y - r.height * .45);
+        ctx.stroke();
+      }
+    }
+  }
+
+  function drawBankGrass(palette, shift = 0) {
+    ctx.lineCap = 'round';
+    for (const g of bankGrass) {
+      if (g.x + shift < viewLeft - 30 || g.x + shift > viewRight + 30) continue;
+      const bend = wind * 8 + Math.sin(clock * .8 + g.phase) * 1.2;
+      for (let i = 0; i < g.blades; i++) {
+        const x = g.x + (hash2(i, g.x) - .5) * 7;
+        const hh = g.h * (.55 + hash2(i, g.y) * .7);
+        const lean = bend * (hh / 16) + (hash2(i, g.phase) - .5) * 5;
+        ctx.strokeStyle = rgba(mix(palette.ink, '#b6a68a', .58), .22 + hash2(i, 5) * .28);
+        ctx.lineWidth = .55 + hash2(i, 7) * .5;
+        ctx.beginPath();
+        const gy = WORLD.fgTop + g.y;
+        ctx.moveTo(x, gy + 2);
+        ctx.quadraticCurveTo(x + lean * .3, gy - hh * .6, x + lean, gy - hh);
+        ctx.stroke();
+        if (palette.snow > .2) {
+          ctx.fillStyle = rgba('#f8f2e2', palette.snow * .5);
+          ctx.beginPath();
+          ctx.ellipse(x + lean, gy - hh, 1.1, 2.4, 0, 0, TAU);
+          ctx.fill();
+        }
+      }
+    }
+  }
+  function drawRidgeGroves(season, shift = 0) {
+    const winter = season.weights[3];
+    if (winter > .78) return;
+    const leaf = season.foliage;
+    for (const g of ridgeGroves) {
+      if (g.x + shift < viewLeft - 40 || g.x + shift > viewRight + 40) continue;
+      const count = Math.round(g.n * (1 - winter * .8));
+      for (let i = 0; i < count; i++) {
+        const a = hash2(i, g.x) * TAU;
+        const rr = Math.pow(hash2(i, g.y), .6) * g.size;
+        const px = g.x + Math.cos(a) * rr;
+        const py = g.y + Math.sin(a) * rr * .42 - rr * .18;
+        ctx.fillStyle = rgba(leaf, .20 + hash2(i, g.x + 4) * .28);
+        ctx.beginPath();
+        ctx.ellipse(px, py, 1.2 + hash2(i, 7) * 2.6, .8 + hash2(i, 9) * 1.6, a, 0, TAU);
+        ctx.fill();
+      }
+      ctx.strokeStyle = rgba(season.foliage, .16);
+      ctx.lineWidth = .6;
+      ctx.beginPath();
+      ctx.moveTo(g.x, g.y + 1);
+      ctx.lineTo(g.x, g.y - g.size * .55);
+      ctx.stroke();
+    }
+  }
+  function drawAccentTrees(palette, season, shift = 0) {
+    const spring = season.weights[0], summer = season.weights[1], autumn = season.weights[2], winter = season.weights[3];
+    const leafColor = mix4(season.weights, ['#c69b9c', '#6d8e6b', '#ac6c38', '#8a8b85']);
+    for (const t of accentTrees) {
+      if (t.x + shift < viewLeft - 90 || t.x + shift > viewRight + 90) continue;
+      const baseY = WORLD.fgTop + t.y;
+      const sway = wind * 5 + Math.sin(clock * .6 + t.phase) * 1.5;
+      ctx.strokeStyle = rgba(palette.ink, .72);
+      ctx.lineWidth = 1.4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(t.x, baseY + 5);
+      ctx.quadraticCurveTo(t.x - 3, baseY - t.h * .5, t.x + sway, baseY - t.h);
+      ctx.stroke();
+      for (let br = 0; br < 4; br++) {
+        const dir = br % 2 ? 1 : -1;
+        const yy = baseY - t.h * (.35 + br * .16);
+        ctx.lineWidth = .8;
+        ctx.beginPath();
+        ctx.moveTo(t.x, yy);
+        ctx.quadraticCurveTo(t.x + dir * 8, yy - 8, t.x + dir * (14 + br * 3) + sway, yy - 15 - br * 2);
+        ctx.stroke();
+      }
+      if (winter > .62) {
+        ctx.strokeStyle = rgba(palette.ink, .34);
+        ctx.lineWidth = .55;
+        for (let i = 0; i < 7; i++) {
+          const a = -Math.PI * (.16 + i * .1) + sway * .002;
+          const rr = 13 + hash2(i, t.x) * 18;
+          ctx.beginPath();
+          ctx.moveTo(t.x + sway, baseY - t.h * .8);
+          ctx.lineTo(t.x + Math.cos(a) * rr, baseY - t.h * .8 + Math.sin(a) * rr);
+          ctx.stroke();
+        }
+      } else {
+        const canopyY = baseY - t.h * .78 + sway * .3;
+        for (let k = 0; k < 6; k++) {
+          ctx.fillStyle = rgba(leafColor, .055 + hash2(k, t.x) * .035);
+          ctx.beginPath();
+          ctx.ellipse(t.x + sway + (hash2(k, t.x + 2) - .5) * 42, canopyY + (hash2(k, t.x + 4) - .5) * 22,
+            24 + hash2(k, t.x + 6) * 16, 14 + hash2(k, t.x + 8) * 10, hash2(k, 3) * 2, 0, TAU);
+          ctx.fill();
+        }
+        const foliageAlpha = .42 + spring * .22 + autumn * .30 + summer * .24;
+        const count = Math.round(54 + 22 * (1 - winter));
+        for (let i = 0; i < count; i++) {
+          const ang = hash2(i, t.x + 3) * TAU;
+          const rr = Math.pow(hash2(i, t.x + 7), .55) * 38;
+          const px = t.x + sway + Math.cos(ang) * rr;
+          const py = baseY - t.h * .76 + Math.sin(ang) * rr * .66;
+          const size = 1.2 + hash2(i, t.x + 9) * 3.4;
+          ctx.fillStyle = rgba(leafColor, foliageAlpha * (.5 + hash2(i, t.x + 11) * .7));
+          ctx.beginPath();
+          ctx.ellipse(px, py, size * 1.35, size * .8, ang, 0, TAU);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  function i2c(palette) { return mix(palette.ink, '#323833', .18); }
+
+  function drawPineBranch(palette) {
+    if (portrait && w < 600) return;
+    const unit = clamp(Math.min(w, h) / 1000, .66, 1.22);
+    const sway = (Math.sin(clock * .31) * 2.4 + wind * 7) * unit;
+    const rootX = w * .94;
+    const rootY = h * .89;
+    const ink = rgba(mix(palette.ink, '#141714', .24), .80);
+    ctx.save();
+    ctx.translate(rootX, rootY);
+    ctx.scale(unit, unit);
+    ctx.rotate(-.012 + sway * .00055);
+    ctx.strokeStyle = ink;
+    ctx.fillStyle = ink;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Tapered trunk in three overlapping strokes.
+    const segs = [
+      { p: [[4, 2], [-10, -86], [4, -176]], w: 17 },
+      { p: [[4, -177], [-6, -264], [-12, -336]], w: 12 },
+      { p: [[-12, -337], [-18, -396], [-32, -440]], w: 8 }
+    ];
+    for (const seg of segs) {
+      ctx.lineWidth = seg.w;
+      ctx.beginPath();
+      ctx.moveTo(seg.p[0][0], seg.p[0][1]);
+      ctx.bezierCurveTo(seg.p[1][0] - 7, seg.p[1][1] + 10, seg.p[1][0] + 7, seg.p[1][1] + 15, seg.p[2][0], seg.p[2][1]);
+      ctx.stroke();
+    }
+    // Lifted bark fibres.
+    for (let i = 0; i < 34; i++) {
+      const t = i / 34;
+      const x = 2 - t * 30 + (hash2(i, 3) - .5) * 10;
+      const y = -10 - t * 410;
+      ctx.strokeStyle = rgba(i % 3 ? '#e8ddc6' : '#0b0d0c', .04 + hash2(i, 9) * .10);
+      ctx.lineWidth = .5 + hash2(i, 11) * 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x - 5, y + 9, x - 10, y + 14);
+      ctx.stroke();
+    }
+
+    const branches = [
+      { x: -2, y: -170, cx: -100, cy: -210, tx: -238, ty: -252, w: 6.5 },
+      { x: -5, y: -252, cx: -92, cy: -330, tx: -204, ty: -382, w: 5.4 },
+      { x: -10, y: -324, cx: -58, cy: -404, tx: -146, ty: -456, w: 4.2 },
+      { x: -16, y: -386, cx: 38, cy: -456, tx: 14, ty: -520, w: 3.4 },
+      { x: -11, y: -298, cx: 64, cy: -326, tx: 94, ty: -370, w: 3.0 }
+    ];
+    const pads = [];
+    for (const b of branches) {
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = b.w;
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y);
+      ctx.bezierCurveTo(b.cx, b.cy, b.cx + (b.tx - b.cx) * .5, b.ty + 12, b.tx, b.ty);
+      ctx.stroke();
+      // Small side twigs.
+      ctx.lineWidth = Math.max(1, b.w * .45);
+      for (const k of [.38, .66]) {
+        const sx = lerp(b.x, b.tx, k);
+        const sy = lerp(b.y, b.ty, k) + Math.sin(k * 5) * 8;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.quadraticCurveTo(sx - 18, sy - 14, sx - 34, sy - 20);
+        ctx.stroke();
+      }
+      pads.push({ x: b.tx, y: b.ty - 4, r: 30 - b.w * 1.1 });
+      pads.push({ x: lerp(b.x, b.tx, .64), y: lerp(b.y, b.ty, .64) - 8, r: 22 - b.w });
+      pads.push({ x: lerp(b.x, b.tx, .88), y: lerp(b.y, b.ty, .88) - 12, r: 17 - b.w * .7 });
+    }
+
+    // Needle pads: a soft ink wash with many short strokes around its rim.
+    for (const pad of pads) {
+      const r = Math.max(8, pad.r);
+      for (let k = 0; k < 4; k++) {
+        ctx.fillStyle = rgba(i2c(palette), .045 + k * .016);
+        ctx.beginPath();
+        ctx.ellipse(pad.x + (hash2(k, pad.x) - .5) * r * .9, pad.y + (hash2(k, pad.y) - .5) * r * .28,
+          r * (.55 + hash2(k, 3) * .55), r * (.28 + hash2(k, 7) * .25), -.16 + k * .12, 0, TAU);
+        ctx.fill();
+      }
+      for (let n = 0; n < 42; n++) {
+        const a = hash2(n, pad.x + n * .3) * TAU;
+        const rr = Math.pow(hash2(n, pad.y + 2), .55) * r;
+        const px = pad.x + Math.cos(a) * rr * 1.1;
+        const py = pad.y + Math.sin(a) * rr * .52;
+        const len = (5 + hash2(n, 7) * 10) * unit;
+        ctx.strokeStyle = rgba(i2c(palette), .23 + hash2(n, 13) * .28);
+        ctx.lineWidth = .7 + hash2(n, 17) * .7;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + Math.cos(a + .40) * len, py + Math.sin(a + .40) * len * .72);
+        ctx.stroke();
+      }
+    }
+
+    if (palette.snow > .15) {
+      ctx.strokeStyle = rgba('#f7f1df', palette.snow * .62);
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.moveTo(2, -40);
+      ctx.bezierCurveTo(-8, -160, 2, -290, -22, -408);
+      ctx.stroke();
+      for (const pad of pads) {
+        ctx.fillStyle = rgba('#f8f3e4', palette.snow * .42);
+        ctx.beginPath();
+        ctx.ellipse(pad.x, pad.y - pad.r * .34, pad.r * .9, 2.2, -.12, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+  // ---------------------------------------------------------------- 8. weather / particles
+  function drawRain(palette, weight) {
+    if (weight < .02) return;
+    const n = Math.round(400 * weight);
+    const slant = wind * 26;
+    ctx.save();
+    ctx.strokeStyle = rgba(mix(palette.ink, '#5f6c70', .28), .22 + .10 * palette.night);
+    ctx.lineWidth = .72;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      const speed = 720 + hash2(i, 71) * 520;
+      const x = mod(hash2(i, 73) * (w + 160) + clock * (28 + wind * 60), w + 160) - 80;
+      const y = mod(hash2(i, 79) * (h + 260) + clock * speed, h + 260) - 130;
+      const len = 11 + hash2(i, 83) * 22;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - slant * .26, y + len);
+      ctx.stroke();
+    }
+    const waterScreen = (WORLD.water - viewTop) * scale * zoom + (h * .5 - viewWorldH * zoom * scale * .5);
+    if (waterScreen > 0 && waterScreen < h) {
+      for (let i = 0; i < 26; i++) {
+        const x = mod(hash2(i, 89) * w + clock * (12 + hash2(i, 97) * 18), w);
+        const y = waterScreen + hash2(i, 101) * h * .18;
+        const r = 1.5 + hash2(i, 103) * 5;
+        ctx.strokeStyle = rgba(palette.ink, .12);
+        ctx.lineWidth = .55;
+        ctx.beginPath(); ctx.ellipse(x, y, r, r * .24, 0, 0, TAU); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawSnowfall(palette, weight) {
+    if (weight < .02) return;
+    const n = Math.round(400 * weight);
+    ctx.save();
+    for (let i = 0; i < n; i++) {
+      const speed = 22 + hash2(i, 107) * 54;
+      const x = mod(hash2(i, 109) * (w + 80) + Math.sin(clock * .35 + i) * 18 + clock * wind * 18, w + 80) - 40;
+      const y = mod(hash2(i, 113) * h + clock * speed, h + 20) - 10;
+      const r = .65 + hash2(i, 127) * 1.85;
+      ctx.fillStyle = rgba('#fbf7ea', .38 + hash2(i, 131) * .48);
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+      ctx.fillStyle = rgba('#737a78', .10);
+      ctx.beginPath(); ctx.arc(x + .7, y + .9, r * .65, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawLeafFall(palette, season) {
+    const spring = season.weights[0], autumn = season.weights[2];
+    if (spring < .12 && autumn < .12) return;
+    const n = 22;
+    const color = spring > autumn ? '#c49a9b' : '#ae6c3a';
+    ctx.save();
+    for (let i = 0; i < n; i++) {
+      const x = mod(hash2(i, 137) * w + clock * (10 + wind * 34) + Math.sin(clock * .4 + i) * 10, w);
+      const y = mod(hash2(i, 139) * (h * .56) + h * .36 + clock * (13 + hash2(i, 149) * 9), h * .7);
+      const a = clock * .7 + i;
+      ctx.fillStyle = rgba(color, .18 + hash2(i, 151) * .28);
+      ctx.beginPath();
+      ctx.ellipse(x, y, 2.1 + hash2(i, 157) * 1.6, .9 + hash2(i, 163) * .7, a, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawVignette(palette) {
+    const top = ctx.createLinearGradient(0, 0, 0, h * .18);
+    top.addColorStop(0, rgba(palette.paper, .34));
+    top.addColorStop(1, rgba(palette.paper, 0));
+    ctx.fillStyle = top;
+    ctx.fillRect(0, 0, w, h * .18);
+    const bottom = ctx.createLinearGradient(0, h * .80, 0, h);
+    bottom.addColorStop(0, rgba(palette.paper, 0));
+    bottom.addColorStop(1, rgba(palette.paper, .18));
+    ctx.fillStyle = bottom;
+    ctx.fillRect(0, h * .80, w, h * .20);
+    const left = ctx.createLinearGradient(0, 0, w * .06, 0);
+    left.addColorStop(0, rgba(palette.paper, .20));
+    left.addColorStop(1, rgba(palette.paper, 0));
+    ctx.fillStyle = left;
+    ctx.fillRect(0, 0, w * .06, h);
+    const right = ctx.createLinearGradient(w, 0, w * .94, 0);
+    right.addColorStop(0, rgba(palette.paper, .28));
+    right.addColorStop(1, rgba(palette.paper, 0));
+    ctx.fillStyle = right;
+    ctx.fillRect(w * .94, 0, w * .06, h);
+  }
+
+  // ---------------------------------------------------------------- 9. full render
+  function render() {
+    clock = initialT + elapsed + timeShift;
+    updateCamera();
+    const palette = paletteAt(clock);
+    const season = seasonState(clock);
+    const ww = weatherWeights(clock);
+    frameNo++;
+
+    paperBase(palette);
+    drawSky(palette);
+
+    applyWorld();
+    drawWorldImage(bgCanvas);
+    drawSeasonTint(palette);
+    drawSnowCaps(palette);
+    for (const copy of [0, WORLD.w]) {
+      ctx.save();
+      ctx.translate(copy, 0);
+      drawRidgeGroves(season, copy);
+      ctx.restore();
+    }
+    drawWater(palette);
+    drawWaterfall(palette);
+    drawMist(palette);
+
+    for (const copy of [0, WORLD.w]) {
+      ctx.save();
+      ctx.translate(copy, 0);
+      for (const b of boats) drawBoat(ctx, b, palette);
+      ctx.restore();
+    }
+    drawRipples(palette);
+    drawBirds(palette);
+    drawForeground(palette);
+    for (const copy of [0, WORLD.w]) {
+      ctx.save();
+      ctx.translate(copy, 0);
+      drawReeds(palette, season, copy);
+      drawBankGrass(palette, copy);
+      drawAccentTrees(palette, season, copy);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    drawPineBranch(palette);
+    drawLeafFall(palette, season);
+
+    if (ww[1] > .02) {
+      ctx.fillStyle = rgba(mix(palette.paper, '#dfe1da', .55), .10 * ww[1]);
+      ctx.fillRect(0, 0, w, h);
+    }
+    drawRain(palette, ww[2]);
+    drawSnowfall(palette, ww[3]);
+    // A final colour grade unifies paper, ink and weather. Soft-light keeps
+    // the ink's value structure while letting the season read at a glance.
+    ctx.save();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = .24;
+    ctx.fillStyle = season.seasonColor;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+    drawVignette(palette);
+
+    if (frameNo % 12 === 0 || frameNo === 1 || paused) updateHud(season, ww);
+  }
+
+  // ---------------------------------------------------------------- 10. HUD
+  const el = {
+    caption: document.getElementById('caption'),
+    railNow: document.getElementById('railNow'),
+    readSeason: document.getElementById('readSeason'),
+    readHour: document.getElementById('readHour'),
+    readWind: document.getElementById('readWind'),
+    readScroll: document.getElementById('readScroll'),
+    toast: document.getElementById('toast'),
+    panel: document.getElementById('panel'),
+    settings: document.getElementById('settings'),
+    playPause: document.getElementById('playPause'),
+    pause: document.getElementById('pause'),
+    hideHud: document.getElementById('hideHud'),
+    seasonSelect: document.getElementById('seasonSelect'),
+    weatherSelect: document.getElementById('weatherSelect'),
+    windRange: document.getElementById('windRange'),
+    fullscreen: document.getElementById('fullscreen'),
+    nextSeason: document.getElementById('nextSeason'),
+    rainNow: document.getElementById('rainNow')
+  };
+
+  function clockLabel() {
+    const p = mod(clock, SEASON_PERIOD);
+    if (p < 60) return '晨';
+    if (p < 840) return '昼';
+    if (p < 960) return '暮';
+    if (p < 1350) return '夜';
+    return '黎明';
+  }
+
+  function updateHud(season, ww) {
+    const idx = seasonIndexAt(clock);
+    let weatherBest = 0;
+    for (let i = 1; i < 4; i++) if (ww[i] > ww[weatherBest]) weatherBest = i;
+    const weather = WEATHERS[weatherBest];
+    el.railNow.textContent = SEASON_CN[idx];
+    el.readSeason.textContent = `${SEASON_CN[idx]} · ${WEATHER_CN[weather]}`;
+    el.readHour.textContent = clockLabel();
+    el.readWind.textContent = Math.abs(wind) > .62 ? '风急' : Math.abs(wind) > .25 ? '风起' : Math.abs(wind) > .08 ? '微风' : '无风';
+    el.readScroll.textContent = portrait ? '立轴' : '展卷';
+    document.querySelectorAll('.quarter').forEach((node) => {
+      node.classList.toggle('active', Number(node.dataset.season) === idx);
+    });
+  }
+
+  function showToast(message) {
+    el.toast.textContent = message;
+    el.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2100);
+  }
+
+  function wakeHud() {
+    if (hudHidden) return;
+    document.body.classList.remove('idle');
+    clearTimeout(idleTimer);
+    if (reducedQuery.matches) return;
+    idleTimer = setTimeout(() => {
+      if (!hudHidden && el.panel.hidden) document.body.classList.add('idle');
+    }, 14000);
+  }
+
+  function applyHudHidden() {
+    document.body.classList.toggle('hud-off', hudHidden);
+    if (hudHidden) {
+      el.panel.hidden = true;
+      el.settings.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function toggleHud() {
+    hudHidden = !hudHidden;
+    applyHudHidden();
+    if (!hudHidden) {
+      document.body.classList.remove('idle');
+      wakeHud();
+      showToast('画面文字已显示');
+    }
+  }
+
+  function setPaused(value) {
+    paused = !!value;
+    el.playPause.textContent = paused ? '▶' : 'Ⅱ';
+    el.playPause.setAttribute('aria-label', paused ? '播放' : '暂停');
+    el.pause.textContent = paused ? '继续' : '暂停';
+    if (paused) {
+      cancelRaf();
+      render();
+    } else {
+      lastFrame = 0;
+      accumulator = 0;
+      lastRender = 0;
+      requestFrame();
+    }
+  }
+  function togglePause() { setPaused(!paused); }
+
+  function jumpToPhase(target) {
+    const current = mod(clock, SEASON_PERIOD);
+    const delta = mod(target - current, SEASON_PERIOD);
+    timeShift += delta;
+    clock = initialT + elapsed + timeShift;
+    wakeHud();
+    render();
+  }
+
+  function nextSeason(dir = 1) {
+    const idx = seasonIndexAt(clock);
+    const next = mod(idx + (dir > 0 ? 1 : 3), 4);
+    const target = next * SEASON_LENGTH + 90;
+    jumpToPhase(target);
+    forcedSeason = next;
+    el.seasonSelect.value = String(next);
+    showToast(`${SEASON_CN[next]} · ${SEASON_SUB[next]}`);
+  }
+
+  function setSeason(index) {
+    if (index < 0) return;
+    forcedSeason = index;
+    jumpToPhase(index * SEASON_LENGTH + 90);
+    el.seasonSelect.value = String(index);
+    showToast(`${SEASON_CN[index]} · ${SEASON_SUB[index]}`);
+  }
+
+  function updateLabelsOnly() {
+    updateHud(seasonState(clock), weatherWeights(clock));
+  }
+
+  // ---------------------------------------------------------------- 11. interaction
+  let lastRippleReal = 0;
+  let windHoldUntil = 0;
+  function spawnRipple(wx, wy, withBird = true) {
+    if (ripples.length >= 24) ripples.shift();
+    ripples.push({ x: wx, y: wy, age: 0, life: 3.8 + hash1(wx + wy) * 1.4 });
+    if (withBird && birds.length < 3) {
+      const dir = hash1(wx * .7 + wy) > .5 ? 1 : -1;
+      birds.push({
+        x: wx, y: wy - 8, vx: dir * (22 + hash1(wx) * 22), vy: -18 - hash1(wy) * 12,
+        age: 0, life: 7 + hash1(wx + 3) * 3, size: .8 + hash1(wy + 5) * .7,
+        phase: hash1(wx + wy) * 6, angle: dir * .10
+      });
+    }
+    render();
+  }
+
+  function pointerIsWater(wx, wy) {
+    return wy > WORLD.water + 6 && wy < 1020;
+  }
+
+  function updatePointer(e) {
+    const p = screenToWorld(e.clientX, e.clientY);
+    pointer.x = p.x; pointer.y = p.y;
+    if (pointerIsWater(p.x, p.y) && performance.now() - lastRippleReal > 620) {
+      lastRippleReal = performance.now();
+      spawnRipple(p.x, p.y, true);
+    }
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    pointer.down = true;
+    pointer.moved = false;
+    pointer.startX = e.clientX; pointer.startY = e.clientY;
+    pointer.startTime = performance.now();
+    pointer.startWind = windTarget;
+    try { canvas.setPointerCapture?.(e.pointerId); } catch {}
+    document.body.classList.add('dragging');
+    wakeHud();
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    const dx = e.clientX - pointer.startX;
+    const dy = e.clientY - pointer.startY;
+    if (pointer.down && Math.hypot(dx, dy) > 7) {
+      pointer.moved = true;
+      windTarget = clamp(pointer.startWind + dx / 150, -1, 1);
+      wind = windTarget;
+      windHoldUntil = elapsed + 18;
+      el.windRange.value = String(windTarget.toFixed(2));
+    }
+    updatePointer(e);
+    if (pointer.down) render();
+  });
+
+  function endPointer(e) {
+    if (!pointer.down) return;
+    pointer.down = false;
+    document.body.classList.remove('dragging');
+    const dx = e.clientX - pointer.startX, dy = e.clientY - pointer.startY;
+    const held = performance.now() - pointer.startTime;
+    if (!pointer.moved && Math.hypot(dx, dy) < 8 && held < 700) {
+      const p = screenToWorld(e.clientX, e.clientY);
+      if (pointerIsWater(p.x, p.y)) spawnRipple(p.x, p.y, true);
+      nextSeason(1);
+    }
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('pointerleave', () => { pointer.down = false; document.body.classList.remove('dragging'); });
+
+  function naturalWind(t) {
+    return .075 * Math.sin(t * .21) + .045 * Math.sin(t * .073 + 1.4) + .02 * Math.sin(t * .41 + .7);
+  }
+
+  function update(dt) {
+    if (paused) return;
+    elapsed += dt;
+    clock = initialT + elapsed + timeShift;
+    const target = (elapsed < windHoldUntil || forcedWind !== null) ? windTarget : naturalWind(clock);
+    wind += (target - wind) * Math.min(1, dt * .65);
+    if (Math.abs(wind) < .002) wind = 0;
+
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i].age += dt;
+      if (ripples[i].age >= ripples[i].life) ripples.splice(i, 1);
+    }
+    for (let i = birds.length - 1; i >= 0; i--) {
+      const b = birds[i];
+      b.age += dt;
+      b.x += (b.vx + wind * 16) * dt;
+      b.y += b.vy * dt;
+      b.vy += 1.1 * dt;
+      b.angle = Math.atan2(b.vy, b.vx) * .14;
+      if (b.age >= b.life) birds.splice(i, 1);
+    }
+    nextAutoBird -= dt;
+    if (nextAutoBird <= 0) {
+      nextAutoBird = 85 + hash1(seed + Math.floor(elapsed)) * 70;
+      const wx = viewLeft + (viewRight - viewLeft) * (.25 + hash1(elapsed) * .5);
+      const wy = WORLD.water + 20 + hash1(elapsed + 3) * 110;
+      ripples.push({ x: wx, y: wy, age: 0, life: 4.2 });
+      if (ripples.length > 24) ripples.shift();
+      if (birds.length < 3) {
+        const dir = hash1(elapsed + 7) > .5 ? 1 : -1;
+        birds.push({ x: wx, y: wy - 5, vx: dir * 26, vy: -22, age: 0, life: 8.4, size: 1, phase: hash1(elapsed) * 6, angle: dir * .1 });
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- 12. scheduling / resize
+  function cancelRaf() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+  }
+  function requestFrame() {
+    if (raf || document.hidden || paused) return;
+    raf = requestAnimationFrame(frame);
+  }
+  function frame(now) {
+    raf = 0;
+    if (document.hidden || paused) { lastFrame = 0; return; }
+    const dt = lastFrame ? Math.min((now - lastFrame) / 1000, .12) : 0;
+    lastFrame = now;
+    if (dt > 0) {
+      accumulator += dt;
+      let steps = 0;
+      while (accumulator >= 1 / 30 && steps < 5) {
+        update(1 / 30);
+        accumulator -= 1 / 30;
+        steps++;
+      }
+      if (steps >= 5) accumulator = 0;
+    }
+    if (!lastRender || now - lastRender >= 31) {
+      render();
+      lastRender = now;
+    }
+    requestFrame();
+  }
+
+  function resize() {
+    w = Math.max(1, innerWidth);
+    h = Math.max(1, innerHeight);
+    let target = Math.min(devicePixelRatio || 1, 1.5);
+    target = Math.min(target, Math.sqrt(2600000 / Math.max(1, w * h)));
+    dpr = clamp(target, .35, 1.5);
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    buildPaper();
+    updateCamera();
+    render();
+  }
+
+  // ---------------------------------------------------------------- 13. controls
+  el.settings.addEventListener('click', () => {
+    const open = el.panel.hidden;
+    el.panel.hidden = !open;
+    el.settings.setAttribute('aria-expanded', String(open));
+    if (open) {
+      wakeHud();
+      el.seasonSelect.value = forcedSeason >= 0 ? String(forcedSeason) : 'auto';
+    }
+  });
+  el.playPause.addEventListener('click', togglePause);
+  el.pause.addEventListener('click', togglePause);
+  el.nextSeason.addEventListener('click', () => nextSeason(1));
+  el.hideHud.addEventListener('click', toggleHud);
+  el.fullscreen.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch { showToast('请在浏览器中按 F11 全屏'); }
+  });
+  el.rainNow.addEventListener('click', () => {
+    forcedWeather = 'rain';
+    el.weatherSelect.value = 'rain';
+    showToast('雨落江面');
+    wakeHud();
+    render();
+  });
+  el.seasonSelect.addEventListener('change', (e) => {
+    if (e.target.value === 'auto') {
+      forcedSeason = -1;
+      showToast('四时自动流转');
+    } else {
+      setSeason(Number(e.target.value));
+    }
+  });
+  el.weatherSelect.addEventListener('change', (e) => {
+    forcedWeather = e.target.value === 'auto' ? null : e.target.value;
+    showToast(e.target.value === 'auto' ? '天气随季而变' : `天气 · ${WEATHER_CN[e.target.value]}`);
+    render();
+  });
+  el.windRange.addEventListener('input', (e) => {
+    windTarget = Number(e.target.value);
+    wind = windTarget;
+    forcedWind = windTarget;
+    windHoldUntil = elapsed + 30;
+    render();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    const activeTag = document.activeElement.tagName;
+    if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+    if (activeTag === 'SELECT' && (e.code === 'Space' || e.key.startsWith('Arrow'))) return;
+    if (e.repeat) return;
+    const key = e.key.toLowerCase();
+    if (e.code === 'Space') { e.preventDefault(); togglePause(); }
+    else if (key === 'h') { e.preventDefault(); toggleHud(); }
+    else if (key === 'f') { e.preventDefault(); el.fullscreen.click(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); nextSeason(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); nextSeason(-1); }
+    else if (e.key === 'Escape') {
+      el.panel.hidden = true;
+      el.settings.setAttribute('aria-expanded', 'false');
+      document.body.classList.remove('idle');
+    }
+  });
+
+  window.addEventListener('pointermove', wakeHud, { passive: true });
+  window.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      cancelRaf();
+    } else {
+      lastFrame = 0;
+      accumulator = 0;
+      if (!paused) requestFrame();
+    }
+  });
+
+  // ---------------------------------------------------------------- 14. boot
+  initLayers();
+  buildBackground();
+  buildForeground();
+  buildWeatherSchedule();
+  if (forcedSeason >= 0) {
+    initialT = forcedSeason * SEASON_LENGTH + 90;
+    clock = initialT;
+  }
+  if (params.get('hud') === '0') hudHidden = true;
+  applyHudHidden();
+  if (el.seasonSelect) el.seasonSelect.value = forcedSeason >= 0 ? String(forcedSeason) : 'auto';
+  if (el.weatherSelect) el.weatherSelect.value = forcedWeather || 'auto';
+  if (el.windRange) el.windRange.value = String(clamp(wind, -1, 1));
+  resize();
+  setPaused(paused);
+  if (!paused) requestFrame();
+  if (!reducedQuery.matches) wakeHud();
+  updateLabelsOnly();
+
+  // ---------------------------------------------------------------- 15. diagnostics
+  window.__lumenShanshui = {
+    get state() {
+      return {
+        clock, elapsed, paused, w, h, dpr, scale, zoom,
+        camX, camY, portrait, wind, seasonIndex: seasonIndexAt(clock),
+        seasonWeights: seasonWeights(clock), weatherWeights: weatherWeights(clock),
+        weatherName: weatherName(), ripples: ripples.slice(), birds: birds.slice(),
+        pixelCount: canvas.width * canvas.height, frameNo,
+        view: { left: viewLeft, right: viewRight, top: viewTop, bottom: viewBottom }
+      };
+    },
+    get layers() { return layers.map(l => ({ name: l.name, peaks: l.peaks, base: l.base })); },
+    get weatherSchedule() { return weatherSchedule.map(s => ({ ...s })); },
+    get waterfall() { return { ...waterfall }; },
+    update, render, resize,
+    setPaused, togglePause, nextSeason, setSeason, jumpToPhase,
+    spawnRipple,
+    setWind(value) { wind = clamp(value, -1, 1); windTarget = wind; forcedWind = wind; windHoldUntil = elapsed + 30; render(); },
+    setTime(value) { timeShift = value - (initialT + elapsed + timeShift); clock = value; render(); },
+    setWeather(value) { forcedWeather = WEATHERS.includes(value) ? value : null; render(); },
+    ridgeAt(x, layerIndex = 1) { return ridgeAt(x, layers[layerIndex]); },
+    seasonWeights, weatherWeights, daylightAt,
+    screenToWorld
+  };
+
+})();
+</script>
+</body>
+</html>

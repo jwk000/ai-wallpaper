@@ -286,6 +286,8 @@ npm run release:win
 | `warring-states-battle` | 春秋 · 战于野 · Warring States Battlefield | Canvas 2D / 工笔长卷 / 战场模拟 |
 | `parametric-jellyfish` | 水母群 · Parametric Medusozoa | Canvas 2D / 参数方程 / 无限补群 |
 | `rubiks-cube` | 无限魔方 · Rubik's Cube | WebGL 2 / 实时 3D / 手绘玩具房 |
+| `shanshui-scroll` | 山水长卷 · 四时流转 | Canvas 2D / 程序化水墨 / 四季与天气 / 长卷 |
+| `deep-space-listening` | 深空监听站 · Deep Space Listening Post | Canvas 2D / 夜空 / 星轨 / 射电望远镜 |
 
 `nacre-mandelbrot` 把 Mandelbrot 边界渲染成珠母层：迭代次数生成生长纹，距离场生成浮雕与虹彩，镜头用 210 秒从全集飞入海马谷，放大到约 `1.4×10^8` 倍后以珠光淡出循环。
 
@@ -294,6 +296,10 @@ npm run release:win
 `rubiks-cube` 用 WebGL 2 实时绘制 26 个独立小块：一连串随机外层转动把魔方打散，停顿片刻后沿相反顺序逐一还原，再开始下一轮；积木、套圈、皮球、小车和蜡笔散落在玩具房的地毯上，画面不显示任何文字。
 
 `parametric-jellyfish` 的九只水母全部由参数曲线生成：钟形伞体、扇贝状缘膜、放射水管、马蹄形生殖腺与触手都随同一个流场呼吸、倾斜和漂移；每只个体拥有不同的轮廓、颜色、尺寸与生殖腺布局。它们会逐只游出画面，新的、不重复的个体随后从下方深海补上。
+
+`shanshui-scroll` 是一卷程序化的水墨山水：主峰、远山、寺观、瀑布与江面小舟都从同一套墨色与笔法里生成。镜头以每秒七像素向右展卷，春青绿、夏石青、秋赭石、冬冷灰在二十四分钟里缓慢换过；雨、雪、雾与晴由种子天气表驱动，指针掠过江面会生涟漪并惊起水鸟，拖动可以改变风向。
+
+`deep-space-listening` 是一座荒原上的射电监听站：抛物面天线以八分钟为周期缓慢扫过天顶，星轨绕着天极旋转；每隔两到五分钟捕获一段信号，天线转向，前景接收机的冷青波形亮起。钠灯是画面唯一的暖光，其余层次都压在近黑里。
 
 所有壁纸都是单文件、无外部资源、离线可用。
 

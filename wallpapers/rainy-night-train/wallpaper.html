@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<title>雨窗 · 夜行列车</title>
+<style>
+  :root { color-scheme: dark; font-family: 'Segoe UI','Microsoft YaHei',sans-serif; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#070e17; }
+  canvas { display:block; width:100%; height:100%; }
+  .caption { position:fixed; left:6.5%; top:10%; color:#e1e7e7; pointer-events:none; transition:opacity 2s; }
+  .eyebrow { font-size:10px; letter-spacing:.36em; color:#9eb5c1; }
+  h1 { margin:16px 0 12px; font-family:'Songti SC','SimSun',serif; font-size:clamp(23px,3vw,40px); font-weight:400; letter-spacing:.24em; }
+  .caption p { font-size:11px; letter-spacing:.16em; color:#94a5ad; }
+  .line { width:34px; height:1px; background:#b8986d; margin:24px 0; }
+  .caption small { font-size:9px; letter-spacing:.24em; color:#9d9485; }
+  body.quiet .caption,body.hud-off .caption { opacity:0; }
+  .controls { position:fixed; right:28px; bottom:25px; display:flex; flex-direction:column; align-items:flex-end; gap:10px; opacity:.24; transition:opacity .3s; }
+  .controls:hover,.controls:focus-within,.controls:has([aria-expanded="true"]) { opacity:1; }
+  body.hud-off .controls { display:none; }
+  button,select { font:inherit; color:#d4dcdf; background:#111c27e8; border:1px solid #8ca1b333; border-radius:6px; padding:9px 13px; }
+  button { cursor:pointer; font-size:11px; letter-spacing:.12em; }
+  button:focus-visible,select:focus-visible,input:focus-visible { outline:2px solid #d5ae78; outline-offset:4px; }
+  #panel { width:240px; padding:20px; border:1px solid #9aaebb26; border-radius:10px; background:#0b1521ed; box-shadow:0 12px 50px #0005; }
+  #panel[hidden] { display:none; }
+  label { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; font-size:12px; color:#a7b9c6; }
+  input { width:110px; accent-color:#c8a371; }
+  select { width:115px; font-size:11px; padding:6px; }
+  .buttons { display:flex; gap:8px; }
+  #panel p { font-size:10px; color:#8093a4; line-height:1.8; margin-bottom:0; }
+  @media(max-width:600px) { .caption { top:12%; left:9%; } .controls { right:16px; bottom:20px; } }
+  @media(prefers-reduced-motion:reduce) { .caption,.controls { transition:none; } }
+</style>
+</head>
+<body>
+<canvas id="view" role="img" aria-label="雨夜列车窗外的山影、河流与村落灯火，玻璃上雨滴缓缓滑落"></canvas>
+<div class="caption" id="caption">
+  <div class="eyebrow">THE NOCTURNE EXPRESS</div>
+  <h1>雨窗 · 夜行列车</h1>
+  <p>山河入夜，灯火向后。</p>
+  <div class="line"></div>
+  <small>A JOURNEY THROUGH THE QUIET HOURS</small>
+</div>
+<div class="controls">
+  <div id="panel" hidden>
+    <label>雨量 <input id="rain" aria-label="雨量" type="range" min="0" max="2" step="0.1" value="1"></label>
+    <label>车速 <input id="speed" aria-label="车速" type="range" min="0.25" max="3" step="0.25" value="1.5"></label>
+    <label>沿途 <select id="route"><option value="auto">自动旅程</option><option value="riverside">河岸灯火</option><option value="bridge">跨河大桥</option><option value="forest">山间林地</option><option value="tunnel">夜色隧道</option></select></label>
+    <div class="buttons"><button id="pause">暂停</button><button id="fullscreen">全屏</button></div>
+    <p>Space 暂停 / 继续 · H 隐藏界面<br>F 全屏 · 无音频，只有窗外的夜色</p>
+  </div>
+  <button id="settings" aria-expanded="false" aria-controls="panel">旅途设置</button>
+</div>
+<script>
+(() => {
+  'use strict';
+  const params = new URLSearchParams(location.search);
+  const canvas = document.getElementById('view');
+  const ctx = canvas.getContext('2d', { alpha:false });
+  const scenery = document.createElement('canvas');
+  const bg = scenery.getContext('2d', { alpha:false });
+  const glass = document.createElement('canvas');
+  const gc = glass.getContext('2d');
+  const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
+  const mod = (n,m) => ((n%m)+m)%m;
+  const smooth = (a,b,n) => { const x=clamp((n-a)/(b-a),0,1); return x*x*(3-2*x); };
+  const hash = n => { const x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floor(x); };
+  function numberParam(key,fallback,min,max) {
+    const value = params.has(key) ? Number(params.get(key)) : fallback;
+    return Number.isFinite(value) ? clamp(value,min,max) : fallback;
+  }
+  let seed = numberParam('seed',72,1,2147483646) >>> 0;
+  function random() { seed=(Math.imul(seed,1664525)+1013904223)>>>0; return seed/4294967296; }
+  let w=0,h=0,dpr=1,time=numberParam('t',18,0,86400),distance=time*38;
+  let rain=numberParam('rain',1,0,2),speed=numberParam('speed',1.5,.25,3);
+  let route=['auto','riverside','bridge','forest','tunnel'].includes(params.get('route')) ? params.get('route') : 'auto';
+  let paused=params.get('still')==='1' || (params.get('still')!=='0' && motion.matches);
+  let raf=0,last=0,accumulator=0,spawnBudget=0;
+  let drops=[],merged=0,exited=0,frames=0;
+  const MAX_DROPS=240;
+  function routeState(t) {
+    const phase=mod(t,180);
+    const tunnel=route==='auto' ? smooth(143,149,phase)*(1-smooth(168,176,phase)) : +(route==='tunnel');
+    const bridge=route==='auto' ? smooth(64,70,phase)*(1-smooth(103,110,phase)) : +(route==='bridge');
+    const forest=route==='auto' ? smooth(106,113,phase)*(1-smooth(140,146,phase)) : +(route==='forest');
+    return {tunnel,bridge,forest};
+  }
+  function ellipse(c,x,y,rx,ry,color) {
+    c.fillStyle=color; c.beginPath(); c.ellipse(x,y,rx,ry,0,0,Math.PI*2); c.fill();
+  }
+  function glow(c,x,y,r,color) {
+    const g=c.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,color); g.addColorStop(1,'transparent');
+    c.fillStyle=g; c.fillRect(x-r,y-r,r*2,r*2);
+  }
+  function mountain(x,layer) {
+    return h*(.40+layer*.075)+Math.sin(x*.0017+layer*2)*h*.055
+      +Math.sin(x*.0041+layer)*h*.025+Math.sin(x*.0093+layer*3)*h*.009;
+  }
+  function trainMotion(t,travel) {
+    // Two wheelsets cross each rail joint; the suspension settles between impacts.
+    const joint=travel/23;
+    const kick=p=>Math.sin(mod(p,1)*Math.PI*4)*Math.exp(-mod(p,1)*8);
+    const suspension=kick(joint)+.65*kick(joint-.22);
+    const gain=clamp(h/900,.65,1.2)*(.65+speed*.35);
+    return {
+      x:gain*(Math.sin(t*1.7)*.8+Math.sin(joint*6.28)*.35),
+      y:gain*(Math.sin(t*2.1)*1.5+Math.sin(t*4.7)*.55+suspension*4),
+      roll:(Math.sin(t*1.3)*.0012+Math.sin(t*3.1)*.00035+suspension*.0005)*gain
+    };
+  }
+  function windAt(t) {
+    // Relative airflow goes toward the rear of the train, with slow uneven gusts.
+    const gust=.78+.20*Math.sin(t*.63)+.12*Math.sin(t*1.47+1.2);
+    return -(.38+.36*speed)*gust*(1-routeState(t).tunnel*.55);
+  }
+  function motionSmear(pixels,draw) {
+    // A short horizontal shutter exposure, strongest on fast foreground objects.
+    // Keep this in CSS pixels so high-DPI screens do not change the blur length.
+    const length=Math.min(24,pixels*speed);
+    bg.save();
+    for(let i=0;i<5;i++) {
+      bg.save(); bg.translate((i/4-.5)*length,0);
+      bg.globalAlpha*=i===2?.42:.145;
+      draw(); bg.restore();
+    }
+    bg.restore();
+  }
+  function landscape() {
+    const state=routeState(time);
+    const shake=trainMotion(time,distance);
+    // Overscan covers rotated corners; the glass and frame stay in carriage space.
+    const margin=1+2*Math.max((Math.abs(shake.x)+h*Math.abs(shake.roll)/2+3)/w,
+      (Math.abs(shake.y)+w*Math.abs(shake.roll)/2+3)/h);
+    bg.save(); bg.translate(w/2+shake.x,h/2+shake.y); bg.rotate(shake.roll);
+    bg.scale(margin,margin); bg.translate(-w/2,-h/2);
+    const sky=bg.createLinearGradient(0,0,0,h);
+    sky.addColorStop(0,'#0b1526'); sky.addColorStop(.43,'#354c61'); sky.addColorStop(.65,'#253b49'); sky.addColorStop(1,'#0b1823');
+    bg.fillStyle=sky; bg.fillRect(0,0,w,h);
+    glow(bg,w*.72,h*.27,h*.38,'#a4bbcb16');
+    // A cloud-softened moon, kept behind the glass and mountain layers.
+    glow(bg,w*.73,h*.245,38,'#d0d7ce18');
+    ellipse(bg,w*.73,h*.245,13,13,'#acbbc74a');
+    for(let j=0;j<7;j++) {
+      const y=h*(.19+j*.045);
+      const mist=bg.createLinearGradient(0,y-12,0,y+22);
+      mist.addColorStop(0,'transparent'); mist.addColorStop(.5,'#15253732'); mist.addColorStop(1,'transparent');
+      bg.fillStyle=mist; bg.fillRect(0,y-12,w,34);
+    }
+    ['#263d51','#1c3447','#142c3c'].forEach((color,layer)=>{
+      bg.fillStyle=color; bg.beginPath(); bg.moveTo(0,h);
+      for(let x=-20;x<w+20;x+=12) bg.lineTo(x,mountain(x+distance*(.10+layer*.15),layer));
+      bg.lineTo(w,h); bg.closePath(); bg.fill();
+      const fog=bg.createLinearGradient(0,h*(.34+layer*.06),0,h*.69);
+      fog.addColorStop(0,'#8196a300');
+      fog.addColorStop(.5,layer===0?'#8b9fac50':'#718f9e36');
+      fog.addColorStop(1,'#718d9a0a');
+      bg.fillStyle=fog; bg.fillRect(0,h*.30,w,h*.40);
+    });
+    const shore=h*.635;
+    const water=bg.createLinearGradient(0,shore,0,h);
+    water.addColorStop(0,'#293f4b'); water.addColorStop(.5,'#142b39'); water.addColorStop(1,'#091724');
+    bg.fillStyle=water; bg.fillRect(0,shore,w,h-shore);
+    // Stable world-coordinate villages: the window slides past them without respawning in view.
+    const offset=distance*.62;
+    const first=Math.floor(offset/95)-1;
+    for(let i=first;i<(offset+w)/95+1;i++) {
+      const r=hash(i+71); if(r<.24) continue;
+      const x=i*95-offset+hash(i+42)*28, houseW=20+r*38, roof=shore-13-r*27;
+      bg.fillStyle='#0e2330'; bg.fillRect(x,roof,houseW,shore-roof+2);
+      bg.beginPath(); bg.moveTo(x-5,roof); bg.lineTo(x+houseW*.48,roof-8-r*9); bg.lineTo(x+houseW+5,roof); bg.fill();
+      for(let k=0;k<3;k++) {
+        if(hash(i*7+k)<.34) continue;
+        const lx=x+6+k*houseW*.28,ly=roof+9;
+        glow(bg,lx,ly,16,'#ffb46627');
+        bg.fillStyle=k===1?'#e4bc7a':'#ba8e55'; bg.fillRect(lx,ly,2.5,4);
+        for(let q=0;q<19;q++) {
+          const ry=shore+8+q*q*.38;
+          const jitter=Math.sin(time*.9+q*2.7+i)*3;
+          bg.fillStyle=`rgba(216,163,88,${(1-q/19)*.19})`;
+          bg.fillRect(lx+jitter-q*.25,ry,2+q*.52,1);
+        }
+      }
+    }
+    for(let i=0;i<95;i++) {
+      const y=shore+hash(i+300)*(h-shore), x=mod(hash(i+500)*w-distance*.19,w);
+      bg.fillStyle='#829baa0b'; bg.fillRect(x,y,20+hash(i)*95,1);
+    }
+    // Near embankment and rushes move substantially faster than the far shore.
+    bg.fillStyle='#07141f'; bg.beginPath(); bg.moveTo(0,h);
+    for(let x=0;x<w+20;x+=16) bg.lineTo(x,h*.91+Math.sin((x+distance*2)*.008)*7);
+    bg.lineTo(w,h); bg.fill();
+    bg.strokeStyle='#08151e'; bg.lineWidth=1.4;
+    const near=distance*2.1;
+    motionSmear(9,()=>{
+    for(let i=Math.floor(near/36);i<(near+w)/36+1;i++) {
+      const x=i*36-near, y=h*.935;
+      bg.beginPath(); bg.moveTo(x,y); bg.quadraticCurveTo(x-4,y-22,x+7,y-20-hash(i)*25); bg.stroke();
+    }
+    });
+    if(state.forest>0) {
+      bg.globalAlpha=state.forest; bg.fillStyle='#081823';
+      const off=distance*1.5;
+      motionSmear(6,()=>{
+      for(let i=Math.floor(off/90)-1;i<(off+w)/90+1;i++) {
+        const x=i*90-off,top=h*(.35+hash(i)*.22);
+        bg.fillRect(x-2,top,4,h-top);
+        for(let n=0;n<5;n++) { const y=top+n*27; bg.beginPath(); bg.moveTo(x,y); bg.lineTo(x-20-n*6,y+75); bg.lineTo(x+20+n*6,y+75); bg.fill(); }
+      }
+      });
+      bg.globalAlpha=1;
+    }
+    // Passing catenary poles, with a continuous overhead wire.
+    const poleOffset=distance*2.7, spacing=720;
+    bg.strokeStyle='#07131dde'; bg.lineWidth=1.3;
+    bg.beginPath(); bg.moveTo(0,h*.235); bg.lineTo(w,h*.235); bg.stroke();
+    motionSmear(12,()=>{
+    for(let i=Math.floor(poleOffset/spacing)-1;i<(poleOffset+w)/spacing+1;i++) {
+      const x=i*spacing-poleOffset;
+      bg.fillStyle='#08151e'; bg.fillRect(x,h*.19,7,h*.81); bg.fillRect(x-34,h*.23,72,4);
+    }
+    });
+    if(state.bridge>0) {
+      bg.globalAlpha=state.bridge; bg.fillStyle='#08121d';
+      motionSmear(14,()=>{
+      bg.fillRect(0,h*.77,w,9); bg.fillRect(0,h*.88,w,12);
+      const off=distance*3;
+      for(let i=Math.floor(off/220)-1;i<(off+w)/220+1;i++) {
+        const x=i*220-off; bg.fillRect(x,h*.76,9,h*.24);
+        bg.strokeStyle='#08121d'; bg.lineWidth=6; bg.beginPath(); bg.moveTo(x,h*.89); bg.lineTo(x+220,h*.77); bg.stroke();
+      }
+      });
+      bg.globalAlpha=1;
+    }
+    if(state.tunnel>0) {
+      bg.globalAlpha=state.tunnel;
+      bg.fillStyle='#090e17'; bg.fillRect(0,0,w,h);
+      const off=distance*3.5;
+      bg.fillStyle='#332d2729'; for(let y=h*.25;y<h;y+=h*.19) bg.fillRect(0,y,w,2);
+      for(let i=Math.floor(off/430)-1;i<(off+w)/430+1;i++) {
+        const x=i*430-off; glow(bg,x,h*.35,120,'#c3884633');
+        bg.fillStyle='#bc8d55'; bg.fillRect(x-15,h*.35,30,3);
+        bg.fillStyle='#64513c18'; bg.fillRect(x-5,h*.35+20,10,h*.6);
+      }
+      bg.globalAlpha=1;
+    }
+    bg.restore();
+  }
+  function newDrop(anywhere=false) {
+    const r=1.6+Math.pow(random(),2)*5;
+    const side=!anywhere && random()<h*.65/(w+h*.65);
+    return {x:side?w+12:random()*w,y:anywhere||side?random()*h:-15,r,v:0,vx:0,age:random()*4,trail:[],dead:false};
+  }
+  function resize() {
+    const oldW=w||innerWidth,oldH=h||innerHeight;
+    w=Math.max(1,innerWidth); h=Math.max(1,innerHeight);
+    dpr=Math.min(devicePixelRatio||1,1.5,Math.sqrt(2600000/(w*h)));
+    for(const c of [canvas,scenery,glass]) { c.width=Math.max(1,Math.round(w*dpr)); c.height=Math.max(1,Math.round(h*dpr)); }
+    for(const c of [ctx,bg,gc]) c.setTransform(dpr,0,0,dpr,0,0);
+    for(const d of drops) { d.x*=w/oldW; d.y*=h/oldH; d.trail=[]; }
+    // Fine immobile condensation is cached, so it does not flicker or cost per-frame paths.
+    gc.clearRect(0,0,w,h);
+    const count=Math.min(1600,Math.floor(w*h/1500));
+    for(let i=0;i<count;i++) {
+      const x=hash(i+900)*w,y=hash(i+1800)*h,r=.4+hash(i+2700)*1.2;
+      ellipse(gc,x,y,r,r*1.3,'#040e1c35'); ellipse(gc,x-.3,y+.5,r*.6,r*.35,'#a6c7db35');
+    }
+    render();
+  }
+  function update(dt) {
+    time+=dt; distance+=dt*38*speed;
+    spawnBudget+=dt*13*rain;
+    while(spawnBudget>=1) { if(drops.length<MAX_DROPS) drops.push(newDrop()); spawnBudget--; }
+    const bins=new Map(),cell=24;
+    const wind=windAt(time);
+    for(const d of drops) {
+      d.age+=dt;
+      // Surface tension holds small drops; accumulated water eventually starts a rivulet.
+      d.r=Math.min(11,d.r+dt*.023*rain);
+      const target=d.r>3.6 ? (d.r-3.4)*23 : (d.age>12?2:0);
+      d.v+=(target-d.v)*Math.min(1,dt*3);
+      const targetX=d.v*(wind+Math.sin(d.age*1.8+d.y*.012)*.065);
+      d.vx+=(targetX-d.vx)*(1-Math.exp(-dt*2.8));
+      if(Math.hypot(d.vx,d.v)>4 && (d.trail.length===0 || Math.hypot(d.x-d.trail[d.trail.length-1].x,d.y-d.trail[d.trail.length-1].y)>4)) {
+        d.trail.push({x:d.x,y:d.y}); if(d.trail.length>18) d.trail.shift();
+      }
+      d.x+=d.vx*dt;
+      d.y+=d.v*dt;
+      if(d.y>h+24 || d.x< -24 || d.x>w+24) {d.dead=true; exited++;continue;}
+      const bx=Math.floor(d.x/cell),by=Math.floor(d.y/cell);
+      // Neighbor buckets keep merging work bounded instead of scanning every pair.
+      for(let ox=-1;ox<=1&&!d.dead;ox++) for(let oy=-1;oy<=1&&!d.dead;oy++) {
+        for(const other of bins.get(`${bx+ox},${by+oy}`)||[]) {
+          if(other.dead || Math.hypot(d.x-other.x,d.y-other.y)>(d.r+other.r)*.75) continue;
+          const a=d.r*d.r,b=other.r*other.r;
+          d.x=(d.x*a+other.x*b)/(a+b); d.y=Math.max(d.y,other.y);
+          d.vx=(d.vx*a+other.vx*b)/(a+b);
+          d.r=Math.min(11,Math.sqrt(a+b)); d.v=Math.max(d.v,other.v)+12;
+          other.dead=true; merged++;
+        }
+      }
+      const key=`${bx},${by}`; if(!bins.has(key)) bins.set(key,[]); bins.get(key).push(d);
+    }
+    drops=drops.filter(d=>!d.dead);
+  }
+  function drawRain() {
+    ctx.globalAlpha=Math.min(1,rain); ctx.drawImage(glass,0,0,w,h); ctx.globalAlpha=1;
+    for(const d of drops) {
+      const stretch=1+Math.min(.9,Math.hypot(d.vx,d.v)/150), ry=d.r*stretch;
+      if(d.trail.length>1) {
+        ctx.beginPath(); ctx.moveTo(d.trail[0].x,d.trail[0].y);
+        for(const p of d.trail) ctx.lineTo(p.x,p.y);
+        ctx.lineTo(d.x,d.y); ctx.strokeStyle='#97bace12'; ctx.lineWidth=d.r*.65; ctx.stroke();
+        ctx.strokeStyle='#06102126'; ctx.lineWidth=d.r*.25; ctx.stroke();
+      }
+      ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(-Math.atan2(d.vx,Math.max(1,d.v)));
+      ellipse(ctx,0,0,d.r+1,ry+1,'#020a1450');
+      ctx.save(); ctx.beginPath(); ctx.ellipse(0,0,d.r,ry,0,0,Math.PI*2); ctx.clip();
+      // Magnified offset landscape through each drop acts as a small liquid lens.
+      const sx=clamp((d.x-d.r*3+14)*dpr,0,Math.max(0,scenery.width-d.r*6*dpr));
+      const sy=clamp((d.y-ry*3-20)*dpr,0,Math.max(0,scenery.height-ry*6*dpr));
+      ctx.drawImage(scenery,sx,sy,Math.min(scenery.width,d.r*6*dpr),Math.min(scenery.height,ry*6*dpr),-d.r,-ry,d.r*2,ry*2);
+      ctx.fillStyle='#a2c4df12'; ctx.fillRect(-d.r,-ry,d.r*2,ry*2); ctx.restore();
+      ctx.beginPath(); ctx.ellipse(0,0,d.r*.8,ry*.82,0,.15,2.2); ctx.strokeStyle='#acc9d56b'; ctx.lineWidth=.65; ctx.stroke();
+      ellipse(ctx,-d.r*.3,-ry*.45,Math.max(.45,d.r*.18),Math.max(.6,ry*.12),'#c1d4df66');
+      ctx.restore();
+    }
+  }
+  function render() {
+    if(!w||!h) return;
+    landscape(); ctx.drawImage(scenery,0,0,w,h); drawRain();
+    // Warm carriage reflections, a beveled window edge and a soft peripheral vignette.
+    const tunnel=routeState(time).tunnel;
+    ctx.save(); ctx.translate(w*.82,h*.10); ctx.rotate(-.045);
+    const reflection=ctx.createLinearGradient(0,-15,0,20);
+    reflection.addColorStop(0,'transparent'); reflection.addColorStop(.48,`rgba(242,197,134,${.045+tunnel*.09})`); reflection.addColorStop(1,'transparent');
+    ctx.fillStyle=reflection; ctx.fillRect(-w*.3,-15,w*.5,35); ctx.restore();
+    const vignette=ctx.createRadialGradient(w*.5,h*.46,h*.18,w*.5,h*.46,Math.max(w*.67,h*.8));
+    vignette.addColorStop(0,'transparent'); vignette.addColorStop(.65,'#03091224'); vignette.addColorStop(1,'#01050dbb');
+    ctx.fillStyle=vignette; ctx.fillRect(0,0,w,h);
+    const edge=Math.max(9,Math.min(w,h)*.022);
+    ctx.strokeStyle='#040a11'; ctx.lineWidth=edge*1.7;
+    ctx.beginPath(); ctx.roundRect(edge*.35,edge*.35,w-edge*.7,h-edge*.7,Math.min(40,w*.06)); ctx.stroke();
+    ctx.strokeStyle='#77919d25'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(edge*1.17,edge*1.17,w-edge*2.34,h-edge*2.34,Math.min(30,w*.05)); ctx.stroke();
+    const sill=ctx.createLinearGradient(0,h-edge*2,0,h);
+    sill.addColorStop(0,'transparent'); sill.addColorStop(.45,'#7f8c941b'); sill.addColorStop(.5,'#040911'); sill.addColorStop(1,'#0e1621');
+    ctx.fillStyle=sill; ctx.fillRect(0,h-edge*2,w,edge*2);
+    frames++;
+  }
+  function frame(now) {
+    raf=0;
+    if(paused || document.hidden) { last=0; return; }
+    if(!last) last=now;
+    accumulator+=Math.min((now-last)/1000,.1); last=now;
+    if(accumulator>=1/30) {
+      const dt=Math.min(accumulator,.1); accumulator=0;
+      // Small integration steps keep collisions consistent at lower frame rates.
+      const steps=Math.ceil(dt/(1/60)); for(let i=0;i<steps;i++) update(dt/steps);
+      render();
+    }
+    raf=requestAnimationFrame(frame);
+  }
+  function syncPlayback() {
+    cancelAnimationFrame(raf); raf=0; last=0; accumulator=0;
+    document.getElementById('pause').textContent=paused?'继续':'暂停';
+    if(!paused&&!document.hidden) raf=requestAnimationFrame(frame);
+  }
+  function togglePause() { paused=!paused; syncPlayback(); }
+  async function fullscreen() {
+    try { if(document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch { /* Some wallpaper hosts do not expose fullscreen. */ }
+  }
+  document.getElementById('rain').value=rain;
+  document.getElementById('speed').value=speed;
+  document.getElementById('route').value=route;
+  document.getElementById('rain').addEventListener('input',e=>{rain=Number(e.target.value);render();});
+  document.getElementById('speed').addEventListener('input',e=>{speed=Number(e.target.value);});
+  document.getElementById('route').addEventListener('change',e=>{route=e.target.value;render();});
+  document.getElementById('pause').addEventListener('click',togglePause);
+  document.getElementById('fullscreen').addEventListener('click',fullscreen);
+  document.getElementById('settings').addEventListener('click',()=>{
+    const panel=document.getElementById('panel'); panel.hidden=!panel.hidden;
+    document.getElementById('settings').setAttribute('aria-expanded',String(!panel.hidden));
+  });
+  addEventListener('keydown',e=>{
+    if(e.target.matches('input,select,button') || e.repeat) return;
+    if(e.code==='Space') { e.preventDefault(); togglePause(); }
+    if(e.key.toLowerCase()==='h') {
+      document.body.classList.toggle('hud-off'); document.body.classList.remove('quiet'); clearTimeout(captionTimer);
+    }
+    if(e.key.toLowerCase()==='f') fullscreen();
+  });
+  addEventListener('resize',resize);
+  document.addEventListener('visibilitychange',syncPlayback);
+  motion.addEventListener('change',e=>{ if(!params.has('still')) { paused=e.matches; syncPlayback(); render(); } });
+  if(params.get('hud')==='0') document.body.classList.add('hud-off');
+  const captionTimer=setTimeout(()=>document.body.classList.add('quiet'),14000);
+  resize();
+  drops=Array.from({length:Math.round(110*rain)},()=>newDrop(true));
+  // Start with established rivulets, including when taking a still frame.
+  const startTime=time,startDistance=distance;
+  for(let i=0;i<180;i++) update(1/60);
+  time=startTime; distance=startDistance;
+  render(); syncPlayback();
+})();
+</script>
+</body>
+</html>

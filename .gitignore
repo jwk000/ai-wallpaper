@@ -9,6 +9,9 @@ release-notes.md
 Thumbs.db
 .vscode/
 .idea/
+.codegraph/
+.cursor/
+scripts/
 
 # 屏幕保护程序构建产物
 screensaver/build/

@@ -1,0 +1,3177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<title>不可能建筑 · 循环小镇</title>
+<style>
+  :root {
+    color-scheme: light;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    --paper: #e9e0cc;
+    --ink: #2b2a26;
+    --brick: #b4553c;
+    --brass: #c9a15b;
+    --blue: #5f7f86;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--paper); }
+  #view { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+  #view.dragging { cursor: grabbing; }
+  #view.hot { cursor: pointer; }
+  .title {
+    position: fixed; left: 6.2%; top: 8.2%; width: min(540px, 58vw);
+    color: var(--ink); pointer-events: none; opacity: .94;
+    transition: opacity 2.2s ease;
+  }
+  .eyebrow { font-size: 9px; letter-spacing: .34em; color: #6f685a; text-transform: uppercase; }
+  h1 {
+    margin: 15px 0 10px; font-family: 'Songti SC', 'SimSun', 'STSong', serif;
+    font-size: clamp(24px, 3.2vw, 44px); font-weight: 400; letter-spacing: .18em; line-height: 1.16;
+  }
+  h1 em { font-style: normal; color: var(--brick); font-size: .62em; vertical-align: .1em; padding: 0 .12em; }
+  .sub { margin: 0; font-family: 'Songti SC', 'SimSun', serif; font-size: clamp(11px, 1.05vw, 15px); letter-spacing: .22em; color: #5c5548; }
+  .rule { width: 38px; height: 1px; background: var(--brick); margin: 22px 0 13px; opacity: .8; }
+  .foot { font-size: 8.5px; letter-spacing: .26em; color: #7a7263; text-transform: uppercase; }
+  .readout {
+    position: fixed; right: 3.4%; top: 6.4%; display: flex; flex-direction: column; align-items: flex-end;
+    gap: 5px; font-size: 9px; letter-spacing: .18em; color: #5f574a; pointer-events: none;
+    transition: opacity 1.2s ease;
+  }
+  .readout b { font-weight: 500; color: var(--ink); font-size: 11px; letter-spacing: .2em; }
+  .readout .tiny { font-size: 8px; color: #857c6c; letter-spacing: .22em; }
+  .controls { position: fixed; right: 3.2%; bottom: 4%; display: flex; flex-direction: column; align-items: flex-end; gap: 9px; }
+  .controls > button {
+    font: inherit; font-size: 10px; letter-spacing: .16em; color: #4f493d;
+    background: rgba(242, 234, 216, .72); border: 1px solid rgba(43, 42, 38, .22);
+    border-radius: 3px; padding: 8px 12px; cursor: pointer; backdrop-filter: blur(3px);
+    opacity: .55; transition: opacity .25s ease, border-color .25s ease;
+  }
+  .controls > button:hover, .controls > button:focus-visible, .controls:has([aria-expanded="true"]) > button { opacity: 1; border-color: rgba(43,42,38,.5); }
+  button, input { font: inherit; }
+  button:focus-visible, input:focus-visible, #view:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+  #panel {
+    width: 236px; padding: 16px 17px 15px; border: 1px solid rgba(43,42,38,.28);
+    border-radius: 4px; background: rgba(240, 232, 214, .95); color: #4b453a;
+    box-shadow: 0 16px 44px rgba(52,44,32,.16);
+  }
+  #panel[hidden] { display: none; }
+  #panel .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; font-size: 10.5px; letter-spacing: .08em; }
+  #panel .check { gap: 8px; justify-content: flex-start; cursor: pointer; }
+  #panel .check input { accent-color: var(--brick); width: 13px; height: 13px; }
+  #panel .buttons { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+  #panel .buttons button { flex: 1 1 auto; padding: 7px 8px; font-size: 10px; letter-spacing: .1em; background: #e5dbc5; border: 1px solid #b9ab92; border-radius: 3px; cursor: pointer; color: #433d33; }
+  #panel .buttons button:hover { background: #ded2b8; }
+  #panel p { margin: 0; font-size: 9px; line-height: 1.9; letter-spacing: .06em; color: #7d7464; }
+  #panel .swatch { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--brick); margin-right: 5px; }
+  .toast {
+    position: fixed; left: 6.2%; bottom: 8%; font-size: 9px; letter-spacing: .22em; color: #5f574a;
+    opacity: 0; transform: translateY(5px); transition: opacity .4s ease, transform .4s ease; pointer-events: none;
+  }
+  .toast.show { opacity: .9; transform: none; }
+  body.hud-off .title, body.hud-off .readout, body.hud-off .controls, body.hud-off .toast { opacity: 0; pointer-events: none; }
+  body.quiet .title { opacity: .22; }
+  @media (max-width: 720px) {
+    .title { left: 8%; top: 8%; width: 78vw; }
+    h1 { letter-spacing: .1em; }
+    .title .sub, .title .rule, .title .foot { display: none; }
+    .readout { display: none; }
+    .controls { right: 7%; bottom: 5%; }
+    #panel { width: 212px; }
+    .toast { left: 8%; bottom: 12%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .title, .readout, .toast, .controls > button { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="view" tabindex="0" role="img" aria-label="一张米色纸面上的等距小镇：环形电车穿过广场，水渠的水一级级往高处流，中央塔楼外的阶梯首尾相接，建筑偶尔原地转身九十度。"></canvas>
+
+<div class="title" id="title">
+  <div class="eyebrow">LUMEN · IMPOSSIBLE ARCHIVE / STUDY No. 08</div>
+  <h1>不可能建筑<em>·</em>循环小镇</h1>
+  <p class="sub">水往高处流，路在脚下合拢。</p>
+  <div class="rule"></div>
+  <div class="foot">A TOWN THAT TURNS ITSELF INSIDE OUT</div>
+</div>
+
+<div class="readout" id="readout" aria-hidden="true">
+  <b id="clockLabel">06:12</b>
+  <span id="phaseLabel">DAWN · 晨</span>
+  <span class="tiny" id="nextLabel">NEXT TURN 00:37</span>
+</div>
+
+<div class="controls">
+  <div id="panel" hidden>
+    <label class="row check"><input id="auto" type="checkbox" checked> 建筑自动转身</label>
+    <div class="buttons">
+      <button id="pause">暂停</button>
+      <button id="fullscreen">全屏</button>
+      <button id="recenter">复位视角</button>
+    </div>
+    <p><span class="swatch"></span>点击建筑：原地转身 90°<br>拖动：平移模型台（限 ±1 格）<br>滚轮：缩放 0.8–1.2×<br>方向键选择 · Enter 转身<br>Space 暂停 · H 隐藏界面 · F 全屏</p>
+  </div>
+  <button id="settings" aria-expanded="false" aria-controls="panel">镇上设置</button>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // 0. 参数、工具、调色板
+  // ---------------------------------------------------------------------------
+  const params = new URLSearchParams(location.search);
+  const TAU = Math.PI * 2;
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mod = (n, m) => ((n % m) + m) % m;
+  const fract = (v) => v - Math.floor(v);
+  const smoothstep = (a, b, x) => {
+    const t = clamp((x - a) / (b - a), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+  const easeOutBack = (t) => 1 + 2.15 * Math.pow(t - 1, 3) + 1.15 * Math.pow(t - 1, 2);
+  const hash1 = (n) => fract(Math.sin(n * 127.1 + 311.7) * 43758.5453);
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function numberParam(key, fallback, min, max) {
+    if (!params.has(key)) return fallback;
+    const value = Number(params.get(key));
+    return Number.isFinite(value) ? clamp(value, min, max) : fallback;
+  }
+
+  const PAL = {
+    paper: '#e7ddc6',
+    paperDark: '#d6c8ac',
+    paperDeep: '#c4b294',
+    paperLight: '#f4ecdb',
+    ink: '#24231f',
+    inkSoft: '#514c40',
+    brick: '#a94b35',
+    brickDark: '#7e3525',
+    brickLight: '#c46a4d',
+    blue: '#4f747b',
+    blueDark: '#38595f',
+    blueLight: '#87a5a7',
+    brass: '#bc8f45',
+    brassLight: '#dcb879',
+    brassDark: '#87622e',
+    shadow: 'rgba(70, 84, 92, .12)',
+    shadowSoft: 'rgba(70, 84, 92, .07)'
+  };
+
+  function hexRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function mix(a, b, t) {
+    const A = hexRgb(a), B = hexRgb(b), x = clamp(t, 0, 1);
+    return '#' + A.map((v, i) => Math.round(lerp(v, B[i], x)).toString(16).padStart(2, '0')).join('');
+  }
+  function rgba(hex, alpha) {
+    const [r, g, b] = hexRgb(hex);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const stillParam = params.has('still') ? params.get('still') !== '0' : null;
+  let seed = numberParam('seed', 20261110, 1, 2147483646) >>> 0;
+  let clock = numberParam('t', 113, 0, 86400);
+  let paused = stillParam !== null ? stillParam : reducedMotion.matches;
+  let autoTurns = params.get('auto') !== '0';
+  let zoom = numberParam('zoom', 1, 0.8, 1.2);
+  let hud = params.get('hud') !== '0';
+  let frames = 0;
+  let lastFrame = 0;
+  let accumulator = 0;
+  let raf = 0;
+  let toastTimer = 0;
+
+  const canvas = document.getElementById('view');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const paperCanvas = document.createElement('canvas');
+  const pctx = paperCanvas.getContext('2d', { alpha: false });
+  const groundCanvas = document.createElement('canvas');
+  const gctx = groundCanvas.getContext('2d');
+  const fgCanvas = document.createElement('canvas');
+  const fctx = fgCanvas.getContext('2d');
+  const grainCanvas = document.createElement('canvas');
+  const nctx = grainCanvas.getContext('2d');
+
+  let w = 0, h = 0, dpr = 1, spriteDpr = 1;
+  let TW = 80, TH = 40, focusX = 0, focusY = 0;
+  let bakedGround = null;
+  let bakedPaper = null;
+  let bakedFg = null;
+  const spriteCache = new Map();
+  const monumentCache = { key: '', sprite: null };
+  const cam = { panX: 0, panY: 0, zoom, sway: 0, breath: 1, floatY: 0 };
+
+  // ---------------------------------------------------------------------------
+  // 1. 世界蓝图
+  // ---------------------------------------------------------------------------
+  const GRID = 22;
+  const CX = GRID / 2, CY = GRID / 2;
+  const CANAL = { half: 5.0, radius: 2.0, width: 1.0 };
+  const TRAM = { half: 4.1, radius: 1.6 };
+  const PED_PATHS = [
+    { half: 3.35, radius: 1.2 },
+    { half: 4.75, radius: 1.8 }
+  ];
+
+  const FACADES = [
+    { wall: '#d8c6a5', roof: '#a94b35' },
+    { wall: '#aebfb9', roof: '#a94b35' },
+    { wall: '#b3563f', roof: '#d8c3a0' },
+    { wall: '#a9b0a8', roof: '#4f747b' },
+    { wall: '#d3bd98', roof: '#38595f' },
+    { wall: '#c7a47e', roof: '#a94b35' }
+  ];
+
+  // x, y, w, d, height, style, roof, kind
+  const BUILDING_SPECS = [
+    [1.0, 1.2, 2.8, 2.6, 1.9, 0, 'gable', 'row'],
+    [4.2, 0.9, 3.4, 3.0, 3.0, 1, 'gable', 'cathedral'],
+    [8.0, 1.2, 2.6, 2.4, 2.1, 2, 'hip', 'library'],
+    [11.0, 0.9, 3.6, 3.0, 4.2, 3, 'spire', 'clock'],
+    [15.0, 1.2, 2.6, 2.6, 1.9, 4, 'saw', 'print'],
+    [18.0, 1.1, 2.8, 2.7, 1.6, 5, 'flat', 'row'],
+
+    [1.0, 6.0, 3.0, 2.6, 1.8, 5, 'gable', 'row'],
+    [1.0, 9.2, 4.0, 3.2, 2.2, 2, 'saw', 'market'],
+    [2.0, 12.2, 3.4, 2.6, 2.0, 4, 'gable', 'mill'],
+    [1.2, 16.9, 3.0, 2.4, 1.7, 4, 'gable', 'row'],
+    [4.0, 6.4, 1.2, 2.2, 1.3, 1, 'flat', 'small'],
+    [4.2, 8.7, 0.9, 1.1, 1.3, 3, 'flat', 'small'],
+
+    [17.6, 6.0, 2.8, 2.6, 1.7, 1, 'gable', 'row'],
+    [17.2, 9.2, 3.6, 3.2, 2.8, 4, 'dome', 'observatory'],
+    [17.8, 13.0, 2.6, 2.4, 1.8, 2, 'hip', 'row'],
+    [17.2, 16.7, 3.0, 2.4, 1.5, 0, 'flat', 'row'],
+    [20.2, 9.8, 1.4, 2.2, 1.4, 3, 'gable', 'small'],
+    [20.2, 13.2, 1.4, 1.8, 1.2, 5, 'flat', 'small'],
+
+    [2.0, 18.2, 2.8, 2.4, 1.7, 1, 'gable', 'row'],
+    [5.6, 18.0, 2.8, 2.8, 1.6, 5, 'hip', 'row'],
+    [8.8, 17.8, 3.2, 3.0, 2.6, 0, 'hip', 'hall'],
+    [12.2, 18.0, 2.6, 2.8, 1.8, 3, 'gable', 'row'],
+    [15.2, 17.9, 2.8, 2.9, 1.5, 2, 'flat', 'row'],
+    [18.4, 18.0, 2.6, 2.8, 1.7, 1, 'gable', 'row'],
+
+    [1.0, 4.0, 2.4, 1.2, 1.2, 5, 'flat', 'small'],
+    [3.8, 4.2, 2.0, 1.1, 1.0, 0, 'flat', 'small'],
+    [7.2, 4.2, 2.2, 1.1, 1.1, 3, 'flat', 'small'],
+    [13.4, 4.2, 2.2, 1.1, 1.3, 2, 'flat', 'small'],
+    [17.2, 4.2, 2.2, 1.1, 1.0, 1, 'flat', 'small'],
+    [7.0, 16.8, 1.8, 1.0, 1.0, 4, 'flat', 'small'],
+    [13.6, 16.8, 1.8, 1.0, 1.1, 0, 'flat', 'small'],
+    [16.8, 16.8, 2.0, 1.0, 1.0, 2, 'flat', 'small'],
+    [1.2, 7.6, 1.2, 1.2, 1.0, 3, 'flat', 'small'],
+    [20.4, 15.8, 1.0, 1.4, 1.0, 4, 'flat', 'small'],
+
+    [7.05, 10.05, 0.6, 0.6, 0.9, 2, 'flat', 'kiosk'],
+    [14.35, 10.05, 0.6, 0.6, 0.9, 0, 'flat', 'kiosk'],
+  ];
+
+  const buildings = [];
+  const wideExtras = [];
+  const layoutProblems = [];
+  const LANDMARK_KINDS = new Set(['cathedral', 'clock', 'market', 'observatory', 'mill', 'hall']);
+
+  function buildLayout() {
+    const rng = mulberry32((seed ^ 0x9e3779b9) >>> 0);
+    BUILDING_SPECS.forEach((s, i) => {
+      const [x, y, bw, bd, bh, style, roof, kind] = s;
+      const pal = FACADES[style];
+      const shift = (rng() - 0.5) * 0.18;
+      const b = {
+        id: 'b' + i,
+        x, y, w: bw, d: bd, h: bh * (0.94 + rng() * 0.12),
+        style, roof, kind,
+        landmark: LANDMARK_KINDS.has(kind),
+        angle: 0,
+        turning: false,
+        turnP: 0,
+        turnFrom: 0,
+        turnTo: 0,
+        turnStart: 0,
+        push: 0,
+        pushTarget: 0,
+        routeU: 0,
+        seed: Math.floor(rng() * 1e9),
+        lit: rng(),
+        hasChimney: kind !== 'kiosk' && rng() > 0.38,
+        hasVines: rng() > 0.74,
+        hasTank: rng() > 0.82,
+        hasAntenna: rng() > 0.83,
+        hasGarden: kind === 'row' && rng() > 0.86,
+        flag: (kind === 'clock' || kind === 'hall' || kind === 'cathedral'),
+        smoke: false,
+        pal: {
+          wall: mix(pal.wall, PAL.ink, Math.max(0, -shift)),
+          roof: mix(pal.roof, PAL.paperLight, Math.max(0, shift)),
+          left: mix(mix(pal.wall, PAL.paperLight, 0.16), PAL.ink, Math.max(0, -shift) * 0.4),
+          right: mix(mix(pal.wall, PAL.blueDark, 0.52), PAL.ink, Math.max(0, shift) * 0.3),
+          top: mix(pal.wall, PAL.paperLight, 0.48),
+          roofLight: mix(pal.roof, PAL.paperLight, 0.32),
+          roofDark: mix(pal.roof, PAL.ink, 0.32),
+          trim: mix(PAL.paperLight, PAL.brass, 0.25)
+        }
+      };
+      if (b.hasChimney) b.smoke = rng() > 0.55 && buildings.length % 3 === 0;
+      buildings.push(b);
+    });
+
+    // 车站雨棚是广场里的一个小型构筑物，不参与建筑转身。
+    buildings.push({
+      id: 'station',
+      x: 9.9, y: 14.3, w: 1.6, d: 0.45, h: 0.5,
+      style: 5, roof: 'flat', kind: 'station', landmark: true,
+      angle: 0, turning: false, turnP: 0, turnFrom: 0, turnTo: 0, turnStart: 0,
+      push: 0, pushTarget: 0, routeU: 0, seed: 99117, lit: 0.5,
+      hasChimney: false, hasVines: false, hasTank: false, hasAntenna: false,
+      hasGarden: false, flag: false, smoke: false,
+      pal: {
+        wall: PAL.paperLight, roof: PAL.brick,
+        left: mix(PAL.paperLight, PAL.paperDark, 0.16),
+        right: mix(PAL.paperLight, PAL.blueDark, 0.3),
+        top: PAL.paperLight, roofLight: PAL.brickLight, roofDark: PAL.brickDark,
+        trim: PAL.brass
+      }
+    });
+
+    // 碰撞与运河检查：有问题的建筑只记录，不参与视觉（位置均经过手工排布）。
+    for (const b of buildings) {
+      if (b.kind === 'station' || b.kind === 'kiosk') continue;
+      const c = footprintDistance(b);
+      if (c < CANAL.half + CANAL.width / 2 + 0.12) {
+        layoutProblems.push({ id: b.id, reason: 'canal', value: +c.toFixed(2) });
+      }
+    }
+
+    // 超宽屏两侧的卫星小屋：只画在纸面上，不参与主镇路线。
+    const extraSpecs = [
+      [-5.8, 11.4, 0, 1.2], [-5.0, 13.4, 5, 0.95], [-6.2, 15.6, 1, 1.1],
+      [25.6, 8.4, 1, 1.0], [26.4, 10.6, 0, 1.25], [25.4, 12.8, 5, 0.95]
+    ];
+    extraSpecs.forEach(([x, y, style, h], i) => {
+      const pal = FACADES[style];
+      wideExtras.push({
+        id: 'x' + i, x, y, w: 1.7, d: 1.5, h,
+        style, roof: 'gable', kind: 'row', landmark: false,
+        angle: 0, turning: false, turnP: 0, turnFrom: 0, turnTo: 0, turnStart: 0,
+        push: 0, pushTarget: 0, routeU: 0, seed: 7000 + i * 31, lit: 0.5,
+        hasChimney: true, hasVines: false, hasTank: i % 2 === 0, hasAntenna: i % 3 === 0,
+        hasGarden: false, flag: false, smoke: false,
+        pal: {
+          wall: mix(pal.wall, PAL.paperLight, 0.2), roof: pal.roof,
+          left: mix(mix(pal.wall, PAL.paperLight, 0.22), PAL.ink, 0.05),
+          right: mix(mix(pal.wall, PAL.blueDark, 0.4), PAL.ink, 0.05),
+          top: mix(pal.wall, PAL.paperLight, 0.55),
+          roofLight: mix(pal.roof, PAL.paperLight, 0.3), roofDark: mix(pal.roof, PAL.ink, 0.3),
+          trim: mix(PAL.paperLight, PAL.brass, 0.25)
+        }
+      });
+    });
+  }
+
+  function footprintDistance(b) {
+    // 圆角方形到中心的距离（用于判断建筑是否压到水渠）
+    const c = Math.max(Math.abs(b.x + b.w / 2 - CX), Math.abs(b.y + b.d / 2 - CY));
+    return c;
+  }
+
+  buildLayout();
+
+  // ---------------------------------------------------------------------------
+  // 2. 闭合路线（圆角方形、等距重采样）
+  // ---------------------------------------------------------------------------
+  function roundedSquarePath(half, radius, n = 200, cx = CX, cy = CY) {
+    const raw = [];
+    const push = (x, y) => raw.push({ x, y });
+    const hh = half, r = Math.min(radius, half * 0.85);
+    const straight = hh - r;
+    const seg = 20, arcSeg = 12;
+    // top edge, left to right
+    for (let i = 0; i < seg; i++) push(cx - straight + (2 * straight) * (i / seg), cy - hh);
+    // top-right arc
+    for (let i = 0; i < arcSeg; i++) {
+      const a = -Math.PI / 2 + (Math.PI / 2) * (i / arcSeg);
+      push(cx + straight + Math.cos(a) * r, cy - straight + Math.sin(a) * r);
+    }
+    // right edge, top to bottom
+    for (let i = 0; i < seg; i++) push(cx + hh, cy - straight + (2 * straight) * (i / seg));
+    // bottom-right arc
+    for (let i = 0; i < arcSeg; i++) {
+      const a = 0 + (Math.PI / 2) * (i / arcSeg);
+      push(cx + straight + Math.cos(a) * r, cy + straight + Math.sin(a) * r);
+    }
+    // bottom edge, right to left
+    for (let i = 0; i < seg; i++) push(cx + straight - (2 * straight) * (i / seg), cy + hh);
+    // bottom-left arc
+    for (let i = 0; i < arcSeg; i++) {
+      const a = Math.PI / 2 + (Math.PI / 2) * (i / arcSeg);
+      push(cx - straight + Math.cos(a) * r, cy + straight + Math.sin(a) * r);
+    }
+    // left edge, bottom to top
+    for (let i = 0; i < seg; i++) push(cx - hh, cy + straight - (2 * straight) * (i / seg));
+    // top-left arc
+    for (let i = 0; i < arcSeg; i++) {
+      const a = Math.PI + (Math.PI / 2) * (i / arcSeg);
+      push(cx - straight + Math.cos(a) * r, cy - straight + Math.sin(a) * r);
+    }
+    // 等弧长重采样
+    const lengths = [0];
+    let total = 0;
+    for (let i = 1; i <= raw.length; i++) {
+      const a = raw[i - 1], b = raw[i % raw.length];
+      total += Math.hypot(b.x - a.x, b.y - a.y);
+      lengths.push(total);
+    }
+    const out = [];
+    let k = 0;
+    for (let i = 0; i < n; i++) {
+      const target = (i / n) * total;
+      while (k < lengths.length - 2 && lengths[k + 1] < target) k++;
+      const a = raw[k % raw.length], b = raw[(k + 1) % raw.length];
+      const segLen = Math.max(1e-6, lengths[k + 1] - lengths[k]);
+      const t = (target - lengths[k]) / segLen;
+      const x = lerp(a.x, b.x, t), y = lerp(a.y, b.y, t);
+      // 切线取前后点的方向，法线朝外
+      const p0 = raw[(k - 1 + raw.length) % raw.length], p1 = raw[(k + 2) % raw.length];
+      let tx = p1.x - p0.x, ty = p1.y - p0.y;
+      const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+      let nx = ty, ny = -tx;
+      if (nx * (x - cx) + ny * (y - cy) < 0) { nx = -nx; ny = -ny; }
+      out.push({ x, y, nx, ny, tx, ty, u: i / n });
+    }
+    return out;
+  }
+
+  const canalPath = roundedSquarePath(CANAL.half, CANAL.radius, 240);
+  const baseTramPath = roundedSquarePath(TRAM.half, TRAM.radius, 200);
+  const pedBasePaths = PED_PATHS.map((p) => roundedSquarePath(p.half, p.radius, 160));
+
+  // 建筑在水渠/轨道旁边的“推挤”位置：站台、市场、钟塔等会改变路线。
+  for (const b of buildings) {
+    const bx = b.x + b.w / 2, by = b.y + b.d / 2;
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < baseTramPath.length; i++) {
+      const p = baseTramPath[i];
+      const dd = (p.x - bx) ** 2 + (p.y - by) ** 2;
+      if (dd < bestD) { bestD = dd; best = i; }
+    }
+    b.routeU = best / baseTramPath.length;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 3. 投影与相机
+  // ---------------------------------------------------------------------------
+  function iso(x, y, z = 0) {
+    return {
+      x: focusX + (x - y) * TW * 0.5,
+      y: focusY + ((x + y) - GRID) * TH * 0.5 - z * TH
+    };
+  }
+  function rel(x, y, z, ax, ay) {
+    return {
+      x: ((x - ax) - (y - ay)) * TW * 0.5,
+      y: (((x - ax) + (y - ay)) * TH * 0.5) - z * TH
+    };
+  }
+  function screenToNeutral(px, py) {
+    const cx = focusX + cam.panX, cy = focusY + cam.panY;
+    const s = cam.zoom * cam.breath;
+    let dx = px - cx, dy = py - cy;
+    const cs = Math.cos(-cam.sway), sn = Math.sin(-cam.sway);
+    const rx = dx * cs - dy * sn, ry = dx * sn + dy * cs;
+    return { x: rx / s + focusX, y: ry / s + focusY };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. 纸面、模型台、铺地
+  // ---------------------------------------------------------------------------
+  function makeGrain() {
+    grainCanvas.width = 180;
+    grainCanvas.height = 180;
+    const n = grainCanvas.width * grainCanvas.height;
+    for (let i = 0; i < n * 0.18; i++) {
+      const x = Math.floor(hash1(i * 3.1) * 180);
+      const y = Math.floor(hash1(i * 7.7 + 2) * 180);
+      const a = 0.03 + hash1(i * 5.3) * 0.05;
+      nctx.fillStyle = `rgba(43,42,38,${a})`;
+      nctx.fillRect(x, y, 1, 1);
+    }
+    // 极淡的 risograph 网点
+    for (let y = 0; y < 180; y += 4) {
+      for (let x = 0; x < 180; x += 4) {
+        nctx.fillStyle = 'rgba(180,85,60,.022)';
+        nctx.fillRect(x + ((y / 4) % 2) * 2, y, 1, 1);
+      }
+    }
+  }
+
+  function bakePaper() {
+    paperCanvas.width = Math.max(1, Math.round(w * dpr));
+    paperCanvas.height = Math.max(1, Math.round(h * dpr));
+    pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    pctx.fillStyle = PAL.paper;
+    pctx.fillRect(0, 0, w, h);
+
+    // 纸面的大块冷暖与折痕
+    const wash = pctx.createLinearGradient(0, 0, w, h);
+    wash.addColorStop(0, 'rgba(255,250,238,.34)');
+    wash.addColorStop(0.52, 'rgba(233,224,204,0)');
+    wash.addColorStop(1, 'rgba(190,170,140,.14)');
+    pctx.fillStyle = wash;
+    pctx.fillRect(0, 0, w, h);
+
+    // 等距蓝图网格，只在纸面可见
+    const step = 2.4;
+    pctx.save();
+    pctx.strokeStyle = 'rgba(43,42,38,.052)';
+    pctx.lineWidth = 0.7;
+    for (let gx = -10; gx <= GRID + 18; gx += step) {
+      const a = iso(gx, -12), b = iso(gx, GRID + 20);
+      pctx.beginPath(); pctx.moveTo(a.x, a.y); pctx.lineTo(b.x, b.y); pctx.stroke();
+    }
+    for (let gy = -10; gy <= GRID + 18; gy += step) {
+      const a = iso(-12, gy), b = iso(GRID + 20, gy);
+      pctx.beginPath(); pctx.moveTo(a.x, a.y); pctx.lineTo(b.x, b.y); pctx.stroke();
+    }
+    pctx.restore();
+
+    // 远处山影（纸面上的灰调，不随模型移动）
+    drawPaperMountains();
+
+    // 规划虚线：模型台外的等高/退晕线
+    drawPlanLines();
+
+    // 罗盘与印章
+    drawCompass(w * 0.855, h * 0.76, Math.min(w, h) * 0.052);
+    drawStamp(w * 0.80, h * 0.90, Math.min(w, h));
+
+    // 折痕
+    pctx.save();
+    pctx.strokeStyle = 'rgba(255,255,255,.20)';
+    pctx.lineWidth = 1;
+    pctx.beginPath(); pctx.moveTo(w * 0.14, -20); pctx.lineTo(w * 0.52, h + 20); pctx.stroke();
+    pctx.strokeStyle = 'rgba(120,106,84,.07)';
+    pctx.beginPath(); pctx.moveTo(w * 0.145, -20); pctx.lineTo(w * 0.525, h + 20); pctx.stroke();
+    pctx.restore();
+
+    // 纸纹与颗粒
+    pctx.globalAlpha = 0.55;
+    pctx.fillStyle = pctx.createPattern(grainCanvas, 'repeat');
+    pctx.fillRect(0, 0, w, h);
+    pctx.globalAlpha = 1;
+
+    // 四角暗角
+    const vig = pctx.createRadialGradient(w * 0.5, h * 0.48, Math.min(w, h) * 0.28, w * 0.5, h * 0.48, Math.max(w, h) * 0.78);
+    vig.addColorStop(0, 'rgba(207,192,165,0)');
+    vig.addColorStop(0.72, 'rgba(207,192,165,.10)');
+    vig.addColorStop(1, 'rgba(170,150,120,.22)');
+    pctx.fillStyle = vig;
+    pctx.fillRect(0, 0, w, h);
+
+    bakedPaper = paperCanvas;
+  }
+
+  function drawPaperMountains() {
+    const layers = [
+      { y: 0.115, col: 'rgba(95,127,134,.045)', amp: 0.035, freq: 0.007, phase: 1.2 },
+      { y: 0.155, col: 'rgba(95,127,134,.07)', amp: 0.052, freq: 0.005, phase: 4.5 },
+      { y: 0.205, col: 'rgba(70,84,92,.05)', amp: 0.03, freq: 0.009, phase: 2.3 }
+    ];
+    pctx.save();
+    for (const L of layers) {
+      const base = h * L.y;
+      const pts = [];
+      const left = -w * 0.02, right = w * 1.02;
+      for (let x = left; x <= right; x += w * 0.01) {
+        const top = base - Math.abs(Math.sin(x * L.freq + L.phase)) * h * L.amp
+          - Math.sin(x * L.freq * 2.7 + L.phase * 2) * h * L.amp * 0.25;
+        pts.push({ x, y: top });
+      }
+      pctx.beginPath();
+      pctx.moveTo(left, h * 0.42);
+      for (const p of pts) pctx.lineTo(p.x, p.y);
+      pctx.lineTo(right, h * 0.42);
+      pctx.closePath();
+      pctx.fillStyle = L.col;
+      pctx.fill();
+      pctx.strokeStyle = 'rgba(70,84,92,.08)';
+      pctx.lineWidth = 0.7;
+      pctx.beginPath();
+      pts.forEach((p, i) => (i ? pctx.lineTo(p.x, p.y) : pctx.moveTo(p.x, p.y)));
+      pctx.stroke();
+      // 山体排线
+      pctx.save();
+      pctx.clip();
+      pctx.strokeStyle = 'rgba(70,84,92,.05)';
+      pctx.lineWidth = 0.6;
+      for (let x = left; x < right; x += 9) {
+        pctx.beginPath(); pctx.moveTo(x, base - h * 0.08); pctx.lineTo(x - 26, base + h * 0.1); pctx.stroke();
+      }
+      pctx.restore();
+    }
+    pctx.restore();
+  }
+
+  function drawPlanLines() {
+    pctx.save();
+    pctx.strokeStyle = 'rgba(43,42,38,.13)';
+    pctx.lineWidth = 0.7;
+    pctx.setLineDash([3, 6]);
+    for (let i = 0; i < 3; i++) {
+      const half = GRID / 2 + 2.2 + i * 1.6;
+      const r = 2.0 + i * 0.5;
+      const pts = roundedSquarePath(half, r, 160);
+      pctx.beginPath();
+      pts.forEach((p, idx) => {
+        const s = iso(p.x, p.y);
+        if (idx === 0) pctx.moveTo(s.x, s.y); else pctx.lineTo(s.x, s.y);
+      });
+      pctx.closePath();
+      pctx.stroke();
+    }
+    pctx.setLineDash([]);
+    pctx.restore();
+  }
+
+  function drawCompass(x, y, r) {
+    pctx.save();
+    pctx.translate(x, y);
+    pctx.strokeStyle = 'rgba(43,42,38,.24)';
+    pctx.lineWidth = 0.7;
+    pctx.beginPath(); pctx.arc(0, 0, r, 0, TAU); pctx.stroke();
+    pctx.beginPath(); pctx.arc(0, 0, r * 0.7, 0, TAU); pctx.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU - Math.PI / 2;
+      const inner = i % 2 ? r * 0.72 : r * 0.24;
+      pctx.beginPath();
+      pctx.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+      pctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      pctx.stroke();
+    }
+    pctx.fillStyle = 'rgba(43,42,38,.42)';
+    pctx.font = `500 ${Math.max(7, r * 0.24)}px 'Segoe UI', sans-serif`;
+    pctx.textAlign = 'center';
+    pctx.fillText('N', 0, -r * 1.18);
+    pctx.fillText('S', 0, r * 1.45);
+    pctx.restore();
+  }
+
+  function drawStamp(x, y, unit) {
+    pctx.save();
+    pctx.translate(x, y);
+    pctx.rotate(-0.03);
+    const r = unit * 0.052;
+    pctx.strokeStyle = 'rgba(180,85,60,.34)';
+    pctx.lineWidth = 0.9;
+    pctx.beginPath(); pctx.arc(0, 0, r, 0, TAU); pctx.stroke();
+    pctx.beginPath(); pctx.arc(0, 0, r * 0.86, 0, TAU); pctx.stroke();
+    pctx.fillStyle = 'rgba(180,85,60,.44)';
+    pctx.textAlign = 'center';
+    pctx.font = `500 ${Math.max(6, r * 0.16)}px 'Segoe UI', sans-serif`;
+    pctx.fillText('LUMEN', 0, -r * 0.12);
+    pctx.font = `400 ${Math.max(5, r * 0.12)}px 'Segoe UI', sans-serif`;
+    pctx.fillText('IMPOSSIBLE TOWN', 0, r * 0.2);
+    pctx.fillText('STUDY 08 · NOT TO SCALE', 0, r * 0.45);
+    pctx.restore();
+  }
+
+  function plinthWorld() {
+    const m = 0.7;
+    return { x0: -m, y0: -m, x1: GRID + m, y1: GRID + m };
+  }
+  function plinthCorners(z = 0) {
+    const p = plinthWorld();
+    return [iso(p.x0, p.y0, z), iso(p.x1, p.y0, z), iso(p.x1, p.y1, z), iso(p.x0, p.y1, z)];
+  }
+  function polyPath(c, pts, close = true, begin = true) {
+    if (begin) c.beginPath();
+    pts.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+    if (close) c.closePath();
+  }
+  function fillPoly(c, pts, color) {
+    c.fillStyle = color; polyPath(c, pts); c.fill();
+  }
+  function strokePoly(c, pts, color, lw = 1, close = true) {
+    c.strokeStyle = color; c.lineWidth = lw; polyPath(c, pts, close); c.stroke();
+  }
+
+  function bakeGround() {
+    const pad = 26;
+    const p = plinthWorld();
+    const cs = [
+      iso(p.x0, p.y0), iso(p.x1, p.y0), iso(p.x1, p.y1), iso(p.x0, p.y1)
+    ];
+    const xs = cs.map((q) => q.x), ys = cs.map((q) => q.y);
+    const x0 = Math.min(...xs) - 150, x1 = Math.max(...xs) + 150;
+    const y0 = Math.min(...ys) - 130, y1 = Math.max(...ys) + 180;
+    const cw = Math.ceil(x1 - x0), ch = Math.ceil(y1 - y0);
+    groundCanvas.width = Math.max(1, Math.round(cw * dpr));
+    groundCanvas.height = Math.max(1, Math.round(ch * dpr));
+    gctx.setTransform(dpr, 0, 0, dpr, -x0 * dpr, -y0 * dpr);
+    gctx.clearRect(x0, y0, cw, ch);
+    gctx.lineJoin = 'round';
+    gctx.lineCap = 'round';
+
+    // 模型台投影：两层硬边阴影
+    const shadowA = [
+      iso(p.x0 + 0.5, p.y0 + 0.9), iso(p.x1 + 0.5, p.y0 + 0.9),
+      iso(p.x1 + 0.5, p.y1 + 0.9), iso(p.x0 + 0.5, p.y1 + 0.9)
+    ];
+    fillPoly(gctx, shadowA, 'rgba(70,84,92,.055)');
+    const shadowB = [
+      iso(p.x0 + 0.25, p.y0 + 0.4), iso(p.x1 + 0.25, p.y0 + 0.4),
+      iso(p.x1 + 0.25, p.y1 + 0.4), iso(p.x0 + 0.25, p.y1 + 0.4)
+    ];
+    fillPoly(gctx, shadowB, 'rgba(70,84,92,.08)');
+
+    // 薄板侧面
+    const depth = 0.5;
+    const top = plinthCorners(0);
+    const bottom = plinthCorners(-depth);
+    // 左前侧面（y = y1）
+    fillPoly(gctx, [top[3], top[2], bottom[2], bottom[3]], mix(PAL.paperDark, PAL.ink, 0.08));
+    // 右前侧面（x = x1）
+    fillPoly(gctx, [top[1], top[2], bottom[2], bottom[1]], mix(PAL.paperDark, PAL.ink, 0.18));
+    strokePoly(gctx, [bottom[3], bottom[2], bottom[1]], rgba(PAL.ink, 0.46), 1);
+
+    // 顶面铺地
+    const topPoly = top;
+    fillPoly(gctx, topPoly, mix(PAL.paper, PAL.paperLight, 0.18));
+    gctx.save();
+    polyPath(gctx, topPoly); gctx.clip();
+
+    // 等距铺地网格
+    gctx.strokeStyle = 'rgba(43,42,38,.075)';
+    gctx.lineWidth = 0.65;
+    for (let x = 0; x <= GRID; x += 1) {
+      const a = iso(x, 0), b = iso(x, GRID);
+      gctx.beginPath(); gctx.moveTo(a.x, a.y); gctx.lineTo(b.x, b.y); gctx.stroke();
+    }
+    for (let y = 0; y <= GRID; y += 1) {
+      const a = iso(0, y), b = iso(GRID, y);
+      gctx.beginPath(); gctx.moveTo(a.x, a.y); gctx.lineTo(b.x, b.y); gctx.stroke();
+    }
+
+    // 广场：同心铺装、放射线
+    gctx.strokeStyle = 'rgba(43,42,38,.12)';
+    gctx.lineWidth = 0.9;
+    for (const r of [2.9, 4.55, 5.5, 6.3]) {
+      const pts = roundedSquarePath(r, Math.min(2.0, r * 0.8), 140);
+      polyPath(gctx, pts.map((q) => iso(q.x, q.y)));
+      gctx.stroke();
+    }
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * TAU;
+      const r0 = 2.7, r1 = 5.3;
+      const p0 = iso(CX + Math.cos(a) * r0, CY + Math.sin(a) * r0);
+      const p1 = iso(CX + Math.cos(a) * r1, CY + Math.sin(a) * r1);
+      gctx.beginPath(); gctx.moveTo(p0.x, p0.y); gctx.lineTo(p1.x, p1.y); gctx.stroke();
+    }
+
+    // 淡棕色的街区底色，让建筑落在“地”上
+    for (const b of buildings) {
+      if (b.kind === 'station') continue;
+      const m = 0.35;
+      const p0 = iso(b.x - m, b.y - m), p1 = iso(b.x + b.w + m, b.y - m);
+      const p2 = iso(b.x + b.w + m, b.y + b.d + m), p3 = iso(b.x - m, b.y + b.d + m);
+      fillPoly(gctx, [p0, p1, p2, p3], 'rgba(213,195,166,.32)');
+      strokePoly(gctx, [p0, p1, p2, p3], 'rgba(43,42,38,.06)', 0.7);
+    }
+
+    // 运河
+    drawCanal(gctx);
+
+    // 桥
+    drawBridge(gctx, 11, 6.0, 0);
+    drawBridge(gctx, 16.0, 11, 1);
+    drawBridge(gctx, 11, 16.0, 2);
+    drawBridge(gctx, 6.0, 11, 3);
+
+    // 喷泉池
+    drawFountainBasin(gctx);
+
+    // 水梯
+    drawWaterStairs(gctx);
+
+    // 建筑阴影（统一 12% 冷灰）
+    for (const b of buildings) {
+      if (b.kind === 'station') continue;
+      const eff = effectiveFootprint(b);
+      const sh = b.h * 0.55;
+      const pts = [
+        iso(eff.x0 + sh, eff.y0 + sh * 0.12),
+        iso(eff.x1 + sh, eff.y0 + sh * 0.12),
+        iso(eff.x1 + sh, eff.y1 + sh * 0.12),
+        iso(eff.x0 + sh, eff.y1 + sh * 0.12)
+      ];
+      fillPoly(gctx, pts, PAL.shadow);
+    }
+
+    // 铺地边缘的细墨线
+    polyPath(gctx, topPoly);
+    gctx.strokeStyle = 'rgba(43,42,38,.5)';
+    gctx.lineWidth = 1.1;
+    gctx.stroke();
+    gctx.restore();
+
+    bakedGround = { canvas: groundCanvas, x0, y0, cw, ch };
+  }
+
+  function effectiveFootprint(b) {
+    const cx = b.x + b.w / 2, cy = b.y + b.d / 2;
+    const bw = b.turning && b.turnP >= 0.5 ? (b.angle ? b.w : b.d) : (b.angle ? b.d : b.w);
+    const bd = b.turning && b.turnP >= 0.5 ? (b.angle ? b.d : b.w) : (b.angle ? b.w : b.d);
+    return { x0: cx - bw / 2, x1: cx + bw / 2, y0: cy - bd / 2, y1: cy + bd / 2, w: bw, d: bd, cx, cy };
+  }
+
+  function drawCanal(c) {
+    const inner = canalPath.map((p) => ({ x: p.x - p.nx * CANAL.width / 2, y: p.y - p.ny * CANAL.width / 2 }));
+    const outer = canalPath.map((p) => ({ x: p.x + p.nx * CANAL.width / 2, y: p.y + p.ny * CANAL.width / 2 }));
+    const innerS = inner.map((p) => iso(p.x, p.y));
+    const outerS = outer.map((p) => iso(p.x, p.y));
+    // 石岸
+    gctx.beginPath();
+    polyPath(gctx, outerS, true, false);
+    polyPath(gctx, innerS, true, false);
+    gctx.fillStyle = mix(PAL.paperDark, PAL.ink, 0.08);
+    gctx.fill('evenodd');
+    // 水
+    const waterIn = canalPath.map((p) => iso(p.x - p.nx * CANAL.width * 0.33, p.y - p.ny * CANAL.width * 0.33));
+    const waterOut = canalPath.map((p) => iso(p.x + p.nx * CANAL.width * 0.33, p.y + p.ny * CANAL.width * 0.33));
+    gctx.beginPath();
+    polyPath(gctx, waterOut, true, false);
+    polyPath(gctx, waterIn, true, false);
+    gctx.fillStyle = PAL.blue;
+    gctx.fill('evenodd');
+    // 水面暗边与流纹
+    gctx.save();
+    gctx.beginPath(); polyPath(gctx, waterOut, true, false); polyPath(gctx, waterIn, true, false); gctx.clip('evenodd');
+    gctx.strokeStyle = 'rgba(242,234,216,.26)';
+    gctx.lineWidth = 0.7;
+    for (let i = 0; i < 12; i++) {
+      const p = canalPath[Math.floor((i / 12) * canalPath.length)];
+      const q = iso(p.x, p.y);
+      for (let k = -2; k <= 2; k++) {
+        gctx.beginPath();
+        gctx.ellipse(q.x + k * 2.5, q.y + k * 0.8, 9 + Math.abs(k) * 3, 2.2, 0.2, 0, TAU);
+        gctx.stroke();
+      }
+    }
+    gctx.restore();
+    // 岸线
+    strokePoly(gctx, outerS, 'rgba(43,42,38,.55)', 1);
+    strokePoly(gctx, innerS, 'rgba(43,42,38,.5)', 0.9);
+    // 内外岸高光
+    gctx.save();
+    gctx.strokeStyle = 'rgba(242,234,216,.5)';
+    gctx.lineWidth = 0.9;
+    polyPath(gctx, outerS); gctx.stroke();
+    polyPath(gctx, innerS); gctx.stroke();
+    gctx.restore();
+  }
+
+  function drawBridge(c, x, y, dir) {
+    // dir: 0 north (deck along x), 1 east (deck along y), 2 south, 3 west
+    const alongX = dir === 0 || dir === 2;
+    const half = 0.95, width = 1.6;
+    const x0 = alongX ? x - half : x - width / 2;
+    const x1 = alongX ? x + half : x + width / 2;
+    const y0 = alongX ? y - width / 2 : y - half;
+    const y1 = alongX ? y + width / 2 : y + half;
+    const z = 0.1;
+    const top = [iso(x0, y0, z), iso(x1, y0, z), iso(x1, y1, z), iso(x0, y1, z)];
+    // 桥拱暗部
+    const arch = [iso(x0, y0, 0.02), iso(x1, y0, 0.02), iso(x1, y1, 0.02), iso(x0, y1, 0.02)];
+    fillPoly(c, arch, rgba(PAL.ink, 0.22));
+    fillPoly(c, top, mix(PAL.paperLight, PAL.paperDark, 0.22));
+    // 栏杆
+    c.strokeStyle = 'rgba(43,42,38,.62)';
+    c.lineWidth = 1;
+    polyPath(c, top); c.stroke();
+    const railZ = 0.3;
+    const rail = [iso(x0, y0, railZ), iso(x1, y0, railZ), iso(x1, y1, railZ), iso(x0, y1, railZ)];
+    polyPath(c, rail); c.stroke();
+    // 台阶
+    for (let i = 1; i < 4; i++) {
+      const t = i / 4;
+      const q = alongX
+        ? [iso(lerp(x0, x1, t), y0, z), iso(lerp(x0, x1, t), y1, z)]
+        : [iso(x0, lerp(y0, y1, t), z), iso(x1, lerp(y0, y1, t), z)];
+      c.beginPath(); c.moveTo(q[0].x, q[0].y); c.lineTo(q[1].x, q[1].y); c.strokeStyle = 'rgba(43,42,38,.18)'; c.stroke();
+    }
+    // 栏杆柱
+    const posts = alongX ? [[x0, y0], [x0, y1], [x1, y0], [x1, y1]] : [[x0, y0], [x1, y0], [x0, y1], [x1, y1]];
+    for (const [px, py] of posts) {
+      const a = iso(px, py, z), b = iso(px, py, railZ);
+      c.strokeStyle = 'rgba(43,42,38,.6)';
+      c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+      c.fillStyle = PAL.brass; c.fillRect(b.x - 1, b.y - 1, 2, 2);
+    }
+  }
+
+  function ellipseAt(c, x, y, rx, ry, fill) {
+    c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.fillStyle = fill; c.fill();
+  }
+
+  function drawFountainBasin(c) {
+    const center = iso(CX, CY, 0.24);
+    const rx = 3.15 * TW * 0.7, ry = rx * 0.5;
+    // 池壁
+    ellipseAt(c, center.x, center.y + 3, rx + 4, ry + 2, rgba(PAL.ink, 0.18));
+    ellipseAt(c, center.x, center.y, rx, ry, mix(PAL.paperLight, PAL.paperDark, 0.18));
+    ellipseAt(c, center.x, center.y - 2, rx - 4, ry - 2.4, PAL.blue);
+    ellipseAt(c, center.x, center.y - 2, rx - 12, ry - 6, mix(PAL.blue, PAL.blueDark, 0.35));
+    c.strokeStyle = 'rgba(43,42,38,.55)'; c.lineWidth = 1;
+    c.beginPath(); c.ellipse(center.x, center.y, rx, ry, 0, 0, TAU); c.stroke();
+    c.strokeStyle = 'rgba(242,234,216,.4)'; c.lineWidth = 0.8;
+    c.beginPath(); c.ellipse(center.x, center.y - 1, rx - 2, ry - 1, 0, 0, TAU); c.stroke();
+    // 池面涟漪
+    for (let i = 0; i < 3; i++) {
+      c.strokeStyle = `rgba(242,234,216,${0.12 + i * 0.04})`;
+      c.beginPath();
+      c.ellipse(center.x + (i - 1) * rx * 0.26, center.y - 2 + i, rx * (0.18 + i * 0.08), ry * (0.18 + i * 0.08), 0, 0, TAU);
+      c.stroke();
+    }
+  }
+
+  function drawWaterStairs(c) {
+    // 北侧运河上的四级“水梯”：水沿 +x 往高处爬，最后没入桥洞。
+    const zs = CANAL_STEPS.map((s) => s.z);
+    for (let s = 0; s < CANAL_STEPS.length; s++) {
+      const st = CANAL_STEPS[s];
+      const x0 = st.x - 0.39, x1 = st.x + 0.39;
+      const y0 = st.y - 0.4, y1 = st.y + 0.4;
+      const z = zs[s];
+      const top = [iso(x0, y0, z), iso(x1, y0, z), iso(x1, y1, z), iso(x0, y1, z)];
+      const bot = [iso(x0, y0, 0), iso(x1, y0, 0), iso(x1, y1, 0), iso(x0, y1, 0)];
+      fillPoly(c, [top[3], top[2], bot[2], bot[3]], mix(PAL.paperDark, PAL.ink, 0.2));
+      fillPoly(c, [top[2], top[1], bot[1], bot[2]], mix(PAL.paperDark, PAL.ink, 0.1));
+      const inset = 0.09;
+      const water = [
+        iso(x0 + inset, y0 + inset, z + 0.02), iso(x1 - inset, y0 + inset, z + 0.02),
+        iso(x1 - inset, y1 - inset, z + 0.02), iso(x0 + inset, y1 - inset, z + 0.02)
+      ];
+      fillPoly(c, water, mix(PAL.blue, PAL.blueLight, 0.1));
+      strokePoly(c, top, 'rgba(43,42,38,.64)', 0.9);
+      c.strokeStyle = 'rgba(242,234,216,.55)'; c.lineWidth = 0.8;
+      c.beginPath(); c.moveTo(top[1].x, top[1].y); c.lineTo(top[2].x, top[2].y); c.stroke();
+      c.strokeStyle = 'rgba(43,42,38,.25)'; c.lineWidth = 0.6;
+      for (let k = 1; k < 3; k++) {
+        const t = k / 3;
+        const a = { x: lerp(top[3].x, top[2].x, t), y: lerp(top[3].y, top[2].y, t) };
+        const b = { x: lerp(bot[3].x, bot[2].x, t), y: lerp(bot[3].y, bot[2].y, t) };
+        c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+      }
+    }
+    const end = iso(CANAL_STEPS[3].x, CANAL_STEPS[3].y - 0.45, 0.2);
+    c.save();
+    c.translate(end.x, end.y);
+    c.fillStyle = 'rgba(43,42,38,.32)';
+    c.beginPath(); c.ellipse(0, -2, TW * 0.18, TH * 0.22, 0, Math.PI, TAU); c.fill();
+    c.strokeStyle = 'rgba(43,42,38,.55)'; c.lineWidth = 0.7; c.stroke();
+    c.restore();
+    const plaque = iso(6.55, 8.15, 0.66);
+    c.save();
+    c.translate(plaque.x, plaque.y);
+    c.fillStyle = PAL.brass; c.fillRect(-16, -5, 32, 10);
+    c.strokeStyle = 'rgba(43,42,38,.6)'; c.lineWidth = 0.6; c.strokeRect(-16, -5, 32, 10);
+    c.fillStyle = 'rgba(43,42,38,.72)';
+    c.font = '500 4.4px "Segoe UI", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('AQUA ADVERSA', 0, 0);
+    c.restore();
+  }
+  // ---------------------------------------------------------------------------
+  // 5. 建筑精灵
+  // ---------------------------------------------------------------------------
+  function bakeBuilding(b, angle) {
+    const eff = effectiveFootprint({ ...b, angle, turning: false });
+    const w0 = eff.w, d0 = eff.d;
+    const ax = b.x + b.w / 2, ay = b.y + b.d / 2;
+    const h = b.h;
+    const p = {
+      A: rel(ax - w0 / 2, ay - d0 / 2, 0, ax, ay),
+      B: rel(ax + w0 / 2, ay - d0 / 2, 0, ax, ay),
+      C: rel(ax + w0 / 2, ay + d0 / 2, 0, ax, ay),
+      D: rel(ax - w0 / 2, ay + d0 / 2, 0, ax, ay)
+    };
+    const H = [
+      rel(ax - w0 / 2, ay - d0 / 2, h, ax, ay),
+      rel(ax + w0 / 2, ay - d0 / 2, h, ax, ay),
+      rel(ax + w0 / 2, ay + d0 / 2, h, ax, ay),
+      rel(ax - w0 / 2, ay + d0 / 2, h, ax, ay)
+    ];
+    const roofExtra = b.roof === 'spire' ? b.h * 0.9 : b.roof === 'gable' ? Math.min(0.9, b.h * 0.38) : b.roof === 'hip' ? Math.min(0.65, b.h * 0.3) : b.roof === 'dome' ? 0.85 : b.roof === 'saw' ? 0.45 : 0.22;
+    let minX = Math.min(p.A.x, p.B.x, p.C.x, p.D.x) - 24;
+    let maxX = Math.max(p.A.x, p.B.x, p.C.x, p.D.x) + 24;
+    let minY = Math.min(H[0].y, H[1].y, H[2].y, H[3].y) - (roofExtra + 1.9) * TH - 24;
+    let maxY = Math.max(p.A.y, p.B.y, p.C.y, p.D.y) + 18;
+    if (b.kind === 'observatory') minY -= TH * 0.9;
+    if (b.kind === 'clock') minY -= TH * 0.5;
+    const cw = Math.max(2, Math.ceil(maxX - minX));
+    const ch = Math.max(2, Math.ceil(maxY - minY));
+    const cv = document.createElement('canvas');
+    const sd = spriteDpr;
+    cv.width = Math.max(1, Math.round(cw * sd));
+    cv.height = Math.max(1, Math.round(ch * sd));
+    const c = cv.getContext('2d');
+    c.setTransform(sd, 0, 0, sd, (-minX) * sd, (-minY) * sd);
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    const ox = -minX, oy = -minY;
+
+    // 面的着色方向：faceY 受光，faceX 背光
+    const faceY = [p.D, p.C, H[2], H[3]];
+    const faceX = [p.C, p.B, H[1], H[2]];
+    const topFace = [H[0], H[1], H[2], H[3]];
+    const wallL = mix(b.pal.left, PAL.paperLight, 0.03);
+    const wallR = mix(b.pal.right, PAL.ink, 0.07);
+
+    fillPoly(c, faceY, wallL);
+    fillPoly(c, faceX, wallR);
+    hatchFace(c, faceX, 4.8, 'rgba(35,33,28,.26)');
+    hatchFace(c, faceY, 7.5, 'rgba(35,33,28,.075)');
+
+    // 底部勒脚
+    const baseH = 0.1;
+    const baseY = [rel(ax - w0 / 2, ay + d0 / 2, baseH, ax, ay), rel(ax + w0 / 2, ay + d0 / 2, baseH, ax, ay)];
+    fillPoly(c, [p.D, p.C, baseY[1], baseY[0]], mix(wallL, PAL.ink, 0.18));
+    const baseX = [rel(ax + w0 / 2, ay + d0 / 2, baseH, ax, ay), rel(ax + w0 / 2, ay - d0 / 2, baseH, ax, ay)];
+    fillPoly(c, [p.C, p.B, baseX[1], baseX[0]], mix(wallR, PAL.ink, 0.16));
+
+    // 窗与门
+    drawFacade(c, b, p, H, w0, d0, h, 'Y');
+    drawFacade(c, b, p, H, w0, d0, h, 'X');
+
+    // 屋顶
+    drawRoof(c, b, p, H, w0, d0, ax, ay, roofExtra);
+    drawRoofProps(c, b, p, H, ax, ay, roofExtra);
+
+    // 藤蔓 / 细节
+    if (b.hasVines) drawVines(c, b, p, H, w0, d0, 'Y');
+
+    // 轮廓
+    c.strokeStyle = 'rgba(30,29,26,.94)';
+    c.lineWidth = 1.25;
+    polyPath(c, faceY); c.stroke();
+    polyPath(c, faceX); c.stroke();
+    polyPath(c, topFace); c.stroke();
+    c.strokeStyle = 'rgba(242,234,216,.5)';
+    c.lineWidth = 0.7;
+    c.beginPath(); c.moveTo(p.D.x, p.D.y); c.lineTo(H[0].x, H[0].y); c.stroke();
+    c.beginPath(); c.moveTo(p.C.x, p.C.y); c.lineTo(H[2].x, H[2].y); c.stroke();
+
+    return {
+      canvas: cv, cw, ch, ox, oy,
+      top: topFace, faces: [faceY, faceX], ax, ay, angle
+    };
+  }
+
+  function hatchFace(c, quad, spacing, color) {
+    c.save();
+    polyPath(c, quad); c.clip();
+    const xs = quad.map((p) => p.x), ys = quad.map((p) => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    c.strokeStyle = color;
+    c.lineWidth = 0.6;
+    for (let x = minX - (maxY - minY); x < maxX; x += spacing) {
+      c.beginPath();
+      c.moveTo(x, maxY + 4);
+      c.lineTo(x + (maxY - minY) + 8, minY - 4);
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  function facePoint(p0, p1, hpx, u, v) {
+    return {
+      x: lerp(p0.x, p1.x, u),
+      y: lerp(p0.y, p1.y, u) - hpx * v
+    };
+  }
+  function windowQuad(c, p0, p1, hpx, u0, v0, u1, v1, lit, framed = true) {
+    const a = facePoint(p0, p1, hpx, u0, v0);
+    const b = facePoint(p0, p1, hpx, u1, v0);
+    const d = facePoint(p0, p1, hpx, u1, v1);
+    const e = facePoint(p0, p1, hpx, u0, v1);
+    fillPoly(c, [a, b, d, e], lit ? PAL.brass : mix(PAL.blueDark, PAL.ink, 0.42));
+    if (lit) {
+      fillPoly(c, [a, b, d, e], PAL.brass);
+      const m1 = { x: lerp(a.x, b.x, 0.5), y: lerp(a.y, b.y, 0.5) };
+      const m2 = { x: lerp(e.x, d.x, 0.5), y: lerp(e.y, d.y, 0.5) };
+      c.strokeStyle = rgba(PAL.ink, 0.28); c.lineWidth = 0.5;
+      c.beginPath(); c.moveTo(m1.x, m1.y); c.lineTo(m2.x, m2.y); c.stroke();
+    }
+    if (framed) {
+      c.strokeStyle = 'rgba(43,42,38,.58)'; c.lineWidth = 0.65;
+      polyPath(c, [a, b, d, e]); c.stroke();
+      // 竖向中梃
+      const m0 = { x: lerp(a.x, b.x, 0.5), y: lerp(a.y, b.y, 0.5) };
+      const m1 = { x: lerp(e.x, d.x, 0.5), y: lerp(e.y, d.y, 0.5) };
+      c.beginPath(); c.moveTo(m0.x, m0.y); c.lineTo(m1.x, m1.y); c.stroke();
+    }
+  }
+
+  function drawFacade(c, b, p, H, w0, d0, h, side) {
+    const faceW = side === 'Y' ? w0 : d0;
+    if (faceW < 0.55) return;
+    const p0 = side === 'Y' ? p.D : p.C;
+    const p1 = side === 'Y' ? p.C : p.B;
+    const hpx = h * TH;
+    const cols = clamp(Math.round(faceW * 1.35), 1, 4);
+    const rows = clamp(Math.floor(h * 1.75), 1, 4);
+    const door = b.kind === 'kiosk' || b.kind === 'station' ? false : side === 'Y';
+    const arch = b.kind === 'clock' || b.kind === 'hall' || b.kind === 'cathedral';
+    const winW = 0.13 / Math.max(1, faceW);
+    const winH = 0.11;
+    for (let r = 0; r < rows; r++) {
+      for (let col = 0; col < cols; col++) {
+        const u0 = (col + 0.5) / cols - winW;
+        const u1 = (col + 0.5) / cols + winW;
+        const v0 = 0.2 + (r / Math.max(1, rows)) * 0.62;
+        const v1 = v0 + winH;
+        if (door && r === 0 && col === Math.floor(cols / 2)) continue;
+        if (b.kind === 'kiosk' && rows > 1) continue;
+        const lit = hash1(b.seed + r * 13 + col * 7 + (side === 'Y' ? 0 : 91)) < 0.16 + b.lit * 0.14;
+        windowQuad(c, p0, p1, hpx, u0, v0, u1, v1, lit);
+      }
+    }
+    // 底层门 / 拱门
+    if (door) {
+      const u = 0.5, halfW = arch ? 0.15 : 0.075;
+      const topV = arch ? 0.34 : 0.27;
+      const a = facePoint(p0, p1, hpx, u - halfW, 0);
+      const b2 = facePoint(p0, p1, hpx, u + halfW, 0);
+      const d = facePoint(p0, p1, hpx, u + halfW, topV);
+      const e = facePoint(p0, p1, hpx, u - halfW, topV);
+      if (arch) {
+        const archR = Math.hypot(d.x - e.x, d.y - e.y) * 0.55;
+        c.beginPath();
+        c.moveTo(a.x, a.y); c.lineTo(b2.x, b2.y);
+        c.quadraticCurveTo(d.x, d.y, (d.x + e.x) / 2, d.y - archR * 0.4);
+        c.quadraticCurveTo(e.x, e.y, a.x, a.y);
+        c.closePath();
+        c.fillStyle = mix(PAL.ink, PAL.blueDark, 0.22);
+        c.fill();
+        c.strokeStyle = 'rgba(43,42,38,.7)'; c.lineWidth = 0.8; c.stroke();
+        c.strokeStyle = 'rgba(242,234,216,.35)'; c.lineWidth = 0.6;
+        for (let i = 1; i < 5; i++) {
+          const t = i / 5;
+          c.beginPath();
+          c.moveTo(lerp(a.x, b2.x, t), lerp(a.y, b2.y, t));
+          c.lineTo(lerp(e.x, d.x, t), lerp(e.y, d.y, t));
+          c.stroke();
+        }
+      } else {
+        fillPoly(c, [a, b2, d, e], mix(PAL.ink, PAL.blueDark, 0.2));
+        strokePoly(c, [a, b2, d, e], 'rgba(43,42,38,.65)', 0.8);
+        c.fillStyle = PAL.brass;
+        c.fillRect(lerp(a.x, b2.x, 0.72) - 1, lerp(a.y, b2.y, 0.72) - 2, 2, 2);
+      }
+    }
+  }
+
+  function drawRoof(c, b, p, H, w0, d0, ax, ay, extra) {
+    const h = b.h;
+    const roofCol = b.pal.roof;
+    const light = b.pal.roofLight;
+    const dark = b.pal.roofDark;
+    if (b.roof === 'flat' || b.kind === 'kiosk') {
+      fillPoly(c, [H[0], H[1], H[2], H[3]], mix(light, PAL.paperLight, 0.25));
+      // 女儿墙
+      const t = 0.12;
+      const inner = [
+        rel(ax - w0 / 2 + t, ay - d0 / 2 + t, h, ax, ay),
+        rel(ax + w0 / 2 - t, ay - d0 / 2 + t, h, ax, ay),
+        rel(ax + w0 / 2 - t, ay + d0 / 2 - t, h, ax, ay),
+        rel(ax - w0 / 2 + t, ay + d0 / 2 - t, h, ax, ay)
+      ];
+      fillPoly(c, [H[0], H[1], H[2], H[3]], mix(roofCol, light, 0.4));
+      const up = 0.14;
+      const iu = inner.map((q, i) => ({ x: q.x, y: q.y - up * TH }));
+      const hu = H.map((q) => ({ x: q.x, y: q.y - up * TH }));
+      fillPoly(c, [hu[3], hu[2], iu[2], iu[3]], light);
+      fillPoly(c, [hu[1], hu[2], iu[2], iu[1]], dark);
+      fillPoly(c, [hu[0], hu[1], iu[1], iu[0]], mix(light, PAL.paperLight, 0.35));
+      fillPoly(c, [hu[0], hu[3], iu[3], iu[0]], mix(light, dark, 0.3));
+      fillPoly(c, iu, mix(PAL.paperDark, PAL.ink, 0.14));
+      strokePoly(c, hu, 'rgba(43,42,38,.55)', 0.8);
+      return;
+    }
+    if (b.roof === 'gable') {
+      const ridgeX = w0 >= d0;
+      const rh = extra;
+      if (ridgeX) {
+        const r0 = rel(ax - w0 / 2, ay, h + rh, ax, ay);
+        const r1 = rel(ax + w0 / 2, ay, h + rh, ax, ay);
+        fillPoly(c, [H[3], H[2], r1, r0], light);
+        fillPoly(c, [H[2], H[1], r1], dark);
+        hatchFace(c, [H[3], H[2], r1, r0], 6, 'rgba(43,42,38,.065)');
+      } else {
+        const r0 = rel(ax, ay - d0 / 2, h + rh, ax, ay);
+        const r1 = rel(ax, ay + d0 / 2, h + rh, ax, ay);
+        fillPoly(c, [H[1], H[2], r1, r0], light);
+        fillPoly(c, [H[3], H[2], r1], dark);
+        hatchFace(c, [H[1], H[2], r1, r0], 6, 'rgba(43,42,38,.065)');
+      }
+      const ridgeA = ridgeX ? rel(ax - w0 / 2, ay, h + rh, ax, ay) : rel(ax, ay - d0 / 2, h + rh, ax, ay);
+      const ridgeB = ridgeX ? rel(ax + w0 / 2, ay, h + rh, ax, ay) : rel(ax, ay + d0 / 2, h + rh, ax, ay);
+      c.strokeStyle = 'rgba(43,42,38,.62)'; c.lineWidth = 0.9;
+      c.beginPath(); c.moveTo(ridgeA.x, ridgeA.y); c.lineTo(ridgeB.x, ridgeB.y); c.stroke();
+      return;
+    }
+    if (b.roof === 'hip') {
+      const rh = extra;
+      const inset = Math.min(w0, d0) * 0.22;
+      const r0 = rel(ax - w0 / 2 + inset, ay, h + rh, ax, ay);
+      const r1 = rel(ax + w0 / 2 - inset, ay, h + rh, ax, ay);
+      fillPoly(c, [H[3], H[2], r1, r0], light);
+      fillPoly(c, [H[2], H[1], r1], dark);
+      fillPoly(c, [H[0], H[1], r0], mix(light, PAL.paperLight, 0.4));
+      hatchFace(c, [H[2], H[1], r1], 6.5, 'rgba(43,42,38,.08)');
+      return;
+    }
+    if (b.roof === 'saw') {
+      const n = Math.max(2, Math.round(w0));
+      for (let i = 0; i < n; i++) {
+        const x0 = ax - w0 / 2 + (w0 / n) * i, x1 = x0 + w0 / n;
+        const q0 = rel(x0, ay - d0 / 2, h, ax, ay);
+        const q1 = rel(x1, ay - d0 / 2, h + 0.35, ax, ay);
+        const q2 = rel(x1, ay + d0 / 2, h, ax, ay);
+        const q3 = rel(x0, ay + d0 / 2, h, ax, ay);
+        fillPoly(c, [q0, q1, q2, q3], i % 2 ? light : dark);
+      }
+      return;
+    }
+    if (b.roof === 'dome') {
+      const base = rel(ax, ay, h, ax, ay);
+      const rx = w0 * TW * 0.34, ry = rx * 0.52;
+      const dz = TH * (0.55 + b.h * 0.12);
+      // 鼓座
+      fillPoly(c, [H[0], H[1], H[2], H[3]], mix(light, PAL.paperDark, 0.2));
+      c.fillStyle = mix(light, PAL.paperLight, 0.3);
+      c.beginPath(); c.ellipse(base.x, base.y, rx, ry, 0, 0, TAU); c.fill();
+      c.strokeStyle = 'rgba(43,42,38,.6)'; c.lineWidth = 0.9; c.stroke();
+      // 穹顶
+      c.beginPath();
+      c.moveTo(base.x - rx, base.y);
+      c.bezierCurveTo(base.x - rx * 0.96, base.y - dz, base.x + rx * 0.96, base.y - dz, base.x + rx, base.y);
+      c.closePath();
+      c.fillStyle = light; c.fill();
+      c.strokeStyle = 'rgba(43,42,38,.68)'; c.lineWidth = 0.9; c.stroke();
+      // 分瓣
+      for (let i = 1; i < 4; i++) {
+        const t = i / 4;
+        const xx = base.x - rx + rx * 2 * t;
+        c.beginPath();
+        c.moveTo(xx, base.y);
+        c.quadraticCurveTo(base.x + (xx - base.x) * 0.5, base.y - dz * 0.85, base.x + (xx - base.x) * 0.16, base.y - dz * 0.98);
+        c.strokeStyle = 'rgba(43,42,38,.22)'; c.lineWidth = 0.6; c.stroke();
+      }
+      // 顶部小灯
+      c.fillStyle = PAL.brass;
+      c.beginPath(); c.arc(base.x, base.y - dz - 2, 3, 0, TAU); c.fill();
+      c.strokeStyle = 'rgba(43,42,38,.6)'; c.stroke();
+      return;
+    }
+    if (b.roof === 'spire') {
+      // 钟塔：方塔 + 尖顶 + 旗杆
+      const inset = Math.min(w0, d0) * 0.18;
+      const tx = ax, ty = ay;
+      const base = rel(tx, ty, h, tx, ty);
+      const r0 = rel(ax - w0 * 0.22, ay, h + 0.2, ax, ay);
+      const r1 = rel(ax + w0 * 0.22, ay, h + 0.2, ax, ay);
+      const apex = rel(ax, ay, h + 0.2 + b.h * 0.72, ax, ay);
+      fillPoly(c, [H[0], H[1], H[2], H[3]], mix(light, PAL.paperDark, 0.1));
+      fillPoly(c, [H[3], H[2], apex], light);
+      fillPoly(c, [H[2], H[1], apex], dark);
+      c.strokeStyle = 'rgba(43,42,38,.68)'; c.lineWidth = 0.9;
+      polyPath(c, [H[3], H[2], apex]); c.stroke();
+      polyPath(c, [H[2], H[1], apex]); c.stroke();
+      c.beginPath(); c.moveTo(apex.x, apex.y); c.lineTo(apex.x, apex.y - TH * 0.75); c.stroke();
+      return;
+    }
+    // 默认平顶
+    fillPoly(c, [H[0], H[1], H[2], H[3]], mix(light, PAL.paperLight, 0.2));
+  }
+
+  function drawRoofProps(c, b, p, H, ax, ay, extra) {
+    const h = b.h;
+    const rng = mulberry32((b.seed ^ 0xabcdef) >>> 0);
+    const topZ = h + (b.roof === 'gable' || b.roof === 'hip' ? extra : b.roof === 'spire' ? 0.2 : 0.12);
+    if (b.kind === 'station') return;
+    // 烟囱
+    if (b.hasChimney && b.roof !== 'dome' && b.roof !== 'spire') {
+      const cx = ax - b.w * 0.22, cy = ay - b.d * 0.18;
+      const s = 0.18;
+      const q = [
+        rel(cx - s, cy - s, topZ, ax, ay), rel(cx + s, cy - s, topZ, ax, ay),
+        rel(cx + s, cy + s, topZ, ax, ay), rel(cx - s, cy + s, topZ, ax, ay)
+      ];
+      const qh = q.map((v) => ({ x: v.x, y: v.y - TH * 0.5 }));
+      fillPoly(c, [q[3], q[2], qh[2], qh[3]], mix(b.pal.right, PAL.ink, 0.15));
+      fillPoly(c, [q[2], q[1], qh[1], qh[2]], mix(b.pal.right, PAL.ink, 0.3));
+      fillPoly(c, qh, PAL.paperDark);
+      strokePoly(c, [q[3], q[2], q[1], q[0]], 'rgba(43,42,38,.6)', 0.7);
+      strokePoly(c, qh, 'rgba(43,42,38,.7)', 0.8);
+      // 烟囱帽
+      c.fillStyle = PAL.brickDark;
+      c.fillRect(qh[3].x - 1, qh[3].y - 3, 4, 3);
+    }
+    // 屋顶水箱
+    if (b.hasTank) {
+      const x = ax + b.w * 0.16, y = ay + b.d * 0.12;
+      const base = rel(x, y, topZ, ax, ay);
+      const rx = TW * 0.2, ry = TH * 0.18;
+      c.fillStyle = mix(PAL.paperLight, PAL.paperDark, 0.1);
+      c.beginPath(); c.ellipse(base.x, base.y, rx, ry, 0, 0, TAU); c.fill();
+      c.fillStyle = PAL.paperDark;
+      c.fillRect(base.x - rx, base.y - TH * 0.42, rx * 2, TH * 0.42);
+      c.fillStyle = PAL.blueDark;
+      c.beginPath(); c.ellipse(base.x, base.y - TH * 0.42, rx, ry, 0, 0, TAU); c.fill();
+      c.strokeStyle = 'rgba(43,42,38,.6)'; c.lineWidth = 0.7; c.stroke();
+      for (let i = -1; i <= 1; i += 2) {
+        c.beginPath(); c.moveTo(base.x + i * rx * 0.6, base.y); c.lineTo(base.x + i * rx * 0.6, base.y + TH * 0.4); c.stroke();
+      }
+    }
+    // 天线
+    if (b.hasAntenna) {
+      const base = rel(ax + b.w * 0.25, ay - b.d * 0.2, topZ, ax, ay);
+      c.strokeStyle = 'rgba(43,42,38,.75)'; c.lineWidth = 0.8;
+      c.beginPath(); c.moveTo(base.x, base.y); c.lineTo(base.x, base.y - TH * 1.4); c.stroke();
+      c.beginPath(); c.moveTo(base.x - TW * 0.12, base.y - TH * 1.1); c.lineTo(base.x + TW * 0.12, base.y - TH * 1.1); c.stroke();
+      c.beginPath(); c.moveTo(base.x - TW * 0.08, base.y - TH * 0.9); c.lineTo(base.x + TW * 0.08, base.y - TH * 0.9); c.stroke();
+    }
+    // 屋顶花园
+    if (b.hasGarden) {
+      const base = rel(ax - b.w * 0.1, ay + b.d * 0.15, topZ, ax, ay);
+      c.fillStyle = PAL.paperDark;
+      c.fillRect(base.x - TW * 0.2, base.y - TH * 0.06, TW * 0.4, TH * 0.12);
+      for (let i = 0; i < 4; i++) {
+        const xx = base.x - TW * 0.16 + i * TW * 0.1;
+        c.fillStyle = i % 2 ? PAL.blue : PAL.brassDark;
+        c.beginPath(); c.ellipse(xx, base.y - TH * 0.12, TW * 0.05, TH * 0.06, 0, 0, TAU); c.fill();
+      }
+    }
+    // 地标细节
+    if (b.kind === 'cathedral') {
+      // 玫瑰窗
+      const base = facePoint(p.D, p.C, h * TH, 0.5, 0.78);
+      c.save();
+      c.translate(base.x, base.y);
+      c.rotate(Math.atan2(TH, TW));
+      c.fillStyle = PAL.blueDark;
+      c.beginPath(); c.ellipse(0, 0, TW * 0.32, TW * 0.24, 0, 0, TAU); c.fill();
+      c.strokeStyle = PAL.brass; c.lineWidth = 1.3; c.stroke();
+      c.strokeStyle = 'rgba(43,42,38,.6)'; c.lineWidth = 0.6;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * TAU;
+        c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * TW * 0.3, Math.sin(a) * TW * 0.22); c.stroke();
+      }
+      c.restore();
+      // 两侧尖塔
+      for (const sx of [-1, 1]) {
+        const base2 = rel(ax + sx * b.w * 0.38, ay + b.d * 0.34, h, ax, ay);
+        c.fillStyle = PAL.paperDark;
+        c.beginPath(); c.moveTo(base2.x - 4, base2.y); c.lineTo(base2.x + 4, base2.y); c.lineTo(base2.x, base2.y - TH * 0.7); c.closePath(); c.fill();
+        c.strokeStyle = 'rgba(43,42,38,.7)'; c.lineWidth = 0.8; c.stroke();
+      }
+    }
+    if (b.kind === 'clock') {
+      const base = facePoint(p.D, p.C, h * TH, 0.5, 0.72);
+      c.save();
+      c.translate(base.x, base.y);
+      c.rotate(Math.atan2(TH, TW));
+      c.fillStyle = PAL.paperLight;
+      c.beginPath(); c.ellipse(0, 0, TW * 0.24, TW * 0.19, 0, 0, TAU); c.fill();
+      c.strokeStyle = PAL.ink; c.lineWidth = 1; c.stroke();
+      c.strokeStyle = PAL.brick; c.lineWidth = 0.6;
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * TAU;
+        c.beginPath(); c.moveTo(Math.cos(a) * TW * 0.19, Math.sin(a) * TW * 0.15);
+        c.lineTo(Math.cos(a) * TW * 0.22, Math.sin(a) * TW * 0.17); c.stroke();
+      }
+      const hour = -Math.PI / 2 + ((clock / 600) * 12 % 12) / 12 * TAU;
+      const min = -Math.PI / 2 + ((clock / 600) * 60 % 60) / 60 * TAU;
+      c.strokeStyle = PAL.ink; c.lineWidth = 1.4;
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(hour) * TW * 0.12, Math.sin(hour) * TW * 0.09); c.stroke();
+      c.lineWidth = 0.9;
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(min) * TW * 0.17, Math.sin(min) * TW * 0.13); c.stroke();
+      c.restore();
+    }
+    if (b.kind === 'market') {
+      // 条纹雨棚
+      for (let i = 0; i < 5; i++) {
+        const u0 = 0.08 + i * 0.18, u1 = u0 + 0.16;
+        const a = facePoint(p.D, p.C, h * TH, u0, 0.48);
+        const b2 = facePoint(p.D, p.C, h * TH, u1, 0.48);
+        const c2 = { x: b2.x + TW * 0.1, y: b2.y + TH * 0.22 };
+        const d2 = { x: a.x + TW * 0.1, y: a.y + TH * 0.22 };
+        fillPoly(c, [a, b2, c2, d2], i % 2 ? PAL.paperLight : PAL.brick);
+        c.strokeStyle = 'rgba(43,42,38,.5)'; c.lineWidth = 0.6; c.stroke();
+      }
+    }
+    if (b.kind === 'observatory') {
+      // 望远镜
+      const base = rel(ax, ay, h + extra + 0.15, ax, ay);
+      c.save(); c.translate(base.x, base.y); c.rotate(-0.5);
+      c.strokeStyle = PAL.brassDark; c.lineWidth = TH * 0.11;
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(TH * 0.95, -TH * 0.28); c.stroke();
+      c.strokeStyle = PAL.brass; c.lineWidth = TH * 0.06;
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(TH * 0.92, -TH * 0.27); c.stroke();
+      c.restore();
+    }
+    if (b.kind === 'mill') {
+      // 水轮支架
+      const base = rel(ax - b.w * 0.45, ay + b.d * 0.1, 0, ax, ay);
+      c.strokeStyle = 'rgba(43,42,38,.65)'; c.lineWidth = 1.2;
+      c.beginPath(); c.moveTo(base.x, base.y); c.lineTo(base.x - TH * 0.4, base.y - TH * 0.5); c.stroke();
+    }
+    if (b.kind === 'greenhouse') {
+      // 玻璃屋顶由平顶+网格组成
+    }
+  }
+
+  function drawVines(c, b, p, H, w0, d0, side) {
+    const p0 = p.D, p1 = p.C;
+    c.save();
+    polyPath(c, [p0, p1, H[2], H[3]]); c.clip();
+    for (let i = 0; i < 7; i++) {
+      const t = i / 7;
+      const x = lerp(p1.x, p0.x, t);
+      const y = lerp(p1.y, p0.y, t);
+      c.strokeStyle = 'rgba(68,98,74,.55)'; c.lineWidth = 0.8;
+      c.beginPath(); c.moveTo(x, y - TH * (0.9 + hash1(b.seed + i) * 1.2));
+      c.quadraticCurveTo(x - 4, y - TH * 0.4, x + 2, y - TH * 0.05); c.stroke();
+      for (let k = 0; k < 3; k++) {
+        c.fillStyle = k % 2 ? 'rgba(95,127,134,.7)' : 'rgba(70,98,90,.65)';
+        c.beginPath();
+        c.ellipse(x + (k - 1) * 3, y - TH * (0.25 + k * 0.22), 2.4, 3.2, 0.5, 0, TAU);
+        c.fill();
+      }
+    }
+    c.restore();
+  }
+  // ---------------------------------------------------------------------------
+  // 6. 彭罗斯阶梯塔
+  // ---------------------------------------------------------------------------
+  const MON = { RW: 0, RH: 0, band: 0, n: 4, rise: 0, zBase: 0.2, towerTop: 3.4, sprite: null };
+
+  function monumentLocal(x, y, z, ax, ay) {
+    return rel(x, y, z, ax, ay);
+  }
+
+  function bakeMonument() {
+    const RW = TW * 1.8;
+    const RH = RW * 0.5;
+    const band = TW * 0.55;
+    const n = 3;
+    const rise = TH * 0.18;
+    const zBase = 0.3;
+    const stairTop = 4 * n * rise;
+    const pedTop = stairTop + zBase * TH;
+    const tribarW = TW * 2.35;
+    const tribarH = tribarW * ((730.12352 - 254.0866) / (617.28788 - 91.923882));
+    const minX = -RW - TW * 0.7;
+    const maxX = RW + TW * 0.7;
+    const minY = -(pedTop + tribarH + TH * 1.35);
+    const maxY = RH + TW * 0.55;
+    const cw = Math.max(2, Math.ceil(maxX - minX));
+    const ch = Math.max(2, Math.ceil(maxY - minY));
+    const sd = spriteDpr;
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(cw * sd));
+    cv.height = Math.max(1, Math.round(ch * sd));
+    const c = cv.getContext('2d');
+    c.setTransform(sd, 0, 0, sd, (-minX) * sd, (-minY) * sd);
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    const ox = -minX, oy = -minY;
+
+    const stone = mix(PAL.paperLight, PAL.paper, 0.1);
+    const stoneLight = PAL.paperLight;
+    const stoneShade = mix(PAL.brick, PAL.paperDark, 0.32);
+    const riser = mix(PAL.blueDark, PAL.ink, 0.16);
+    const well = mix(PAL.blueDark, PAL.ink, 0.42);
+    const zShift = zBase * TH;
+
+    // 基座
+    const baseLevels = [{ r: 1.95, z: 0.15 }, { r: 1.80, z: 0.30 }];
+    for (const b of baseLevels) {
+      const rw = b.r * TW, rh = rw * 0.5;
+      const top = [{ x: 0, y: rh - b.z * TH }, { x: -rw, y: -b.z * TH }, { x: 0, y: -rh - b.z * TH }, { x: rw, y: -b.z * TH }];
+      const bot = [{ x: 0, y: rh }, { x: -rw, y: 0 }, { x: 0, y: -rh }, { x: rw, y: 0 }];
+      fillPoly(c, [top[0], top[3], bot[3], bot[0]], mix(stoneLight, stone, 0.2));
+      fillPoly(c, [top[0], top[1], bot[1], bot[0]], mix(stoneShade, PAL.ink, 0.1));
+      fillPoly(c, top, stoneLight);
+      strokePoly(c, top, 'rgba(43,42,38,.72)', 1);
+    }
+
+    const corners = [
+      { x: 0, y: RH }, { x: -RW, y: 0 }, { x: 0, y: -RH }, { x: RW, y: 0 }
+    ];
+    const innerScale = (RW - band) / RW;
+    const innerCorners = corners.map((p) => ({ x: p.x * innerScale, y: p.y * innerScale }));
+    const order = [2, 3, 0, 1];
+
+    function drawFlight(flight) {
+      const ci = order[flight];
+      const a = corners[ci], b = corners[(ci + 1) % 4];
+      const ia = innerCorners[ci], ib = innerCorners[(ci + 1) % 4];
+      const startZ = flight * n * rise;
+      const pt = (t, inner, lift) => {
+        const x = lerp(a.x, b.x, t), y = lerp(a.y, b.y, t);
+        const ix = lerp(ia.x, ib.x, t), iy = lerp(ia.y, ib.y, t);
+        return { x: lerp(x, ix, inner), y: lerp(y, iy, inner) - zShift - lift };
+      };
+      for (let i = 0; i < n; i++) {
+        const t0 = i / n, t1 = (i + 1) / n;
+        const lift = startZ + (i + 1) * rise;
+        const low = lift - rise;
+        const o0 = pt(t0, 0, 0), o1 = pt(t1, 0, 0);
+        const O0 = pt(t0, 0, lift), O1 = pt(t1, 0, lift);
+        const i0 = pt(t0, 1, 0), i1 = pt(t1, 1, 0);
+        const I0 = pt(t0, 1, lift), I1 = pt(t1, 1, lift);
+        // 外侧砖墙
+        fillPoly(c, [o0, o1, O1, O0], stoneShade);
+        c.strokeStyle = 'rgba(43,42,38,.6)'; c.lineWidth = 0.75;
+        polyPath(c, [o0, o1, O1, O0]); c.stroke();
+        // 井侧暗墙
+        fillPoly(c, [i0, i1, I1, I0], mix(well, PAL.ink, 0.1));
+        c.strokeStyle = 'rgba(43,42,38,.45)'; c.lineWidth = 0.6;
+        polyPath(c, [i0, i1, I1, I0]); c.stroke();
+        // 踢面
+        const lowO = pt(t0, 0, low), lowI = pt(t0, 1, low);
+        fillPoly(c, [lowI, lowO, O0, I0], riser);
+        c.strokeStyle = 'rgba(43,42,38,.72)'; c.lineWidth = 0.9;
+        polyPath(c, [lowI, lowO, O0, I0]); c.stroke();
+        // 踏面
+        fillPoly(c, [I0, I1, O1, O0], i % 2 ? stoneLight : stone);
+        c.strokeStyle = 'rgba(43,42,38,.75)'; c.lineWidth = 0.85;
+        polyPath(c, [I0, I1, O1, O0]); c.stroke();
+      }
+      // 黄铜栏杆
+      const railH = TH * 0.45;
+      c.beginPath();
+      for (let i = 0; i <= n; i++) {
+        const t = Math.min(1, i / n);
+        const lift = startZ + Math.max(1, i) * rise;
+        const p = pt(t, 0, lift + railH);
+        if (i === 0) c.moveTo(p.x, p.y); else c.lineTo(p.x, p.y);
+      }
+      c.strokeStyle = 'rgba(43,42,38,.7)'; c.lineWidth = 1; c.stroke();
+      c.strokeStyle = PAL.brass; c.lineWidth = 0.65; c.stroke();
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n;
+        const lift = startZ + (i + 1) * rise;
+        const a0 = pt(t, 0, lift);
+        const a1 = pt(t, 0, lift + railH);
+        c.strokeStyle = 'rgba(43,42,38,.6)'; c.lineWidth = 0.6;
+        c.beginPath(); c.moveTo(a0.x, a0.y); c.lineTo(a1.x, a1.y); c.stroke();
+        c.fillStyle = PAL.brass;
+        c.beginPath(); c.arc(a1.x, a1.y, 1, 0, TAU); c.fill();
+      }
+    }
+
+    function drawSeamPost() {
+      const p = corners[2];
+      const w = band * 0.75;
+      const h = stairTop + TH * 0.6;
+      const top = { x: p.x, y: p.y - zShift - h };
+      const bot = { x: p.x, y: p.y - zShift };
+      c.fillStyle = mix(stoneShade, PAL.ink, 0.1);
+      c.fillRect(p.x - w / 2, top.y, w, h);
+      c.fillStyle = stoneLight;
+      c.fillRect(p.x - w / 2, top.y, w * 0.55, h);
+      c.strokeStyle = 'rgba(43,42,38,.7)'; c.lineWidth = 0.8;
+      c.strokeRect(p.x - w / 2, top.y, w, h);
+      c.fillStyle = PAL.brass;
+      c.beginPath(); c.arc(p.x, top.y - 2, 2.2, 0, TAU); c.fill();
+    }
+
+    function drawPedestal() {
+      const half = 0.55;
+      const z0 = zBase, z1 = pedTop / TH;
+      const bp = [
+        monumentLocal(-half, -half, z0, 0, 0), monumentLocal(half, -half, z0, 0, 0),
+        monumentLocal(half, half, z0, 0, 0), monumentLocal(-half, half, z0, 0, 0)
+      ];
+      const tp = [
+        monumentLocal(-half * 0.82, -half * 0.82, z1, 0, 0), monumentLocal(half * 0.82, -half * 0.82, z1, 0, 0),
+        monumentLocal(half * 0.82, half * 0.82, z1, 0, 0), monumentLocal(-half * 0.82, half * 0.82, z1, 0, 0)
+      ];
+      fillPoly(c, [bp[3], bp[2], tp[2], tp[3]], stoneLight);
+      fillPoly(c, [bp[2], bp[1], tp[1], tp[2]], mix(PAL.blueDark, PAL.ink, 0.28));
+      fillPoly(c, [tp[0], tp[1], tp[2], tp[3]], mix(stoneLight, PAL.paper, 0.2));
+      strokePoly(c, [bp[3], bp[2], bp[1], bp[0]], 'rgba(43,42,38,.7)', 1);
+      // 拱形壁龛
+      const face = [bp[3], bp[2], tp[2], tp[3]];
+      const cx0 = (bp[2].x + bp[3].x) / 2;
+      const cy0 = (bp[2].y + bp[3].y) / 2;
+      c.fillStyle = mix(PAL.ink, PAL.blueDark, 0.2);
+      c.beginPath();
+      c.moveTo(cx0 - TW * 0.16, cy0);
+      c.lineTo(cx0 - TW * 0.16, cy0 - TH * 0.9);
+      c.quadraticCurveTo(cx0, cy0 - TH * 1.25, cx0 + TW * 0.16, cy0 - TH * 0.9);
+      c.lineTo(cx0 + TW * 0.16, cy0);
+      c.closePath(); c.fill();
+      c.strokeStyle = 'rgba(242,234,216,.25)'; c.lineWidth = 0.6; c.stroke();
+      // 顶部黄铜带
+      c.strokeStyle = PAL.brass; c.lineWidth = 1.4;
+      c.beginPath();
+      c.moveTo(tp[3].x, tp[3].y + TH * 0.05);
+      c.lineTo(tp[2].x, tp[2].y + TH * 0.05);
+      c.stroke();
+    }
+
+    // SVG 彭罗斯三角，按宽度归一化
+    const P0 = [[312.32408, 254.29303], [497.87767, 584.55178], [291.61277, 584.66663], [252.04899, 655.38029], [617.26698, 655.43727], [394.46457, 254.0866]];
+    const P1 = [[312.31392, 254.26591], [91.923882, 655.37223], [132.32998, 728.10322], [315.16759, 396.77318], [417.193, 584.66155], [498.0052, 584.66155]];
+    const P2 = [[315.20979, 396.83568], [355.50104, 471.05493], [251.87272, 655.43409], [617.28788, 655.62366], [578.81741, 730.12352], [132.3464, 728.07665]];
+    const X0 = 91.923882, X1 = 617.28788, Y0 = 254.0866, Y1 = 730.12352;
+    const ts = tribarW / (X1 - X0);
+    const th = (Y1 - Y0) * ts;
+    const tcx = 0, tcy = -pedTop - th / 2 + 2;
+    const toScreen = (p) => ({
+      x: tcx - tribarW / 2 + (p[0] - X0) * ts,
+      y: tcy - th / 2 + (p[1] - Y0) * ts
+    });
+
+    function drawTribar() {
+      // 投影
+      c.save();
+      c.translate(6, 9);
+      c.fillStyle = 'rgba(43,42,38,.14)';
+      c.beginPath();
+      [P0, P1, P2].forEach((path) => {
+        path.forEach((p, i) => {
+          const q = toScreen(p);
+          if (i === 0) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y);
+        });
+        c.closePath();
+      });
+      c.fill();
+      c.restore();
+      const fills = [stoneLight, mix(PAL.brick, PAL.brickLight, 0.18), mix(PAL.blueDark, PAL.ink, 0.12)];
+      [P0, P1, P2].forEach((path, k) => {
+        c.beginPath();
+        path.forEach((p, i) => {
+          const q = toScreen(p);
+          if (i === 0) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y);
+        });
+        c.closePath();
+        c.fillStyle = fills[k];
+        c.fill('evenodd');
+        c.strokeStyle = 'rgba(30,29,26,.9)';
+        c.lineWidth = 1.15;
+        c.stroke();
+      });
+      // 暗面排线
+      c.save();
+      c.beginPath();
+      P2.forEach((p, i) => {
+        const q = toScreen(p);
+        if (i === 0) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y);
+      });
+      c.closePath(); c.clip();
+      c.strokeStyle = 'rgba(242,234,216,.13)'; c.lineWidth = 0.7;
+      for (let y = tcy - th / 2; y < tcy + th / 2; y += 5) {
+        c.beginPath(); c.moveTo(tcx - tribarW / 2, y); c.lineTo(tcx + tribarW / 2, y - 3); c.stroke();
+      }
+      c.restore();
+      // 顶面高光
+      c.strokeStyle = 'rgba(255,252,242,.5)'; c.lineWidth = 0.8;
+      c.beginPath();
+      P0.forEach((p, i) => {
+        const q = toScreen(p);
+        if (i === 0) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y);
+      });
+      c.stroke();
+    }
+
+    // 绘制顺序
+    drawFlight(0);
+    drawFlight(3);
+    drawSeamPost();
+    drawPedestal();
+    drawFlight(1);
+    drawFlight(2);
+    // 三角底座压顶
+    const cap = iso(0, 0, 0); // unused; local screen below
+    c.fillStyle = stoneLight;
+    c.fillRect(tcx - TW * 0.62, -pedTop - TH * 0.06, TW * 1.24, TH * 0.14);
+    c.strokeStyle = 'rgba(43,42,38,.7)'; c.lineWidth = 0.8;
+    c.strokeRect(tcx - TW * 0.62, -pedTop - TH * 0.06, TW * 1.24, TH * 0.14);
+    drawTribar();
+    // 铭牌
+    c.fillStyle = PAL.brass;
+    c.fillRect(-TW * 0.34, RH * 0.82 + 6, TW * 0.68, TH * 0.25);
+    c.strokeStyle = 'rgba(43,42,38,.65)'; c.lineWidth = 0.6;
+    c.strokeRect(-TW * 0.34, RH * 0.82 + 6, TW * 0.68, TH * 0.25);
+    c.fillStyle = 'rgba(43,42,38,.75)';
+    c.font = `500 ${Math.max(4, TW * 0.06)}px 'Segoe UI', sans-serif`;
+    c.fillText('SCALA INFINITA', 0, RH * 0.82 + 6 + TH * 0.12);
+
+    MON.RW = RW; MON.RH = RH; MON.band = band; MON.n = n; MON.rise = rise; MON.zBase = zBase;
+    MON.sprite = { canvas: cv, cw, ch, ox, oy };
+    MON.towerTop = pedTop / TH + 3;
+  }
+
+  function stairScreen(u) {
+    const corners = [
+      { x: 0, y: MON.RH }, { x: -MON.RW, y: 0 }, { x: 0, y: -MON.RH }, { x: MON.RW, y: 0 }
+    ];
+    const innerScale = (MON.RW - MON.band) / MON.RW;
+    const ic = corners.map((p) => ({ x: p.x * innerScale, y: p.y * innerScale }));
+    const q = mod(u, 1);
+    const flight = Math.floor(q * 4);
+    const t = q * 4 - flight;
+    const order = [2, 3, 0, 1];
+    const ci = order[flight];
+    const a = corners[ci], b = corners[(ci + 1) % 4];
+    const ia = ic[ci], ib = ic[(ci + 1) % 4];
+    const step = Math.min(MON.n - 1, Math.floor(t * MON.n));
+    const lift = flight * MON.n * MON.rise + (step + 1) * MON.rise + MON.zBase * TH;
+    return {
+      x: lerp(lerp(a.x, b.x, t), lerp(ia.x, ib.x, t), 0.5),
+      y: lerp(lerp(a.y, b.y, t), lerp(ia.y, ib.y, t), 0.5) - lift,
+      flight, t,
+      alpha: smoothstep(0, 0.09, Math.min(t, 1 - t))
+    };
+  }
+
+  function drawStairClimber(c, u, back, color) {
+    const p = stairScreen(u);
+    if (p.alpha <= 0.01) return;
+    const hgt = Math.max(5, TH * 0.34);
+    c.save();
+    c.globalAlpha = p.alpha;
+    const ax = p.x, ay = p.y;
+    c.fillStyle = 'rgba(43,42,38,.18)';
+    c.beginPath(); c.ellipse(ax, ay + 1, hgt * 0.5, 2, 0, 0, TAU); c.fill();
+    c.strokeStyle = PAL.ink; c.lineWidth = Math.max(0.8, hgt * 0.14);
+    const swing = Math.sin(clock * 3.1 + u * 20) * hgt * 0.22;
+    c.beginPath();
+    c.moveTo(ax, ay - hgt * 0.22);
+    c.lineTo(ax - hgt * 0.2 + swing, ay);
+    c.moveTo(ax, ay - hgt * 0.22);
+    c.lineTo(ax + hgt * 0.2 - swing, ay);
+    c.stroke();
+    c.fillStyle = color;
+    c.beginPath();
+    c.ellipse(ax, ay - hgt * 0.5, hgt * 0.22, hgt * 0.3, 0, 0, TAU);
+    c.fill();
+    c.strokeStyle = 'rgba(43,42,38,.55)'; c.lineWidth = 0.4; c.stroke();
+    c.fillStyle = PAL.paperLight;
+    c.beginPath(); c.arc(ax, ay - hgt * 0.86, hgt * 0.16, 0, TAU); c.fill();
+    c.strokeStyle = PAL.ink; c.lineWidth = 0.5; c.stroke();
+    c.strokeStyle = color;
+    c.beginPath(); c.moveTo(ax - hgt * 0.16, ay - hgt * 0.55); c.lineTo(ax - hgt * 0.3, ay - hgt * 0.34); c.stroke();
+    c.beginPath(); c.moveTo(ax + hgt * 0.14, ay - hgt * 0.55); c.lineTo(ax + hgt * 0.28, ay - hgt * 0.4); c.stroke();
+    c.restore();
+  }
+
+  function drawFountainJets(c, backOnly) {
+    const jets = 10;
+    for (let j = 0; j < jets; j++) {
+      const a = (j / jets) * TAU + 0.15;
+      const isBack = Math.sin(a) + Math.cos(a) < 0;
+      if (isBack !== backOnly) continue;
+      const sx = CX + Math.cos(a) * 2.78;
+      const sy = CY + Math.sin(a) * 2.78;
+      const ex = CX + Math.cos(a) * 2.18;
+      const ey = CY + Math.sin(a) * 2.18;
+      const tall = 1.05 + 0.25 * Math.sin(j * 1.7 + 1);
+      for (let i = 0; i < 10; i++) {
+        const p = fract(clock / 6 + j * 0.11 + i / 10);
+        const wx = lerp(sx, ex, p);
+        const wy = lerp(sy, ey, p);
+        const wz = 0.16 + Math.sin(p * Math.PI) * tall + (1 - p) * 0.12;
+        const q = iso(wx, wy, wz);
+        const alpha = 0.12 + 0.6 * Math.sin(p * Math.PI);
+        c.fillStyle = `rgba(242,234,216,${alpha.toFixed(3)})`;
+        c.beginPath();
+        c.arc(q.x, q.y, Math.max(0.8, TH * 0.028), 0, TAU);
+        c.fill();
+        if (i % 2 === 0) {
+          const q2 = iso(lerp(sx, ex, p - 0.03), lerp(sy, ey, p - 0.03), 0.16 + Math.sin(Math.max(0, p - 0.03) * Math.PI) * tall);
+          c.strokeStyle = `rgba(147,174,176,${(alpha * 0.55).toFixed(3)})`;
+          c.lineWidth = 0.6;
+          c.beginPath(); c.moveTo(q2.x, q2.y); c.lineTo(q.x, q.y); c.stroke();
+        }
+      }
+    }
+  }
+
+  function drawMonument(c) {
+    if (!MON.sprite) return;
+    const anchor = iso(CX, CY, 0);
+    const spr = MON.sprite;
+    for (let i = 0; i < 4; i++) {
+      const u = mod(clock / 40 + i * 0.25 + 0.04, 1);
+      const f = Math.floor(u * 4);
+      if (f === 0 || f === 3) {
+        c.save(); c.translate(anchor.x, anchor.y);
+        drawStairClimber(c, u, true, i % 2 ? PAL.brick : PAL.blueDark);
+        c.restore();
+      }
+    }
+    drawFountainJets(c, true);
+    c.drawImage(spr.canvas, anchor.x - spr.ox, anchor.y - spr.oy, spr.cw, spr.ch);
+    for (let i = 0; i < 4; i++) {
+      const u = mod(clock / 40 + i * 0.25 + 0.04, 1);
+      const f = Math.floor(u * 4);
+      if (f === 1 || f === 2) {
+        c.save(); c.translate(anchor.x, anchor.y);
+        drawStairClimber(c, u, false, i % 2 ? PAL.brick : PAL.blueDark);
+        c.restore();
+      }
+    }
+    drawFountainJets(c, false);
+
+  }
+
+  // ---------------------------------------------------------------------------
+  // 7. 建筑精灵缓存
+  // ---------------------------------------------------------------------------
+  function getSprite(b, angle) {
+    const key = b.id + ':' + angle + ':' + TW.toFixed(2) + ':' + spriteDpr.toFixed(2);
+    let s = spriteCache.get(key);
+    if (!s) {
+      s = bakeBuilding(b, angle);
+      spriteCache.set(key, s);
+    }
+    return s;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 8. 前景屋檐
+  // ---------------------------------------------------------------------------
+  function bakeForeground() {
+    fgCanvas.width = Math.max(1, Math.round(w * dpr));
+    fgCanvas.height = Math.max(1, Math.round(h * dpr));
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fctx.clearRect(0, 0, w, h);
+    const portrait = w / h < 0.95;
+    const roofDark = mix(PAL.blueDark, PAL.ink, 0.16);
+    const moss = mix(PAL.blueDark, PAL.blue, 0.3);
+
+    if (!portrait) {
+      const pts = [
+        { x: -4, y: h + 4 },
+        { x: -4, y: h * 0.735 },
+        { x: w * 0.035, y: h * 0.744 },
+        { x: w * 0.155, y: h * 0.83 },
+        { x: w * 0.285, y: h * 0.965 },
+        { x: w * 0.31, y: h + 4 }
+      ];
+      fillPoly(fctx, pts, roofDark);
+      fctx.save();
+      polyPath(fctx, pts); fctx.clip();
+      const eaveSlope = (pts[4].y - pts[2].y) / (pts[4].x - pts[2].x);
+      fctx.strokeStyle = 'rgba(242,234,216,.2)';
+      fctx.lineWidth = 1;
+      for (let i = 0; i < 26; i++) {
+        const y = h * 0.70 + i * 11;
+        fctx.beginPath();
+        fctx.moveTo(-10, y);
+        fctx.lineTo(w * 0.43, y + w * 0.43 * eaveSlope + 12);
+        fctx.stroke();
+      }
+      fctx.strokeStyle = 'rgba(0,0,0,.16)';
+      fctx.lineWidth = 1.2;
+      for (let i = 0; i < 8; i++) {
+        const x = w * 0.02 + i * 17;
+        fctx.beginPath(); fctx.moveTo(x, h * 0.70); fctx.lineTo(x + 22, h * 1.02); fctx.stroke();
+      }
+      for (let i = 0; i < 8; i++) {
+        fctx.fillStyle = `rgba(95,127,134,${0.08 + hash1(i + 4) * 0.08})`;
+        fctx.beginPath();
+        fctx.ellipse(w * (0.03 + hash1(i) * 0.22), h * (0.73 + hash1(i + 9) * 0.2), 8 + hash1(i + 2) * 18, 3 + hash1(i + 5) * 5, 0.2, 0, TAU);
+        fctx.fill();
+      }
+      fctx.restore();
+      fctx.strokeStyle = 'rgba(242,234,216,.32)'; fctx.lineWidth = 1.2;
+      fctx.beginPath();
+      fctx.moveTo(pts[2].x, pts[2].y); fctx.lineTo(pts[3].x, pts[3].y); fctx.lineTo(pts[4].x, pts[4].y);
+      fctx.stroke();
+      fctx.strokeStyle = 'rgba(43,42,38,.55)'; fctx.lineWidth = 1;
+      polyPath(fctx, pts); fctx.stroke();
+
+      for (let i = 0; i < 2; i++) {
+        const x = w * (0.045 + i * 0.055), y = h * (0.735 + i * 0.01);
+        drawIvy(fctx, x, y, h * 0.07, 3, moss);
+      }
+      drawCat(fctx, w * 0.13, h * 0.738, Math.min(w, h) * 0.035, 1);
+
+    } else {
+      const pts = [
+        { x: -4, y: h + 4 }, { x: -4, y: h * 0.895 },
+        { x: w * 0.46, y: h * 0.915 }, { x: w + 4, y: h * 0.88 },
+        { x: w + 4, y: h + 4 }
+      ];
+      fillPoly(fctx, pts, roofDark);
+      fctx.save(); polyPath(fctx, pts); fctx.clip();
+      fctx.strokeStyle = 'rgba(242,234,216,.11)'; fctx.lineWidth = 1;
+      for (let i = 0; i < 18; i++) {
+        const y = h * 0.89 + i * 10;
+        fctx.beginPath(); fctx.moveTo(-4, y); fctx.lineTo(w + 4, y - 6); fctx.stroke();
+      }
+      fctx.strokeStyle = 'rgba(0,0,0,.15)';
+      for (let i = 0; i < 14; i++) {
+        const x = i * w / 14;
+        fctx.beginPath(); fctx.moveTo(x, h * 0.89); fctx.lineTo(x + 20, h + 4); fctx.stroke();
+      }
+      fctx.restore();
+      fctx.strokeStyle = 'rgba(43,42,38,.55)'; fctx.lineWidth = 1;
+      polyPath(fctx, pts); fctx.stroke();
+      fctx.strokeStyle = 'rgba(242,234,216,.3)';
+      fctx.beginPath(); fctx.moveTo(-4, h * 0.895); fctx.lineTo(w * 0.46, h * 0.915); fctx.lineTo(w + 4, h * 0.88); fctx.stroke();
+      for (let i = 0; i < 2; i++) drawIvy(fctx, w * (0.18 + i * 0.16), h * 0.915, h * 0.05, 3, moss);
+      drawCat(fctx, w * 0.74, h * 0.9, Math.min(w, h) * 0.045, 1.15);
+    }
+
+    bakedFg = fgCanvas;
+  }
+
+  function drawIvy(c, x, y, len, n, color) {
+    c.save();
+    for (let b = 0; b < 3; b++) {
+      const dx = (b - 1) * 7;
+      const ex = x + dx * 1.5;
+      const ey = y + len * (0.55 + 0.15 * b);
+      c.strokeStyle = 'rgba(60,82,70,.52)';
+      c.lineWidth = 0.8;
+      c.beginPath();
+      c.moveTo(x, y);
+      c.quadraticCurveTo(x + dx * 0.5, y + len * 0.35, ex, ey);
+      c.stroke();
+      for (let i = 0; i < 4; i++) {
+        const lx = ex + Math.cos(i * 1.8 + b) * 7;
+        const ly = ey + Math.sin(i * 1.8 + b) * 5;
+        c.fillStyle = i % 2 ? color : 'rgba(80,105,92,.62)';
+        c.beginPath();
+        c.ellipse(lx, ly, 4.6, 6.2, 0.5 + i, 0, TAU);
+        c.fill();
+        c.strokeStyle = 'rgba(43,42,38,.3)';
+        c.lineWidth = 0.4;
+        c.stroke();
+      }
+    }
+    c.restore();
+  }
+  function drawCat(c, x, y, size, scale) {
+    c.save();
+    c.translate(x, y);
+    c.scale(size / 26 * scale, size / 26 * scale);
+    c.fillStyle = 'rgba(43,42,38,.92)';
+    c.beginPath(); c.ellipse(0, -8, 8, 12, 0, 0, TAU); c.fill();
+    c.beginPath(); c.arc(0, -22, 6.5, 0, TAU); c.fill();
+    c.beginPath(); c.moveTo(-6, -26); c.lineTo(-8, -34); c.lineTo(-2, -28); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(6, -26); c.lineTo(8, -34); c.lineTo(2, -28); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(43,42,38,.92)'; c.lineWidth = 2.2;
+    c.beginPath(); c.moveTo(6, -2); c.quadraticCurveTo(15, 0, 17, -12); c.stroke();
+    c.fillStyle = PAL.brass;
+    c.fillRect(-3.4, -23, 1.6, 1.6);
+    c.fillRect(1.8, -23, 1.6, 1.6);
+    c.strokeStyle = 'rgba(242,234,216,.28)'; c.lineWidth = 0.8;
+    c.beginPath(); c.arc(0, -22, 6.5, Math.PI * 1.05, Math.PI * 1.7); c.stroke();
+    c.restore();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 9. 会改写的路线
+  // ---------------------------------------------------------------------------
+  function routeGatesOffset(u) {
+    let off = 0;
+    for (let i = 0; i < buildings.length; i++) {
+      const b = buildings[i];
+      if (Math.abs(b.push) < 0.015) continue;
+      let d = u - b.routeU;
+      d -= Math.round(d);
+      const bump = Math.exp(-(d * d) / (2 * 0.052 * 0.052));
+      off += b.push * 0.55 * bump;
+    }
+    return clamp(off, -0.48, 0.48);
+  }
+
+  function buildRoute(base, strength = 1) {
+    return base.map((p) => {
+      const off = routeGatesOffset(p.u) * strength;
+      return {
+        x: p.x + p.nx * off,
+        y: p.y + p.ny * off,
+        nx: p.nx,
+        ny: p.ny,
+        u: p.u
+      };
+    });
+  }
+
+  function sampleRoute(route, u) {
+    const n = route.length;
+    const f = mod(u, 1) * n;
+    const i = Math.floor(f) % n, j = (i + 1) % n;
+    const t = f - Math.floor(f);
+    const a = route[i], b = route[j];
+    return {
+      x: lerp(a.x, b.x, t),
+      y: lerp(a.y, b.y, t),
+      tx: b.x - a.x,
+      ty: b.y - a.y,
+      angle: Math.atan2(b.y - a.y, b.x - a.x),
+      nx: a.nx,
+      ny: a.ny
+    };
+  }
+
+  function drawTrack(c, route) {
+    c.save();
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    // 枕木
+    c.strokeStyle = 'rgba(43,42,38,.32)';
+    c.lineWidth = Math.max(1, TH * 0.035);
+    for (let i = 0; i < route.length; i += 4) {
+      const p = route[i];
+      const a = iso(p.x - p.nx * 0.28, p.y - p.ny * 0.28, 0.015);
+      const b = iso(p.x + p.nx * 0.28, p.y + p.ny * 0.28, 0.015);
+      c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+    }
+    // 双轨
+    for (const off of [-0.17, 0.17]) {
+      c.beginPath();
+      route.forEach((p, i) => {
+        const q = iso(p.x + p.nx * off, p.y + p.ny * off, 0.03);
+        if (i === 0) c.moveTo(q.x, q.y); else c.lineTo(q.x, q.y);
+      });
+      c.closePath();
+      c.strokeStyle = 'rgba(43,42,38,.62)';
+      c.lineWidth = Math.max(1.2, TH * 0.045);
+      c.stroke();
+      c.strokeStyle = 'rgba(201,161,91,.5)';
+      c.lineWidth = Math.max(0.5, TH * 0.014);
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  function drawCanalFlow(c) {
+    if (!WATER) return;
+    c.save();
+    c.beginPath();
+    polyPath(c, WATER.outer, true, false);
+    polyPath(c, WATER.inner, true, false);
+    c.clip('evenodd');
+    c.lineCap = 'round';
+    for (let i = 0; i < 30; i++) {
+      const u = mod(clock / 6 + i / 30, 1);
+      const p = sampleRoute(canalPath, u);
+      const q = iso(p.x, p.y, 0.015);
+      const dx = Math.cos(p.angle), dy = Math.sin(p.angle);
+      const nx = -dy, ny = dx;
+      const len = Math.max(4, TH * 0.18);
+      const alpha = 0.26 + 0.16 * Math.sin(i * 2.1 + clock * 0.8);
+      c.strokeStyle = `rgba(242,234,216,${alpha.toFixed(3)})`;
+      c.lineWidth = Math.max(0.7, TH * 0.022);
+      c.beginPath();
+      c.moveTo(q.x - dx * len * 0.5, q.y - dy * len * 0.5);
+      c.lineTo(q.x + dx * len * 0.5, q.y + dy * len * 0.5);
+      c.stroke();
+      c.strokeStyle = `rgba(147,174,176,${(alpha * 0.75).toFixed(3)})`;
+      c.lineWidth = 0.6;
+      c.beginPath();
+      c.moveTo(q.x + dx * len * 0.6, q.y + dy * len * 0.6);
+      c.lineTo(q.x + dx * len * 0.9 + nx * 2, q.y + dy * len * 0.9 + ny * 2);
+      c.stroke();
+    }
+    // 固定不动的几处泡沫与涟漪
+    for (let i = 0; i < 5; i++) {
+      const u = (i + 0.3) / 5;
+      const p = sampleRoute(canalPath, u);
+      const q = iso(p.x, p.y, 0.02);
+      c.strokeStyle = 'rgba(242,234,216,.16)';
+      c.lineWidth = 0.7;
+      c.beginPath();
+      c.ellipse(q.x, q.y, TW * (0.18 + i * 0.03), TH * (0.18 + i * 0.03), 0, 0, TAU);
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  function drawCanalStepFlow(c) {
+    // 北侧水梯：水从低处一阶阶往高处（屏幕右下方）流
+    c.save();
+    c.lineCap = 'round';
+    for (let s = 0; s < 4; s++) {
+      const z = CANAL_STEPS[s].z + 0.14;
+      const x0 = CANAL_STEPS[s].x;
+      const y0 = CANAL_STEPS[s].y;
+      for (let k = 0; k < 3; k++) {
+        const p = fract(clock / 6 + s * 0.19 + k / 3);
+        const y = y0 + 0.39 - p * 0.78;
+        const q = iso(x0, y, z);
+        const alpha = 0.25 + 0.45 * Math.sin(p * Math.PI);
+        c.strokeStyle = `rgba(242,234,216,${alpha.toFixed(3)})`;
+        c.lineWidth = Math.max(0.8, TH * 0.028);
+        c.beginPath();
+        c.moveTo(q.x - TW * 0.08, q.y - TH * 0.02);
+        c.lineTo(q.x, q.y + TH * 0.06);
+        c.lineTo(q.x + TW * 0.08, q.y - TH * 0.02);
+        c.stroke();
+      }
+    }
+    // 阶沿落水
+    for (let s = 0; s < 4; s++) {
+      const z = CANAL_STEPS[s].z + 0.05;
+      const q = iso(CANAL_STEPS[s].x, CANAL_STEPS[s].y + 0.4, z);
+      const p = fract(clock / 6 + s * 0.17);
+      c.strokeStyle = 'rgba(242,234,216,.4)';
+      c.lineWidth = 0.8;
+      for (let k = 0; k < 2; k++) {
+        const drop = (p + k * 0.5) % 1;
+        c.beginPath();
+        c.moveTo(q.x + k * 3 - 2, q.y);
+        c.lineTo(q.x + k * 3 - 2, q.y + TH * 0.22 * drop);
+        c.stroke();
+      }
+    }
+    c.restore();
+  }
+
+  function roundRectPath(c, x, y, w, h, r) {
+    const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+    c.beginPath();
+    c.moveTo(x + rr, y);
+    c.lineTo(x + w - rr, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + rr);
+    c.lineTo(x + w, y + h - rr);
+    c.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    c.lineTo(x + rr, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - rr);
+    c.lineTo(x, y + rr);
+    c.quadraticCurveTo(x, y, x + rr, y);
+    c.closePath();
+  }
+
+  function drawTram(c, route, tram) {
+    const phase = mod(clock + tram.offset, 90);
+    const dwell = phase < 4;
+    const baseU = dwell ? 0.5 : mod(0.5 + (phase - 4) / 86, 1);
+    for (let car = 1; car >= 0; car--) {
+      const u = mod(baseU - car * 0.019, 1);
+      const p = sampleRoute(route, u);
+      const tl = Math.hypot(p.tx, p.ty) || 1;
+      const tx = p.tx / tl, ty = p.ty / tl;
+      const nx = -ty, ny = tx;
+      const hl = 0.82, hw = 0.38, H = 1.15;
+      const corner = (a, b) => ({ x: p.x + tx * a + nx * b, y: p.y + ty * a + ny * b });
+      const base = [corner(-hl, -hw), corner(hl, -hw), corner(hl, hw), corner(-hl, hw)];
+      const top = base.map((q) => ({ x: q.x, y: q.y, z: H }));
+      const screen = (q, z = 0) => iso(q.x, q.y, z);
+      const baseS = base.map((q) => screen(q));
+      const topS = top.map((q) => screen(q, H));
+      // 投影
+      c.fillStyle = 'rgba(43,42,38,.13)';
+      c.beginPath();
+      baseS.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)));
+      c.closePath(); c.fill();
+      // 四个侧面，按朝向与深度排序
+      const faces = [];
+      for (let i = 0; i < 4; i++) {
+        const a = base[i], b = base[(i + 1) % 4];
+        const ex = b.x - a.x, ey = b.y - a.y;
+        let fx = ey, fy = -ex;
+        const fl = Math.hypot(fx, fy) || 1;
+        fx /= fl; fy /= fl;
+        const mx = (a.x + b.x) / 2 - p.x, my = (a.y + b.y) / 2 - p.y;
+        if (fx * mx + fy * my < 0) { fx = -fx; fy = -fy; }
+        const facing = fx + fy;
+        if (facing <= 0.001) continue;
+        const depth = (a.x + a.y + b.x + b.y) / 2;
+        faces.push({ i, a, b, fx, fy, depth, long: i === 0 || i === 2 });
+      }
+      faces.sort((a, b) => a.depth - b.depth);
+      for (const face of faces) {
+        const bs0 = screen(face.a), bs1 = screen(face.b);
+        const ts0 = screen(face.a, H), ts1 = screen(face.b, H);
+        const isLong = face.long;
+        const shade = face.i === 0 || face.i === 3 ? 1 : 0.82;
+        // 车身下半截
+        fillPoly(c, [bs0, bs1, ts1, ts0], mix(PAL.paperLight, tram.color, isLong ? 0.1 : 0.2));
+        fillPoly(c, [bs0, bs1, { x: lerp(bs1.x, ts1.x, 0.28), y: lerp(bs1.y, ts1.y, 0.28) }, { x: lerp(bs0.x, ts0.x, 0.28), y: lerp(bs0.y, ts0.y, 0.28) }], tram.color);
+        // 窗
+        if (isLong) {
+          for (let wI = 0; wI < 3; wI++) {
+            const u0 = 0.12 + wI * 0.27, u1 = u0 + 0.18;
+            const pt = (u, v) => ({
+              x: lerp(lerp(bs0.x, bs1.x, u), lerp(ts0.x, ts1.x, u), v),
+              y: lerp(lerp(bs0.y, bs1.y, u), lerp(ts0.y, ts1.y, u), v)
+            });
+            const q = [pt(u0, 0.32), pt(u1, 0.32), pt(u1, 0.76), pt(u0, 0.76)];
+            fillPoly(c, q, wI === 1 ? PAL.brass : mix(PAL.blueDark, PAL.ink, 0.38));
+            strokePoly(c, q, 'rgba(43,42,38,.6)', 0.55);
+            if (wI === 1) {
+              const hd = pt(u0 + 0.06, 0.56);
+              c.fillStyle = 'rgba(43,42,38,.55)';
+              c.beginPath(); c.arc(hd.x, hd.y, Math.max(1, TH * 0.03), 0, TAU); c.fill();
+            }
+          }
+          // 门缝
+          const d0 = { x: lerp(bs0.x, bs1.x, 0.82), y: lerp(bs0.y, bs1.y, 0.82) };
+          const d1 = { x: lerp(ts0.x, ts1.x, 0.82), y: lerp(ts0.y, ts1.y, 0.82) };
+          c.strokeStyle = 'rgba(43,42,38,.55)'; c.lineWidth = 0.6;
+          c.beginPath(); c.moveTo(d0.x, d0.y); c.lineTo(d1.x, d1.y); c.stroke();
+          if (dwell) {
+            const o0 = { x: lerp(bs0.x, bs1.x, 0.84), y: lerp(bs0.y, bs1.y, 0.84) };
+            const o1 = { x: lerp(ts0.x, ts1.x, 0.84), y: lerp(ts0.y, ts1.y, 0.84) };
+            const o2 = { x: lerp(ts0.x, ts1.x, 0.72), y: lerp(ts0.y, ts1.y, 0.9) };
+            const o3 = { x: lerp(bs0.x, bs1.x, 0.72), y: lerp(bs0.y, bs1.y, 0.42) };
+            fillPoly(c, [o0, o1, o2, o3], 'rgba(43,42,38,.5)');
+          }
+        }
+        // 轮廓
+        c.strokeStyle = 'rgba(43,42,38,.85)'; c.lineWidth = 0.9;
+        polyPath(c, [bs0, bs1, ts1, ts0]); c.stroke();
+      }
+      // 车顶
+      fillPoly(c, topS, mix(PAL.paperLight, PAL.paper, 0.2));
+      strokePoly(c, topS, 'rgba(43,42,38,.8)', 0.9);
+      // 顶棚中线与受电杆
+      const center = screen(p, H);
+      c.strokeStyle = 'rgba(43,42,38,.6)'; c.lineWidth = 0.7;
+      const roofA = screen(corner(-hl * 0.7, 0), H), roofB = screen(corner(hl * 0.7, 0), H);
+      c.beginPath(); c.moveTo(roofA.x, roofA.y); c.lineTo(roofB.x, roofB.y); c.stroke();
+      const pg0 = screen(corner(hl * 0.2, 0), H);
+      c.strokeStyle = 'rgba(43,42,38,.7)'; c.lineWidth = 0.8;
+      c.beginPath(); c.moveTo(pg0.x, pg0.y); c.lineTo(pg0.x, pg0.y - TH * 0.55); c.stroke();
+      c.beginPath(); c.moveTo(pg0.x - TH * 0.18, pg0.y - TH * 0.55); c.lineTo(pg0.x + TH * 0.18, pg0.y - TH * 0.55); c.stroke();
+      // 车轮与车灯
+      for (const side of [-hw * 0.8, hw * 0.8]) {
+        const w0 = screen(corner(-hl * 0.55, side), 0.05);
+        const w1 = screen(corner(hl * 0.55, side), 0.05);
+        for (const q of [w0, w1]) {
+          c.fillStyle = PAL.ink;
+          c.beginPath(); c.arc(q.x, q.y, Math.max(1.5, TH * 0.08), 0, TAU); c.fill();
+        }
+      }
+      const lamp = screen(corner(hl, -hw * 0.4), H * 0.55);
+      c.fillStyle = PAL.brass;
+      c.beginPath(); c.arc(lamp.x, lamp.y, Math.max(1, TH * 0.04), 0, TAU); c.fill();
+      // 路线牌
+      const board = screen(corner(hl * 0.82, 0), H * 0.8);
+      c.fillStyle = PAL.paperLight;
+      c.fillRect(board.x - 4, board.y - 3, 8, 5);
+      c.fillStyle = PAL.ink;
+      c.font = `600 ${Math.max(3.5, TH * 0.085)}px 'Segoe UI', sans-serif`;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(tram.number, board.x, board.y);
+    }
+  }
+
+  function drawPed(c, ped, p) {
+    const s = iso(p.x, p.y, 0.015);
+    const scale = TH / 42 * ped.scale;
+    const hgt = 20 * scale;
+    c.save();
+    c.translate(s.x, s.y);
+    c.fillStyle = 'rgba(43,42,38,.13)';
+    c.beginPath(); c.ellipse(0, 1, hgt * 0.3, hgt * 0.09, 0, 0, TAU); c.fill();
+    const step = Math.sin(ped.walk) * hgt * 0.14;
+    c.strokeStyle = 'rgba(43,42,38,.85)';
+    c.lineWidth = Math.max(0.8, hgt * 0.09);
+    c.beginPath();
+    c.moveTo(0, -hgt * 0.42);
+    c.lineTo(-hgt * 0.13 + step, 0);
+    c.moveTo(0, -hgt * 0.42);
+    c.lineTo(hgt * 0.13 - step, 0);
+    c.stroke();
+    c.fillStyle = ped.color;
+    c.beginPath();
+    c.ellipse(0, -hgt * 0.62, hgt * 0.15, hgt * 0.24, 0, 0, TAU);
+    c.fill();
+    c.strokeStyle = 'rgba(43,42,38,.45)'; c.lineWidth = 0.4; c.stroke();
+    c.fillStyle = PAL.paperLight;
+    c.beginPath(); c.arc(0, -hgt * 0.9, hgt * 0.11, 0, TAU); c.fill();
+    c.strokeStyle = 'rgba(43,42,38,.7)'; c.lineWidth = 0.5; c.stroke();
+    if (ped.umbrella) {
+      c.fillStyle = ped.color;
+      c.beginPath();
+      c.arc(0, -hgt * 1.02, hgt * 0.34, Math.PI, TAU);
+      c.fill();
+      c.strokeStyle = 'rgba(43,42,38,.6)'; c.lineWidth = 0.6; c.stroke();
+      c.strokeStyle = 'rgba(43,42,38,.75)'; c.lineWidth = 0.6;
+      c.beginPath(); c.moveTo(0, -hgt * 1.02); c.lineTo(0, -hgt * 0.3); c.stroke();
+    }
+    // 手臂
+    c.strokeStyle = ped.color; c.lineWidth = Math.max(0.6, hgt * 0.06);
+    c.beginPath();
+    c.moveTo(-hgt * 0.12, -hgt * 0.66);
+    c.lineTo(-hgt * 0.2 - step * 0.4, -hgt * 0.48);
+    c.stroke();
+    c.restore();
+  }
+
+  function drawTree(c, tree) {
+    const p = iso(tree.x, tree.y, 0.02);
+    const h = TH * 1.5 * tree.s;
+    const seed = tree.seed;
+    c.save();
+    c.fillStyle = 'rgba(43,42,38,.13)';
+    c.beginPath(); c.ellipse(p.x + 2, p.y + 1, h * 0.22, h * 0.07, 0, 0, TAU); c.fill();
+    c.strokeStyle = PAL.inkSoft; c.lineWidth = Math.max(1, h * 0.055);
+    c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y - h * 0.55); c.stroke();
+    c.strokeStyle = 'rgba(43,42,38,.55)'; c.lineWidth = 0.7;
+    c.beginPath(); c.moveTo(p.x, p.y - h * 0.3); c.lineTo(p.x - h * 0.12, p.y - h * 0.42); c.stroke();
+    const blobs = [
+      { dx: -h * 0.12, dy: -h * 0.62, r: h * 0.26 },
+      { dx: h * 0.13, dy: -h * 0.7, r: h * 0.24 },
+      { dx: 0, dy: -h * 0.86, r: h * 0.22 }
+    ];
+    for (let i = 0; i < blobs.length; i++) {
+      const b = blobs[i];
+      c.fillStyle = i % 2 ? mix(PAL.blueDark, PAL.blue, 0.28) : mix(PAL.blue, PAL.blueLight, 0.18);
+      c.beginPath();
+      c.ellipse(p.x + b.dx, p.y + b.dy, b.r, b.r * 0.72, 0.1 * i, 0, TAU);
+      c.fill();
+      c.strokeStyle = 'rgba(43,42,38,.55)'; c.lineWidth = 0.7; c.stroke();
+    }
+    c.fillStyle = PAL.brass;
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.1 + seed;
+      c.beginPath();
+      c.arc(p.x + Math.cos(a) * h * 0.18, p.y - h * 0.75 + Math.sin(a) * h * 0.12, Math.max(0.8, h * 0.025), 0, TAU);
+      c.fill();
+    }
+    c.restore();
+  }
+  function drawFlag(c, b) {
+    if (b.turning) return;
+    const cx = b.x + b.w / 2, cy = b.y + b.d / 2;
+    let z = b.h + 0.75;
+    if (b.kind === 'clock') z = b.h * 1.72 + 0.35;
+    else if (b.kind === 'cathedral') z = b.h + 0.95;
+    else if (b.kind === 'hall') z = b.h + 0.7;
+    const base = iso(cx, cy, z);
+    const top = iso(cx, cy, z + 0.55);
+    c.strokeStyle = 'rgba(43,42,38,.72)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(base.x, base.y); c.lineTo(top.x, top.y); c.stroke();
+    const phase = clock * 1.6 + (b.seed % 100) * 0.1;
+    const wave = Math.sin(phase) * TH * 0.12;
+    const w = TW * 0.24, h = TH * 0.22;
+    c.fillStyle = b.kind === 'clock' ? PAL.brick : PAL.blue;
+    c.beginPath();
+    c.moveTo(top.x, top.y);
+    c.lineTo(top.x + w, top.y + wave * 0.4);
+    c.lineTo(top.x + w * 0.92, top.y + h + wave);
+    c.lineTo(top.x + w * 0.34, top.y + h * 0.7 + wave * 0.6);
+    c.lineTo(top.x, top.y + h * 0.9);
+    c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(43,42,38,.5)'; c.lineWidth = 0.5; c.stroke();
+  }
+
+  function drawSmoke(c, b) {
+    if (!b.smoke || b.turning) return;
+    const cx = b.x + b.w * 0.5 - b.w * 0.22;
+    const cy = b.y + b.d * 0.5 - b.d * 0.18;
+    const top = iso(cx, cy, b.h + 0.75);
+    c.save();
+    c.strokeStyle = 'rgba(70,84,92,.18)';
+    c.lineWidth = 0.8;
+    for (let i = 0; i < 3; i++) {
+      const phase = fract(clock / 12 + i / 3 + (b.seed % 17) / 17);
+      const x = top.x + Math.sin(phase * 5 + i) * TW * 0.12 + phase * TW * 0.3;
+      const y = top.y - phase * TH * (1.1 + i * 0.2);
+      c.beginPath();
+      c.arc(x, y, 2 + phase * 4, 0, TAU);
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  function drawBirds(c) {
+    c.save();
+    c.strokeStyle = 'rgba(43,42,38,.5)';
+    c.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const t = mod(clock / (26 + i * 4) + i / 3, 1);
+      const x = -w * 0.06 + t * w * 1.12;
+      const y = h * (0.12 + i * 0.035) + Math.sin(t * 9 + i * 2) * h * 0.035;
+      const flap = Math.sin(clock * 5 + i * 2.1);
+      c.beginPath();
+      c.moveTo(x - 4, y + flap * 2);
+      c.quadraticCurveTo(x, y - 2, x + 4, y + flap * 2);
+      c.stroke();
+      c.fillStyle = 'rgba(43,42,38,.4)';
+      c.fillRect(x - 0.6, y - 0.6, 1.2, 1.2);
+    }
+    c.restore();
+  }
+
+  function drawDayTint(c) {
+    const phase = mod(clock, 600) / 600;
+    const dusk = 0.5 - 0.5 * Math.cos(TAU * phase);
+    if (dusk > 0.01) {
+      c.fillStyle = `rgba(166,96,52,${(0.062 * dusk).toFixed(3)})`;
+      c.fillRect(0, 0, w, h);
+    }
+    if (dusk < 0.99) {
+      c.fillStyle = `rgba(110,145,160,${(0.026 * (1 - dusk)).toFixed(3)})`;
+      c.fillRect(0, 0, w, h);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 10. 状态、更新与轮转
+  // ---------------------------------------------------------------------------
+  const CANAL_STEPS = [
+    { x: 6.0, y: 10.8, z: 0.06 },
+    { x: 6.0, y: 10.0, z: 0.2 },
+    { x: 6.0, y: 9.2, z: 0.34 },
+    { x: 6.0, y: 8.4, z: 0.48 }
+  ];
+  let WATER = null;
+
+  const trams = [
+    { offset: 0, color: PAL.brick, number: '7' },
+    { offset: 45, color: PAL.blueDark, number: '2' }
+  ];
+  let peds = [];
+  const TREES = [
+    { x: 5.05, y: 7.2, s: 1.0, seed: 1 }, { x: 16.95, y: 7.2, s: 0.9, seed: 2 },
+    { x: 5.05, y: 15.0, s: 0.85, seed: 3 }, { x: 16.95, y: 15.0, s: 1.0, seed: 4 },
+    { x: 9.0, y: 16.85, s: 0.8, seed: 5 }, { x: 13.1, y: 16.85, s: 0.9, seed: 6 },
+    { x: 1.6, y: 8.2, s: 1.05, seed: 7 }, { x: 20.4, y: 8.2, s: 0.85, seed: 8 }
+  ];
+  let hovered = null;
+  let selected = -1;
+  let drag = null;
+  let turnK = 0;
+  let nextTurnAt = Infinity;
+  let lastReadout = -100;
+  let wideMode = false;
+  let initialZoom = zoom;
+  let autoPool = [];
+  let quietTimer = 0;
+
+  const KIND_LABELS = {
+    cathedral: '大教堂',
+    clock: '钟塔',
+    market: '市场',
+    observatory: '天文台',
+    mill: '水磨',
+    hall: '市政厅',
+    library: '图书馆',
+    print: '印刷所',
+    row: '排屋',
+    small: '小屋',
+    kiosk: '售货亭',
+    station: '车站'
+  };
+
+  function labelFor(b) {
+    if (KIND_LABELS[b.kind] && b.kind !== 'row' && b.kind !== 'small') return KIND_LABELS[b.kind];
+    const n = buildings.filter((q) => q.kind === 'row' || q.kind === 'small').indexOf(b) + 1;
+    return '街区 ' + String(Math.max(1, n)).padStart(2, '0');
+  }
+
+  function initState() {
+    autoPool = buildings.filter((b) => b.kind !== 'station' && !b.landmark);
+    peds = [];
+    const colors = [PAL.brick, PAL.blueDark, PAL.inkSoft, PAL.brassDark, PAL.brickDark, PAL.blue];
+    for (let i = 0; i < 12; i++) {
+      const speed = 0.009 + hash1(seed + i * 3.17) * 0.007;
+      const dir = hash1(seed + i * 5.7) > 0.5 ? 1 : -1;
+      const path = i % 2;
+      const phase = hash1(seed + i * 11.3);
+      peds.push({
+        id: i,
+        path,
+        speed,
+        dir,
+        u: mod(phase + clock * speed * dir, 1),
+        walk: hash1(seed + i * 2.9) * TAU,
+        umbrella: i % 4 === 0,
+        color: colors[i % colors.length],
+        scale: 0.82 + hash1(seed + i * 7.7) * 0.36
+      });
+    }
+  }
+
+  function turnTimeStep(k) {
+    return 45 + 45 * hash1(seed * 0.317 + k * 1.771);
+  }
+  function turnBuildingAt(k) {
+    if (!autoPool.length) return null;
+    const i = Math.floor(hash1(seed * 0.573 + k * 2.137) * autoPool.length) % autoPool.length;
+    return autoPool[i];
+  }
+
+  function initSchedule() {
+    turnK = 0;
+    nextTurnAt = Infinity;
+    for (const b of buildings) {
+      b.turning = false;
+      b.angle = 0;
+      b.push = 0;
+      b.pushTarget = 0;
+    }
+    if (!autoTurns) return;
+    let t = 8 + 34 * hash1(seed * 0.131 + 0.7);
+    while (t <= clock && turnK < 4000) {
+      const b = turnBuildingAt(turnK);
+      if (b) {
+        b.angle = 1 - b.angle;
+        b.pushTarget = b.angle ? 0.7 : 0;
+        b.push = b.pushTarget;
+      }
+      turnK++;
+      t += turnTimeStep(turnK);
+    }
+    nextTurnAt = t;
+  }
+
+  function switchPedRoutes(b) {
+    for (const ped of peds) {
+      if (hash1(b.seed + ped.id * 13.7) < 0.42) ped.path = (ped.path + 1) % 2;
+    }
+  }
+
+  function showToast(text) {
+    const el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 1900);
+  }
+
+  function startTurn(b) {
+    if (!b || b.kind === 'station' || b.turning) return false;
+    b.turning = true;
+    b.turnStart = clock;
+    b.turnFrom = b.angle;
+    b.turnTo = 1 - b.angle;
+    b.turnP = 0;
+    if (paused) {
+      b.turning = false;
+      b.angle = b.turnTo;
+      b.pushTarget = b.angle ? 0.7 : 0;
+      b.push = b.pushTarget;
+      switchPedRoutes(b);
+      showToast(labelFor(b) + ' · 转身 90°');
+      render();
+    } else {
+      showToast(labelFor(b) + ' · 正在转身');
+    }
+    return true;
+  }
+
+  function completeTurn(b) {
+    b.turning = false;
+    b.angle = b.turnTo;
+    b.turnP = 0;
+    b.pushTarget = b.angle ? 0.7 : 0;
+    switchPedRoutes(b);
+    showToast(labelFor(b) + ' · 转身 90°');
+  }
+
+  function update(dt) {
+    clock += dt;
+    cam.sway = Math.sin((clock * TAU) / 120) * 0.0096;
+    cam.breath = 1 + Math.sin((clock * TAU) / 180) * 0.008;
+    cam.floatY = Math.sin((clock * TAU) / 60) * 4.5;
+    for (const b of buildings) {
+      if (b.turning) {
+        b.turnP = (clock - b.turnStart) / 0.62;
+        if (b.turnP >= 1) completeTurn(b);
+      }
+      b.push += (b.pushTarget - b.push) * Math.min(1, dt * 3.0);
+    }
+    for (const ped of peds) {
+      ped.u = mod(ped.u + ped.speed * dt * ped.dir, 1);
+      ped.walk += dt * 6;
+    }
+    if (autoTurns && clock >= nextTurnAt) {
+      const b = turnBuildingAt(turnK);
+      if (b && !b.turning) startTurn(b);
+      turnK++;
+      nextTurnAt = clock + turnTimeStep(turnK);
+    }
+    if (clock - lastReadout > 0.2) {
+      lastReadout = clock;
+      updateReadout();
+    }
+  }
+
+  function updateReadout() {
+    const clockEl = document.getElementById('clockLabel');
+    const phaseEl = document.getElementById('phaseLabel');
+    const nextEl = document.getElementById('nextLabel');
+    if (!clockEl || !phaseEl || !nextEl) return;
+    const phase = mod(clock, 600) / 600;
+    const total = 6 + phase * 12;
+    const hh = Math.floor(total) % 24;
+    const mm = Math.floor((total % 1) * 60);
+    clockEl.textContent = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    if (phase < 0.16) phaseEl.textContent = 'DAWN · 晨';
+    else if (phase < 0.4) phaseEl.textContent = 'MORNING · 上午';
+    else if (phase < 0.58) phaseEl.textContent = 'NOON · 正午';
+    else if (phase < 0.82) phaseEl.textContent = 'AFTERNOON · 午后';
+    else phaseEl.textContent = 'DUSK · 黄昏';
+    if (autoTurns && Number.isFinite(nextTurnAt)) {
+      const left = Math.max(0, nextTurnAt - clock);
+      const m = Math.floor(left / 60), s = Math.floor(left % 60);
+      nextEl.textContent = 'NEXT TURN ' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    } else {
+      nextEl.textContent = 'AUTO TURN OFF';
+    }
+  }
+
+  function togglePause() {
+    paused = !paused;
+    if (!paused) lastFrame = 0;
+    syncPlayback();
+    render();
+    updateReadout();
+  }
+
+  function frame(now) {
+    raf = 0;
+    if (paused || document.hidden) { lastFrame = 0; return; }
+    if (!lastFrame) lastFrame = now;
+    const dt = Math.min(0.1, (now - lastFrame) / 1000);
+    lastFrame = now;
+    accumulator += dt;
+    if (accumulator >= 1 / 30) {
+      update(Math.min(accumulator, 0.1));
+      render();
+      accumulator = 0;
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function syncPlayback() {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    lastFrame = 0;
+    accumulator = 0;
+    const btn = document.getElementById('pause');
+    if (btn) btn.textContent = paused ? '继续' : '暂停';
+    if (!paused && !document.hidden) raf = requestAnimationFrame(frame);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 11. 绘制建筑、命中与高亮
+  // ---------------------------------------------------------------------------
+  function buildingDepth(b) {
+    return b.x + b.w + b.y + b.d;
+  }
+
+  function effectiveFootprint(b) {
+    const angle = b.turning ? (b.turnP >= 0.5 ? b.turnTo : b.turnFrom) : b.angle;
+    const bw = angle ? b.d : b.w;
+    const bd = angle ? b.w : b.d;
+    const cx = b.x + b.w / 2, cy = b.y + b.d / 2;
+    return { x0: cx - bw / 2, x1: cx + bw / 2, y0: cy - bd / 2, y1: cy + bd / 2, w: bw, d: bd, cx, cy };
+  }
+
+  function drawBuilding(c, b) {
+    let angle = b.angle;
+    let p = 0;
+    if (b.turning) {
+      p = clamp(b.turnP, 0, 1);
+      angle = p >= 0.5 ? b.turnTo : b.turnFrom;
+    }
+    const s = getSprite(b, angle);
+    const anchor = iso(b.x + b.w / 2, b.y + b.d / 2, 0);
+    if (b.turning) {
+      const sx = Math.max(0.012, Math.abs(Math.cos(Math.PI * p)));
+      const sy = 1 - 0.035 * Math.sin(Math.PI * p);
+      // 转身时的墨色弧线
+      c.save();
+      c.strokeStyle = 'rgba(180,85,60,.45)';
+      c.lineWidth = 0.8;
+      c.setLineDash([2, 4]);
+      c.beginPath();
+      c.ellipse(anchor.x, anchor.y + TH * 0.08, TW * 0.58, TH * 0.26, 0, 0, TAU);
+      c.stroke();
+      c.setLineDash([]);
+      c.restore();
+      c.save();
+      c.translate(anchor.x, anchor.y);
+      c.scale(sx, sy);
+      c.drawImage(s.canvas, -s.ox, -s.oy, s.cw, s.ch);
+      c.restore();
+    } else {
+      c.drawImage(s.canvas, anchor.x - s.ox, anchor.y - s.oy, s.cw, s.ch);
+    }
+    drawFlag(c, b);
+    drawSmoke(c, b);
+  }
+
+  function pointInPoly(px, py, pts) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+      if (((yi > py) !== (yj > py)) && (px < ((xj - xi) * (py - yi)) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+
+  function buildingAtNeutral(px, py) {
+    const list = buildings.slice().sort((a, b) => buildingDepth(b) - buildingDepth(a));
+    for (const b of list) {
+      if (b.kind === 'station') continue;
+      const eff = effectiveFootprint(b);
+      const h = b.h;
+      const top = [iso(eff.x0, eff.y0, h), iso(eff.x1, eff.y0, h), iso(eff.x1, eff.y1, h), iso(eff.x0, eff.y1, h)];
+      if (pointInPoly(px, py, top)) return b;
+      const f1 = [iso(eff.x0, eff.y1, 0), iso(eff.x1, eff.y1, 0), iso(eff.x1, eff.y1, h), iso(eff.x0, eff.y1, h)];
+      const f2 = [iso(eff.x1, eff.y1, 0), iso(eff.x1, eff.y0, 0), iso(eff.x1, eff.y0, h), iso(eff.x1, eff.y1, h)];
+      if (pointInPoly(px, py, f1) || pointInPoly(px, py, f2)) return b;
+
+    }
+    return null;
+  }
+
+  function buildingAtScreen(px, py) {
+    const n = screenToNeutral(px, py);
+    return buildingAtNeutral(n.x, n.y);
+  }
+
+  function drawHighlight(c, b) {
+    if (!b || b.kind === 'station') return;
+    const eff = effectiveFootprint(b);
+    const h = b.h;
+    const top = [iso(eff.x0, eff.y0, h), iso(eff.x1, eff.y0, h), iso(eff.x1, eff.y1, h), iso(eff.x0, eff.y1, h)];
+    const foot = [iso(eff.x0, eff.y0, 0), iso(eff.x1, eff.y0, 0), iso(eff.x1, eff.y1, 0), iso(eff.x0, eff.y1, 0)];
+    c.save();
+    c.setLineDash([4, 4]);
+    c.lineDashOffset = -(clock * 9) % 8;
+    c.strokeStyle = 'rgba(201,161,91,.95)';
+    c.lineWidth = 1.25;
+    polyPath(c, top); c.stroke();
+    c.strokeStyle = 'rgba(43,42,38,.35)';
+    c.lineWidth = 0.8;
+    polyPath(c, foot); c.stroke();
+    c.setLineDash([]);
+    const mark = iso(eff.cx, eff.cy, h + 0.55);
+    c.strokeStyle = 'rgba(43,42,38,.55)';
+    c.lineWidth = 1;
+    c.beginPath(); c.arc(mark.x, mark.y, Math.max(5, TH * 0.2), 0, TAU); c.stroke();
+    c.strokeStyle = PAL.brick;
+    c.beginPath();
+    c.arc(mark.x, mark.y, Math.max(5, TH * 0.2), -0.5, Math.PI * 1.1);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(mark.x + Math.max(5, TH * 0.2) * 0.55, mark.y - Math.max(5, TH * 0.2) * 0.75);
+    c.lineTo(mark.x + Math.max(5, TH * 0.2) * 1.02, mark.y - Math.max(5, TH * 0.2) * 0.1);
+    c.stroke();
+    c.restore();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 12. 渲染
+  // ---------------------------------------------------------------------------
+  function drawWorldBuilding(c, b) {
+    drawBuilding(c, b);
+  }
+
+  function render() {
+    if (!w || !h) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = PAL.paper;
+    ctx.fillRect(0, 0, w, h);
+    if (bakedPaper) ctx.drawImage(bakedPaper, 0, 0, w, h);
+
+    ctx.save();
+    const cx = focusX + cam.panX;
+    const cy = focusY + cam.panY + cam.floatY;
+    ctx.translate(cx, cy);
+    ctx.rotate(cam.sway);
+    ctx.scale(cam.zoom * cam.breath, cam.zoom * cam.breath);
+    ctx.translate(-focusX, -focusY);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.imageSmoothingEnabled = true;
+
+    if (bakedGround) {
+      ctx.drawImage(bakedGround.canvas, bakedGround.x0, bakedGround.y0, bakedGround.cw, bakedGround.ch);
+    }
+    const tramPath = buildRoute(baseTramPath, 1);
+    const pedRoutes = pedBasePaths.map((p) => buildRoute(p, 0.55));
+    drawTrack(ctx, tramPath);
+    drawCanalFlow(ctx);
+    drawCanalStepFlow(ctx);
+
+    const items = [];
+    for (const b of buildings) items.push({ type: 'building', b, depth: buildingDepth(b) });
+    items.push({ type: 'monument', depth: 22.58 });
+    for (const tram of trams) {
+      const phase = mod(clock + tram.offset, 90);
+      const u = phase < 4 ? 0.5 : mod(0.5 + (phase - 4) / 86, 1);
+      const p = sampleRoute(tramPath, u);
+      items.push({ type: 'tram', tram, depth: p.x + p.y + 0.22 });
+    }
+    for (const ped of peds) {
+      const p = sampleRoute(pedRoutes[ped.path], ped.u);
+      items.push({ type: 'ped', ped, p, depth: p.x + p.y + 0.08 });
+    }
+    for (const tree of TREES) items.push({ type: 'tree', tree, depth: tree.x + tree.y + 0.1 });
+    if (wideMode) for (const b of wideExtras) items.push({ type: 'extra', b, depth: buildingDepth(b) });
+    items.sort((a, b) => a.depth - b.depth);
+
+    for (const item of items) {
+      if (item.type === 'building') drawWorldBuilding(ctx, item.b);
+      else if (item.type === 'monument') drawMonument(ctx);
+      else if (item.type === 'tram') drawTram(ctx, tramPath, item.tram);
+      else if (item.type === 'ped') drawPed(ctx, item.ped, item.p);
+      else if (item.type === 'tree') drawTree(ctx, item.tree);
+      else if (item.type === 'extra') {
+        const b = item.b;
+        const eff = effectiveFootprint(b);
+        fillPoly(ctx, [
+          iso(eff.x0 - 0.2, eff.y0 - 0.2), iso(eff.x1 + 0.2, eff.y0 - 0.2),
+          iso(eff.x1 + 0.2, eff.y1 + 0.2), iso(eff.x0 - 0.2, eff.y1 + 0.2)
+        ], 'rgba(70,84,92,.08)');
+        fillPoly(ctx, [
+          iso(eff.x0 - 0.1, eff.y0 - 0.1), iso(eff.x1 + 0.1, eff.y0 - 0.1),
+          iso(eff.x1 + 0.1, eff.y1 + 0.1), iso(eff.x0 - 0.1, eff.y1 + 0.1)
+        ], mix(PAL.paper, PAL.paperLight, 0.3));
+        drawBuilding(ctx, b);
+      }
+    }
+
+    if (hovered) drawHighlight(ctx, hovered);
+    else if (selected >= 0) {
+      const b = autoPool[selected % Math.max(1, autoPool.length)];
+      if (b) drawHighlight(ctx, b);
+    }
+    ctx.restore();
+
+    drawDayTint(ctx);
+    drawBirds(ctx);
+    if (bakedFg) ctx.drawImage(bakedFg, 0, 0, w, h);
+    frames++;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 13. 尺寸、水渠三角形、初始化
+  // ---------------------------------------------------------------------------
+  function rebuildWater() {
+    const outer = [], inner = [];
+    for (const p of canalPath) {
+      outer.push(iso(p.x + p.nx * 0.34, p.y + p.ny * 0.34));
+      inner.push(iso(p.x - p.nx * 0.34, p.y - p.ny * 0.34));
+    }
+    WATER = { outer, inner };
+  }
+
+  function resize() {
+    w = Math.max(1, innerWidth);
+    h = Math.max(1, innerHeight);
+    dpr = Math.min(devicePixelRatio || 1, 1.5, Math.sqrt(2600000 / (w * h)));
+    dpr = Math.max(0.42, dpr);
+    spriteDpr = clamp(devicePixelRatio || 1, 0.8, 1.3);
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+
+    const aspect = w / h;
+    wideMode = aspect > 2.05;
+    if (aspect < 0.95) TW = w * 0.14;
+    else if (aspect > 2.05) TW = Math.min((w * 0.86) / GRID, h * 0.070);
+    else TW = Math.min((w * 0.86) / GRID, h * 0.076);
+    TW = Math.max(8, TW);
+    TH = TW * 0.5;
+    focusX = w * 0.5;
+    focusY = h * (aspect < 0.95 ? 0.585 : aspect > 2.05 ? 0.53 : 0.535);
+    cam.zoom = zoom;
+    cam.panX = clamp(cam.panX, -TW * 1.05, TW * 1.05);
+    cam.panY = clamp(cam.panY, -TH * 1.6, TH * 1.6);
+
+    spriteCache.clear();
+    MON.sprite = null;
+    makeGrain();
+    bakePaper();
+    rebuildWater();
+    bakeGround();
+    bakeForeground();
+    bakeMonument();
+    render();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 14. 输入
+  // ---------------------------------------------------------------------------
+  function updateHover(px, py) {
+    const b = buildingAtScreen(px, py);
+    const id = b ? b.id : null;
+    if (id !== hovered) {
+      hovered = id;
+      canvas.classList.toggle('hot', !!b);
+      render();
+    }
+  }
+
+  function pointerPos(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (w / r.width), y: (e.clientY - r.top) * (h / r.height) };
+  }
+
+  function onPointerDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    const p = pointerPos(e);
+    drag = { x: p.x, y: p.y, moved: 0, dragging: false, time: performance.now(), id: e.pointerId };
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+  }
+
+  function onPointerMove(e) {
+    const p = pointerPos(e);
+    if (drag) {
+      const dx = p.x - drag.x, dy = p.y - drag.y;
+      drag.moved += Math.hypot(dx, dy);
+      if (drag.moved > 5) {
+        drag.dragging = true;
+        canvas.classList.add('dragging');
+        cam.panX = clamp(cam.panX + dx, -TW * 1.05, TW * 1.05);
+        cam.panY = clamp(cam.panY + dy, -TH * 1.6, TH * 1.6);
+        drag.x = p.x; drag.y = p.y;
+        render();
+      }
+    } else {
+      updateHover(p.x, p.y);
+    }
+  }
+
+  function onPointerUp(e) {
+    if (!drag) return;
+    const wasDrag = drag.dragging;
+    const elapsed = performance.now() - drag.time;
+    drag = null;
+    canvas.classList.remove('dragging');
+    if (wasDrag || elapsed > 700) return;
+    const p = pointerPos(e);
+    const b = buildingAtScreen(p.x, p.y);
+    if (b) {
+      startTurn(b);
+    } else {
+      selected = -1;
+      render();
+    }
+  }
+
+  function onWheel(e) {
+    e.preventDefault();
+    const factor = Math.exp(-e.deltaY * 0.0011);
+    zoom = clamp(zoom * factor, 0.8, 1.2);
+    cam.zoom = zoom;
+    render();
+  }
+
+  function onKeyDown(e) {
+    if (e.target && e.target.matches && e.target.matches('input,select,button,textarea')) return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      togglePause();
+    } else if (e.key === 'h' || e.key === 'H') {
+      document.body.classList.toggle('hud-off');
+      document.body.classList.remove('quiet');
+      clearTimeout(quietTimer);
+    } else if (e.key === 'f' || e.key === 'F') {
+      fullscreen();
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      if (!autoPool.length) return;
+      e.preventDefault();
+      const dir = e.key === 'ArrowRight' ? 1 : -1;
+      selected = mod(selected + dir, autoPool.length);
+      hovered = autoPool[selected].id;
+      canvas.classList.add('hot');
+      render();
+      showToast(labelFor(autoPool[selected]) + ' · Enter 转身');
+    } else if (e.key === 'Enter' && selected >= 0) {
+      const b = autoPool[selected % autoPool.length];
+      if (b) startTurn(b);
+    } else if (e.key === 'Escape') {
+      selected = -1;
+      hovered = null;
+      canvas.classList.remove('hot');
+      render();
+    }
+  }
+
+  async function fullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch { /* some hosts disable fullscreen */ }
+  }
+
+  function recenter() {
+    cam.panX = 0;
+    cam.panY = 0;
+    zoom = initialZoom;
+    cam.zoom = zoom;
+    selected = -1;
+    hovered = null;
+    render();
+    showToast('视角已复位');
+  }
+
+  // ---------------------------------------------------------------------------
+  // 15. 启动
+  // ---------------------------------------------------------------------------
+  function bindUi() {
+    const settings = document.getElementById('settings');
+    const panel = document.getElementById('panel');
+    if (settings && panel) {
+      settings.addEventListener('click', () => {
+        panel.hidden = !panel.hidden;
+        settings.setAttribute('aria-expanded', String(!panel.hidden));
+      });
+    }
+    const pauseBtn = document.getElementById('pause');
+    if (pauseBtn) pauseBtn.addEventListener('click', togglePause);
+    const fsBtn = document.getElementById('fullscreen');
+    if (fsBtn) fsBtn.addEventListener('click', fullscreen);
+    const recBtn = document.getElementById('recenter');
+    if (recBtn) recBtn.addEventListener('click', recenter);
+    const autoBox = document.getElementById('auto');
+    if (autoBox) {
+      autoBox.checked = autoTurns;
+      autoBox.addEventListener('change', (e) => {
+        autoTurns = e.target.checked;
+        if (autoTurns) nextTurnAt = clock + 6;
+        else nextTurnAt = Infinity;
+        updateReadout();
+      });
+    }
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', () => { drag = null; canvas.classList.remove('dragging'); });
+    canvas.addEventListener('pointerleave', () => {
+      if (!drag && hovered) { hovered = null; canvas.classList.remove('hot'); render(); }
+    });
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    addEventListener('keydown', onKeyDown);
+    addEventListener('resize', resize);
+    document.addEventListener('visibilitychange', syncPlayback);
+    reducedMotion.addEventListener('change', (e) => {
+      if (!params.has('still')) {
+        paused = e.matches;
+        syncPlayback();
+        render();
+      }
+    });
+    if (!hud) document.body.classList.add('hud-off');
+    quietTimer = setTimeout(() => document.body.classList.add('quiet'), 14000);
+  }
+
+  function exposeTestHooks() {
+    globalThis.__lumenTown = {
+      state() {
+        return {
+          seed, clock, paused, autoTurns, w, h, dpr, TW, TH, frames, focusX, focusY, camX: cam.panX, camY: cam.panY, camZoom: cam.zoom,
+          buildings: buildings.length,
+          wide: wideMode,
+          extras: wideExtras.length,
+          canalSteps: CANAL_STEPS.length,
+          canalStepZ: CANAL_STEPS.map((s) => s.z),
+          trams: trams.length,
+          peds: peds.length,
+          turnK,
+          nextTurnAt,
+          problems: layoutProblems,
+          route: buildRoute(baseTramPath, 1).length,
+          water: WATER ? WATER.outer.length : 0
+        };
+      },
+      update,
+      render,
+      resize,
+      setClock(v) { clock = v; },
+      setPaused(v) { paused = !!v; syncPlayback(); },
+      startTurnById(id) {
+        const b = buildings.find((q) => q.id === id);
+        return startTurn(b);
+      },
+      startTurnAt(i) { return startTurn(autoPool[i % autoPool.length]); },
+      buildingAt(x, y) { return buildingAtNeutral(x, y); },
+      screenOf(id) {
+        const b = buildings.find((q) => q.id === id);
+        if (!b) return null;
+        return iso(b.x + b.w / 2, b.y + b.d / 2, 0);
+      },
+      renderedPoint(id) {
+        const b = buildings.find((q) => q.id === id);
+        if (!b) return null;
+        const p = iso(b.x + b.w / 2, b.y + b.d / 2, 0);
+        const s = cam.zoom * cam.breath;
+        const dx = p.x - focusX, dy = p.y - focusY;
+        const cs = Math.cos(cam.sway), sn = Math.sin(cam.sway);
+        return {
+          x: focusX + cam.panX + (dx * cs - dy * sn) * s,
+          y: focusY + cam.panY + cam.floatY + (dx * sn + dy * cs) * s
+        };
+      },
+      routes() {
+        return {
+          tram: buildRoute(baseTramPath, 1),
+          ped: pedBasePaths.map((p) => buildRoute(p, 0.55)),
+          canal: canalPath
+        };
+      },
+      buildings,
+      autoPool,
+      peds,
+      trams,
+      layoutProblems,
+      monument: MON
+    };
+  }
+
+  function start() {
+    makeGrain();
+    initState();
+    initSchedule();
+    bindUi();
+    resize();
+    updateReadout();
+    if (params.get('verify') === '1') exposeTestHooks();
+    render();
+    syncPlayback();
+    if (paused) render();
+  }
+
+  start();
+
+
+})();
+</script>
+</body>
+</html>

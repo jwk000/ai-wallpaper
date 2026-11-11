@@ -1,0 +1,2194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<meta name="theme-color" content="#0e0e10">
+<title>风的显影</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #070708;
+    --paper: #e9e4d9;
+    --muted: rgba(229, 224, 214, .58);
+    --faint: rgba(214, 208, 196, .30);
+    --line: rgba(184, 134, 90, .17);
+    --accent: #b8865a;
+    --silver: #d8d3c8;
+    --sans: "Helvetica Neue", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --serif: "Songti SC", "SimSun", "Noto Serif CJK SC", serif;
+    --mono: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --pad: clamp(20px, 3.2vw, 54px);
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--ink); }
+  body {
+    position: fixed; inset: 0; font-family: var(--sans); color: var(--paper);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none;
+    cursor: default;
+  }
+  #scene { position: fixed; inset: 0; z-index: 1; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+  .hud a, .hud button, .hud input, .hud label, .hud .controls, .hud #panel { pointer-events: auto; }
+
+  /* A whisper of shade so the title stays readable on a bright silver thread. */
+  .hud::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(66% 46% at 0% 0%, rgba(4, 4, 5, .68), transparent 62%),
+      radial-gradient(52% 44% at 100% 100%, rgba(4, 4, 5, .46), transparent 72%);
+  }
+
+  .masthead {
+    position: absolute; left: var(--pad); top: var(--pad);
+    display: flex; align-items: center; gap: 11px;
+    font-family: var(--mono); font-size: 8px; letter-spacing: .30em; color: var(--muted);
+    transition: opacity 1.2s;
+  }
+  .mark { width: 13px; height: 13px; border: 1px solid rgba(184, 134, 90, .58); border-radius: 50%; position: relative; }
+  .mark::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--accent); opacity: .78; }
+  .brand { color: rgba(240, 235, 225, .86); letter-spacing: .34em; }
+  .rule { width: 28px; height: 1px; background: var(--line); }
+  .collection { color: var(--faint); letter-spacing: .24em; }
+  .index { color: rgba(184, 134, 90, .62); border: 1px solid var(--line); border-radius: 3px; padding: 3px 6px; letter-spacing: .12em; }
+
+  .live {
+    position: absolute; right: var(--pad); top: calc(var(--pad) + 2px); text-align: right;
+    font-family: var(--mono); font-size: 8px; letter-spacing: .20em; color: var(--faint);
+    display: flex; align-items: center; gap: 8px; transition: opacity 1.6s;
+  }
+  .live .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px rgba(184, 134, 90, .8); animation: breathe 5.4s ease-in-out infinite; }
+  .live b { color: rgba(240, 232, 216, .64); font-weight: 400; letter-spacing: .16em; }
+  @keyframes breathe { 0%, 100% { opacity: .30; } 50% { opacity: 1; } }
+
+  .caption { position: absolute; left: var(--pad); top: calc(var(--pad) + 52px); width: min(548px, 46vw); transition: opacity 2.2s ease; }
+  .kicker { margin: 0; font-family: var(--mono); font-size: 8px; letter-spacing: .30em; color: rgba(184, 134, 90, .76); }
+  h1 {
+    margin: 14px 0 11px; font-family: var(--serif); font-weight: 400;
+    font-size: clamp(32px, 3.55vw, 54px); line-height: 1.08; letter-spacing: .19em;
+    color: #f2ede3; text-shadow: 0 2px 34px rgba(3, 3, 4, .8);
+  }
+  .caption .sub { margin: 0; font-size: 11px; line-height: 2.0; letter-spacing: .10em; color: var(--muted); }
+  .measure { margin-top: 18px; display: flex; align-items: center; gap: 13px; }
+  .measure .line { width: 36px; height: 1px; background: rgba(184, 134, 90, .44); flex: none; }
+  .measure span { font-family: var(--mono); font-size: 8px; letter-spacing: .14em; color: var(--faint); }
+
+  .readout {
+    position: absolute; left: var(--pad); bottom: var(--pad);
+    display: flex; gap: clamp(18px, 2.5vw, 42px); transition: opacity 1.6s;
+  }
+  .readout div { display: flex; flex-direction: column; gap: 6px; }
+  .readout span { font-family: var(--mono); font-size: 7px; letter-spacing: .19em; color: var(--faint); }
+  .readout b { font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: .08em; color: rgba(240, 233, 220, .70); }
+  .readout b em { font-style: normal; font-size: 8px; color: var(--faint); }
+
+  .controls {
+    position: absolute; right: var(--pad); bottom: var(--pad);
+    display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+    opacity: .30; transition: opacity .35s;
+  }
+  .controls:hover, .controls:focus-within, .controls:has([aria-expanded="true"]) { opacity: 1; }
+  button {
+    font: inherit; cursor: pointer; color: #ece5d8;
+    background: rgba(13, 13, 15, .86); border: 1px solid rgba(184, 134, 90, .24);
+    border-radius: 7px; padding: 9px 13px; font-size: 10.5px; letter-spacing: .14em;
+    backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+    transition: border-color .25s, background .25s, color .25s;
+  }
+  button:hover { border-color: rgba(184, 134, 90, .58); background: rgba(26, 25, 27, .96); }
+  button:focus-visible, input:focus-visible { outline: 2px solid rgba(184, 134, 90, .85); outline-offset: 4px; }
+  #panel {
+    width: 278px; max-height: calc(100vh - 100px); overflow: auto; padding: 18px; touch-action: pan-y;
+    display: flex; flex-direction: column; gap: 12px;
+    border: 1px solid rgba(184, 134, 90, .20); border-radius: 11px;
+    background: rgba(11, 11, 13, .95); box-shadow: 0 20px 70px rgba(0, 0, 0, .62);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  #panel[hidden] { display: none; }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
+  .panel-head b { font-family: var(--serif); font-weight: 400; font-size: 13px; letter-spacing: .18em; color: rgba(244, 238, 226, .90); }
+  .panel-head span { font-family: var(--mono); font-size: 7px; letter-spacing: .12em; color: var(--faint); }
+  .row { display: flex; gap: 8px; }
+  .row button { flex: 1; }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 11px; letter-spacing: .08em; color: var(--muted); }
+  .switch input { width: 15px; height: 15px; accent-color: var(--accent); margin: 0; }
+  .panel .tips { margin: 2px 0 0; font-size: 8.5px; line-height: 1.95; letter-spacing: .06em; color: var(--faint); }
+  .panel .tips b { color: var(--muted); font-weight: 400; }
+  .danger { color: #e8c9a7; }
+  .danger.armed { border-color: rgba(208, 138, 62, .72); color: #ffd6b0; background: rgba(58, 34, 18, .74); }
+
+  .toast {
+    position: absolute; left: 50%; bottom: 12%; transform: translate(-50%, 12px);
+    padding: 8px 15px; border: 1px solid rgba(184, 134, 90, .22); border-radius: 999px;
+    background: rgba(10, 10, 12, .80); color: rgba(240, 233, 220, .78);
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: .16em;
+    opacity: 0; transition: opacity .7s, transform .7s; pointer-events: none;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  body.quiet .caption, body.quiet .masthead, body.quiet .readout { opacity: .0; }
+  body.quiet .live { opacity: .22; }
+  body.hud-off .masthead, body.hud-off .caption, body.hud-off .readout,
+  body.hud-off .live, body.hud-off .toast, body.hud-off .controls, body.hud-off .hud::before { display: none; }
+  body.hud-off .hud { pointer-events: none; }
+
+  @media (max-width: 760px), (max-height: 600px) {
+    .readout, .live { display: none; }
+    .caption { width: min(86vw, 430px); top: calc(var(--pad) + 42px); }
+    h1 { font-size: clamp(27px, 8vw, 42px); letter-spacing: .14em; }
+    .caption .sub { font-size: 10px; line-height: 1.9; }
+    .measure { margin-top: 13px; }
+    .measure span { letter-spacing: .08em; }
+    .collection, .masthead .rule, .index { display: none; }
+    .controls { right: 16px; bottom: 16px; }
+    .toast { bottom: 17%; }
+  }
+  @media (max-width: 460px) {
+    .caption .sub br { display: none; }
+    .measure { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hud *, .toast { transition-duration: .01s !important; }
+    .live .dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" role="img" aria-label="暗室里的空气切片：十几条银盐丝带在长曝光中显影，铁屑沿流线排成短划；指针划过留下慢慢散开的涡旋，右上角留出风去的方向"></canvas>
+
+<div class="hud" id="hud">
+  <header class="masthead">
+    <span class="mark"></span>
+    <span class="brand">LUMEN</span>
+    <span class="rule"></span>
+    <span class="collection">暗房档案</span>
+    <span class="index">09</span>
+  </header>
+
+  <div class="live">
+    <span class="dot"></span>
+    <span>PLATE DEVELOPING</span>
+    <b id="liveExposure">00:00</b>
+  </div>
+
+  <div class="caption">
+    <p class="kicker">SILVER GELATIN / WIND DEVELOPMENT</p>
+    <h1>风的显影</h1>
+    <p class="sub">暗室里，风被长曝光显影成丝带与铁屑。<br>指针划过的地方，空气留下慢慢散开的涡旋。</p>
+    <div class="measure"><span class="line"></span><span>12 RIBBONS · 30–60s EXPOSURE · NO RESET</span></div>
+  </div>
+
+  <div class="readout">
+    <div><span>RIBBONS</span><b id="statRibbons">012</b></div>
+    <div><span>FILINGS</span><b id="statFilings">300</b></div>
+    <div><span>GUSTS</span><b id="statGusts">000</b></div>
+    <div><span>ELAPSED</span><b id="statTime">00:00</b></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="controls">
+    <div id="panel" hidden>
+      <div class="panel-head"><b>显影设置</b><span>无存档 · 一直在显影</span></div>
+      <div class="row"><button id="pause">暂停</button><button id="fullscreen">全屏</button></div>
+      <label class="switch"><span>自动阵风</span><input id="gust" type="checkbox" checked></label>
+      <label class="switch"><span>指针涡旋</span><input id="vortex" type="checkbox" checked></label>
+      <div class="row"><button id="clear">清空构图</button><button id="reseed" class="danger">换一张底片</button></div>
+      <p class="tips">指针是涡旋源 · 按住拖动增强 · 双击定影<br><b>Space</b> 暂停 · <b>H</b> 隐藏界面 · <b>F</b> 全屏<br><span id="panelStats">12 丝带 · 300 铁屑 · 0 阵风</span></p>
+    </div>
+    <button id="settings" aria-expanded="false" aria-controls="panel">显影设置</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ------------------------------------------------------------------ *
+   *  A wind, developed on a silver-gelatin plate.
+   *
+   *  Flow      a base draught turned by three slowly rotating curl
+   *            octaves, sampled into a 64 x 36 velocity grid and read
+   *            back with bilinear interpolation. A gust every 20-40 s.
+   *  Ribbons   twelve long-exposure threads, sixty points each, grown
+   *            from a head that advects with the same field. The trail
+   *            keeps its length, never accumulates, and dissolves into
+   *            grain at the tail.
+   *  Filings   three hundred short dashes aligned with the local flow.
+   *  Pointer   a 120 px vortex that feeds on movement and fades within
+   *            eight seconds. A double click fixes the plate.
+   *
+   *  One file, Canvas 2D, no images, fonts, audio or network.
+   * ------------------------------------------------------------------ */
+
+  const TAU = Math.PI * 2;
+  const DEFAULT_SEED = 20261110;
+
+  const RIBBON_COUNT = 12;
+  const RIBBON_POINTS = 60;
+  const FILING_COUNT = 300;
+  const DUST_COUNT = 480;
+
+  const FLOW_COLS = 64;
+  const FLOW_ROWS = 36;
+  const GRID_INTERVAL = 0.2;
+
+  const MAX_PIXELS = 2600000;
+  const ZOOM_PERIOD = 360;
+  const ZOOM_AMP = 0.01;
+
+  const LIFE_MIN = 30;
+  const LIFE_MAX = 60;
+  const RETIRE_SECONDS = 1.6;
+
+  const VORTEX_RADIUS = 120;
+  const VORTEX_PEAK = 420;
+  const VORTEX_TAU = 2.0;
+  const MAX_GUSTS = 2;
+
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const fract = (v) => v - Math.floor(v);
+  const hash1 = (n) => fract(Math.sin(n * 127.1 + 311.7) * 43758.5453);
+  const smoothstep = (a, b, x) => {
+    const t = clamp((x - a) / (b - a), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* -------------------------------- parameters -------------------------------- */
+
+  const q = new URLSearchParams(location.search);
+  const numberParam = (key, fallback, min, max) => {
+    if (!q.has(key)) return fallback;
+    const value = Number(q.get(key));
+    return Number.isFinite(value) ? clamp(value, min, max) : fallback;
+  };
+
+  let seed = q.has('seed')
+    ? Math.floor(numberParam('seed', DEFAULT_SEED, 1, 2147483646))
+    : DEFAULT_SEED;
+  let time = numberParam('t', 0, 0, 86400);
+  const warmSeconds = numberParam('warm', 10, 0, 30);
+  const detail = numberParam('detail', 1, 0.55, 1);
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const stillParam = q.has('still') ? q.get('still') !== '0' : null;
+  let paused = stillParam !== null ? stillParam : reducedMotion.matches;
+  let autoGust = q.get('gust') !== '0';
+  let vortexEnabled = q.get('vortex') !== '0';
+
+  function rngFor(salt) {
+    return mulberry32((seed ^ Math.imul(salt | 0, 0x9E3779B1)) >>> 0);
+  }
+
+  /* -------------------------------- runtime state -------------------------------- */
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+  const bg = document.createElement('canvas');
+  const bgx = bg.getContext('2d', { alpha: false });
+  const overlay = document.createElement('canvas');
+  const ovx = overlay.getContext('2d');
+  const soft = document.createElement('canvas');
+  const sfx = soft.getContext('2d');
+  const grain = document.createElement('canvas');
+  const grx = grain.getContext('2d');
+
+  const el = {
+    body: document.body,
+    settings: document.getElementById('settings'),
+    panel: document.getElementById('panel'),
+    pause: document.getElementById('pause'),
+    gust: document.getElementById('gust'),
+    vortex: document.getElementById('vortex'),
+    clear: document.getElementById('clear'),
+    reseed: document.getElementById('reseed'),
+    toast: document.getElementById('toast'),
+    statRibbons: document.getElementById('statRibbons'),
+    statFilings: document.getElementById('statFilings'),
+    statGusts: document.getElementById('statGusts'),
+    statTime: document.getElementById('statTime'),
+    liveExposure: document.getElementById('liveExposure'),
+    panelStats: document.getElementById('panelStats'),
+  };
+
+  let w = 0, h = 0, dpr = 1, aspect = 1, unit = 1;
+  let layout = {
+    mode: 'landscape',
+    anchorX: 0, anchorY: 0,
+    windX: 0.96, windY: -0.28,
+    trail: 1000,
+  };
+  let baseSpeed = 52;
+  let camZoom = 1;
+
+  let frames = 0, last = 0, raf = 0;
+  let hudClock = 0, quietTimer = 0, toastTimer = 0, reseedTimer = 0;
+  let hudBlink = 0;
+
+  const ribbons = [];
+  let filings = [];
+  let dust = [];
+  let gusts = [];
+  let gustCount = 0;
+  let nextGustAt = 0;
+
+  let bokeh = [];
+  let bokehSilver = null, bokehAmber = null;
+
+  const vortex = { x: 0, y: 0, inside: false, pressed: false, energy: 0, lastInput: -99 };
+  let lastPointer = { x: 0, y: 0, t: 0 };
+
+  const noise = [];
+  let zoomPhase = 0;
+
+  const gvx = new Array(FLOW_COLS * FLOW_ROWS);
+  const gvy = new Array(FLOW_COLS * FLOW_ROWS);
+  let gridTime = -1;
+  const F = { x: 0, y: 0 };
+
+  let ribbonRng = mulberry32((seed ^ 0x51ed270b) >>> 0);
+  let filingRng = mulberry32((seed ^ 0x2b7f16a3) >>> 0);
+  let gustRng = mulberry32((seed ^ 0x7c3a91d5) >>> 0);
+  let simRng = mulberry32((seed ^ 0x19d6c4f1) >>> 0);
+
+  function resetRngs() {
+    gustRng = mulberry32((seed ^ 0x7c3a91d5) >>> 0);
+    simRng = mulberry32((seed ^ 0x19d6c4f1) >>> 0);
+  }
+
+  function buildNoiseParams() {
+    const r = rngFor(881);
+    noise.length = 0;
+    const ks = [5.8, 11.5, 22.0];
+    const weights = [0.55, 0.32, 0.16];
+    const omegas = [0.180, -0.320, 0.620];
+    const rots = [0.020, -0.030, 0.050];
+    for (let i = 0; i < 3; i++) {
+      noise.push({
+        k: ks[i],
+        w: weights[i],
+        omega: omegas[i],
+        rot: rots[i],
+        angle0: r() * TAU,
+        phase: r() * TAU,
+      });
+    }
+    zoomPhase = r() * TAU;
+  }
+
+  /* -------------------------------- composition -------------------------------- */
+
+  function layoutFor(width, height) {
+    const ratio = width / height;
+    if (ratio <= 0.85) {
+      return {
+        mode: 'portrait',
+        anchorX: width * 0.50,
+        anchorY: height * 0.44,
+        windX: 0.06,
+        windY: -0.998,
+        trail: Math.min(width * 1.50, height * 0.70),
+      };
+    }
+    const wnx = 0.96, wny = -0.28;
+    const len = Math.hypot(wnx, wny);
+    return {
+      mode: ratio >= 1.9 ? 'ultrawide' : 'landscape',
+      anchorX: width * (ratio >= 1.9 ? 0.36 : 0.35),
+      anchorY: height * 0.45,
+      windX: wnx / len,
+      windY: wny / len,
+      trail: Math.min(Math.hypot(width, height) * 0.42, width * 0.55, height * 1.50),
+    };
+  }
+
+  function applyLayout() {
+    layout = layoutFor(w, h);
+    const len = Math.hypot(layout.windX, layout.windY) || 1;
+    layout.windX /= len;
+    layout.windY /= len;
+    baseSpeed = Math.min(w, h) * 0.105;
+    unit = clamp(Math.min(w, h) / 1080, 0.72, 2.2);
+  }
+
+  /* -------------------------------- flow field -------------------------------- */
+
+  function freeFlowAt(x, y, t, out) {
+    const minDim = Math.min(w, h) || 1;
+    const nx = x / minDim;
+    const ny = y / minDim;
+
+    let vx = layout.windX * baseSpeed;
+    let vy = layout.windY * baseSpeed;
+
+    for (let i = 0; i < noise.length; i++) {
+      const n = noise[i];
+      const a = n.angle0 + n.rot * t;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const phase = n.k * (ca * nx + sa * ny) + n.omega * t + n.phase;
+      const c = Math.cos(phase);
+      vx += baseSpeed * n.w * sa * c;
+      vy -= baseSpeed * n.w * ca * c;
+    }
+
+    // Traveling gust bands and a fine crosswind flutter. Without these the
+    // stream reads as still water; with them the sheet keeps moving fast.
+    const wx = x / Math.max(1, w);
+    const wy = y / Math.max(1, h);
+    const gustWave = Math.sin(wx * TAU * 1.35 - t * 1.15 + wy * 1.7);
+    const flutter = Math.sin(wx * TAU * 3.10 + wy * TAU * 1.40 - t * 2.35);
+    vx += layout.windX * baseSpeed * 0.55 * gustWave - layout.windY * baseSpeed * 0.26 * flutter;
+    vy += layout.windY * baseSpeed * 0.55 * gustWave + layout.windX * baseSpeed * 0.26 * flutter;
+
+    for (let i = 0; i < gusts.length; i++) {
+      const g = gusts[i];
+      const u = (t - g.t0) / g.dur;
+      if (u < 0 || u > 1) continue;
+      const env = Math.pow(Math.sin(Math.PI * u), 1.5) * g.amp;
+      const bend = Math.sin(u * TAU + g.phase) * 0.20;
+      vx += baseSpeed * env * (layout.windX * 1.18 - layout.windY * bend);
+      vy += baseSpeed * env * (layout.windY * 1.18 + layout.windX * bend);
+    }
+
+    out.x = vx;
+    out.y = vy;
+  }
+
+  const flowOct = [
+    { kca: 0, ksa: 0, omegaT: 0, w: 0, ca: 0, sa: 0 },
+    { kca: 0, ksa: 0, omegaT: 0, w: 0, ca: 0, sa: 0 },
+    { kca: 0, ksa: 0, omegaT: 0, w: 0, ca: 0, sa: 0 },
+  ];
+  let flowGustVX = 0;
+  let flowGustVY = 0;
+
+  function prepareFlow() {
+    for (let i = 0; i < noise.length; i++) {
+      const n = noise[i];
+      const a = n.angle0 + n.rot * time;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const o = flowOct[i];
+      o.kca = n.k * ca;
+      o.ksa = n.k * sa;
+      o.omegaT = n.omega * time + n.phase;
+      o.w = n.w;
+      o.ca = ca;
+      o.sa = sa;
+    }
+    flowGustVX = 0;
+    flowGustVY = 0;
+    for (let i = 0; i < gusts.length; i++) {
+      const g = gusts[i];
+      const u = (time - g.t0) / g.dur;
+      if (u < 0 || u > 1) continue;
+      const env = Math.pow(Math.sin(Math.PI * u), 1.5) * g.amp;
+      const bend = Math.sin(u * TAU + g.phase) * 0.20;
+      flowGustVX += baseSpeed * env * (layout.windX * 1.18 - layout.windY * bend);
+      flowGustVY += baseSpeed * env * (layout.windY * 1.18 + layout.windX * bend);
+    }
+  }
+
+  function fillFlowRows(startRow, rowCount) {
+    const baseVX = layout.windX * baseSpeed;
+    const baseVY = layout.windY * baseSpeed;
+    const minDim = Math.min(w, h) || 1;
+    const invW = 1 / Math.max(1, w);
+    const invH = 1 / Math.max(1, h);
+
+    for (let r = 0; r < rowCount; r++) {
+      const j = (startRow + r) % FLOW_ROWS;
+      const y = ((j + 0.5) / FLOW_ROWS) * h;
+      const wy = y * invH;
+      for (let i = 0; i < FLOW_COLS; i++) {
+        const x = ((i + 0.5) / FLOW_COLS) * w;
+        const nx = x / minDim;
+        const ny = y / minDim;
+        let vx = baseVX;
+        let vy = baseVY;
+
+        for (let oi = 0; oi < flowOct.length; oi++) {
+          const o = flowOct[oi];
+          const c = Math.cos(o.kca * nx + o.ksa * ny + o.omegaT);
+          vx += baseSpeed * o.w * o.sa * c;
+          vy -= baseSpeed * o.w * o.ca * c;
+        }
+
+        const wx = x * invW;
+        const gustWave = Math.sin(wx * TAU * 1.35 - time * 1.15 + wy * 1.7);
+        const flutter = Math.sin(wx * TAU * 3.10 + wy * TAU * 1.40 - time * 2.35);
+        vx += flowGustVX + layout.windX * baseSpeed * 0.55 * gustWave - layout.windY * baseSpeed * 0.26 * flutter;
+        vy += flowGustVY + layout.windY * baseSpeed * 0.55 * gustWave + layout.windX * baseSpeed * 0.26 * flutter;
+
+        const idx = j * FLOW_COLS + i;
+        gvx[idx] = vx;
+        gvy[idx] = vy;
+      }
+    }
+  }
+
+  function buildFlowGrid() {
+    prepareFlow();
+    fillFlowRows(0, FLOW_ROWS);
+    gridTime = time;
+  }
+
+  function sampleGrid(x, y, out) {
+    const gx = clamp((x / Math.max(1, w)) * FLOW_COLS - 0.5, 0, FLOW_COLS - 1);
+    const gy = clamp((y / Math.max(1, h)) * FLOW_ROWS - 0.5, 0, FLOW_ROWS - 1);
+    const i0 = Math.floor(gx);
+    const j0 = Math.floor(gy);
+    const i1 = Math.min(i0 + 1, FLOW_COLS - 1);
+    const j1 = Math.min(j0 + 1, FLOW_ROWS - 1);
+    const fx = gx - i0;
+    const fy = gy - j0;
+    const idx00 = j0 * FLOW_COLS + i0;
+    const idx10 = j0 * FLOW_COLS + i1;
+    const idx01 = j1 * FLOW_COLS + i0;
+    const idx11 = j1 * FLOW_COLS + i1;
+    const a = gvx[idx00] + (gvx[idx10] - gvx[idx00]) * fx;
+    const b = gvx[idx01] + (gvx[idx11] - gvx[idx01]) * fx;
+    const c = gvy[idx00] + (gvy[idx10] - gvy[idx00]) * fx;
+    const d = gvy[idx01] + (gvy[idx11] - gvy[idx01]) * fx;
+    out.x = a + (b - a) * fy;
+    out.y = c + (d - c) * fy;
+    return out;
+  }
+
+  function sampleFlow(x, y, out) {
+    sampleGrid(x, y, out);
+    const e = vortexEnabled ? vortex.energy : 0;
+    if (e > 0.004) {
+      const dx = x - vortex.x;
+      const dy = y - vortex.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 1e-3 && d < VORTEX_RADIUS) {
+        const f = Math.pow(1 - d / VORTEX_RADIUS, 2) * e * VORTEX_PEAK;
+        const tx = -dy / d;
+        const ty = dx / d;
+        out.x += tx * f - (dx / d) * f * 0.14;
+        out.y += ty * f - (dy / d) * f * 0.14;
+      }
+    }
+    return out;
+  }
+
+  /* -------------------------------- gusts -------------------------------- */
+
+  function triggerGust(force) {
+    if (!force && gusts.length >= MAX_GUSTS) return null;
+    const r = gustRng;
+    const g = {
+      t0: time,
+      dur: 6 + r() * 3,
+      amp: 0.55 + r() * 0.72,
+      phase: r() * TAU,
+    };
+    gusts.push(g);
+    gustCount++;
+    return g;
+  }
+
+  function scheduleGust() {
+    if (autoGust) {
+      let guard = 0;
+      while (time >= nextGustAt && guard < 5) {
+        if (gusts.length < MAX_GUSTS) triggerGust();
+        nextGustAt += 20 + 20 * gustRng();
+        guard++;
+      }
+    }
+    gusts = gusts.filter((g) => time < g.t0 + g.dur + 0.2);
+  }
+
+  /* -------------------------------- vortex -------------------------------- */
+
+  function stirVortex(x, y, amount, pressed) {
+    vortex.x = x;
+    vortex.y = y;
+    vortex.inside = true;
+    vortex.lastInput = time;
+    if (pressed) vortex.pressed = true;
+    vortex.energy = clamp(vortex.energy + amount, 0, 1);
+  }
+
+  function updateVortex(dt) {
+    if (!vortexEnabled) {
+      vortex.energy = 0;
+      vortex.pressed = false;
+      return;
+    }
+    const target = vortex.inside && vortex.pressed ? 1 : 0;
+    const tau = target > vortex.energy ? 0.35 : VORTEX_TAU;
+    vortex.energy += (target - vortex.energy) * (1 - Math.exp(-dt / tau));
+    if (vortex.energy < 0.002) vortex.energy = 0;
+  }
+
+  /* -------------------------------- polyline tools -------------------------------- */
+
+  function polylineLength(points) {
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+      total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return total;
+  }
+
+  function resamplePolyline(points, count, out) {
+    out = out || [];
+    out.length = count;
+    const ensure = (i) => {
+      let p = out[i];
+      if (!p) {
+        p = { x: 0, y: 0, s: 0 };
+        out[i] = p;
+      }
+      return p;
+    };
+    if (!points.length) {
+      for (let i = 0; i < count; i++) {
+        const o = ensure(i);
+        o.x = 0;
+        o.y = 0;
+        o.s = 0;
+      }
+      return out;
+    }
+    if (points.length === 1) {
+      const p = points[0];
+      for (let i = 0; i < count; i++) {
+        const o = ensure(i);
+        o.x = p.x;
+        o.y = p.y;
+        o.s = p.s || 0;
+      }
+      return out;
+    }
+    const total = polylineLength(points);
+    if (total < 1e-6) {
+      const p = points[points.length - 1];
+      for (let i = 0; i < count; i++) {
+        const o = ensure(i);
+        o.x = p.x;
+        o.y = p.y;
+        o.s = p.s || 0;
+      }
+      return out;
+    }
+    let seg = 0;
+    let segStart = 0;
+    let segLen = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+    for (let i = 0; i < count; i++) {
+      const target = (total * i) / Math.max(1, count - 1);
+      while (seg < points.length - 2 && segStart + segLen < target) {
+        segStart += segLen;
+        seg++;
+        segLen = Math.hypot(
+          points[seg + 1].x - points[seg].x,
+          points[seg + 1].y - points[seg].y,
+        );
+      }
+      const u = segLen > 1e-9 ? clamp((target - segStart) / segLen, 0, 1) : 0;
+      const a = points[seg];
+      const b = points[Math.min(seg + 1, points.length - 1)];
+      const o = ensure(i);
+      o.x = lerp(a.x, b.x, u);
+      o.y = lerp(a.y, b.y, u);
+      o.s = lerp(a.s || 0, b.s || 0, u);
+    }
+    return out;
+  }
+
+  /* -------------------------------- ribbons -------------------------------- */
+
+  function headSeed(i, r) {
+    if (layout.mode === 'portrait') {
+      const col = i % 3;
+      const row = Math.floor(i / 3);
+      return {
+        x: w * clamp(0.22 + 0.28 * col + (r() - 0.5) * 0.08, 0.07, 0.93),
+        y: h * clamp(0.24 + 0.15 * row + (r() - 0.5) * 0.05, 0.14, 0.80),
+      };
+    }
+    const col = i % 4;
+    const row = Math.floor(i / 4);
+    const xs = layout.mode === 'ultrawide' ? [0.26, 0.44, 0.62, 0.82] : [0.30, 0.48, 0.65, 0.81];
+    return {
+      x: w * clamp(xs[col] + (r() - 0.5) * 0.07, 0.08, 0.93),
+      y: h * clamp(0.18 + 0.18 * row + (r() - 0.5) * 0.065, 0.08, 0.70),
+    };
+  }
+
+  function buildTrailBackwards(rb) {
+    const nominal = rb.trail / (RIBBON_POINTS - 1) / Math.max(1, baseSpeed);
+    const stepTime = clamp(
+      nominal * (0.80 + ((rb.seed % 1000) / 1000) * 0.40),
+      0.10,
+      1.0,
+    );
+    const pts = [];
+    let x = rb.head.x;
+    let y = rb.head.y;
+    freeFlowAt(x, y, time, F);
+    pts.push({ x, y, s: Math.hypot(F.x, F.y) });
+
+    for (let i = 1; i < RIBBON_POINTS; i++) {
+      const th = time - i * stepTime;
+      freeFlowAt(x, y, th, F);
+      let vx = F.x;
+      let vy = F.y;
+      let mag = Math.hypot(vx, vy);
+      if (mag < 1e-3) {
+        vx = layout.windX * baseSpeed;
+        vy = layout.windY * baseSpeed;
+        mag = Math.hypot(vx, vy);
+      }
+      const step = mag * stepTime;
+      x -= (vx / mag) * step;
+      y -= (vy / mag) * step;
+      pts.push({ x, y, s: mag });
+      if (x < -0.20 * w || x > 1.20 * w || y < -0.24 * h || y > 1.24 * h) break;
+    }
+
+    pts.reverse();
+    rb.pts = resamplePolyline(pts, RIBBON_POINTS);
+    rb.head.x = rb.pts[rb.pts.length - 1].x;
+    rb.head.y = rb.pts[rb.pts.length - 1].y;
+    rb.speed = rb.pts[rb.pts.length - 1].s || 0;
+    rb.trail = clamp(polylineLength(rb.pts), rb.trail * 0.65, rb.trail * 1.35);
+  }
+
+  function initRibbons() {
+    ribbons.length = 0;
+    const r = rngFor(503);
+    for (let i = 0; i < RIBBON_COUNT; i++) {
+      const life = LIFE_MIN + r() * (LIFE_MAX - LIFE_MIN);
+      const rb = {
+        pts: [],
+        ptsOut: Array.from({ length: RIBBON_POINTS }, () => ({ x: 0, y: 0, s: 0 })),
+        dp: null,
+        head: { x: 0, y: 0 },
+        age: r() * life * 0.55,
+        life,
+        trail: layout.trail * (0.55 + r() * 0.60),
+        width: 2.00 + r() * 4.50,
+        brightness: Math.pow(0.30 + r() * 0.80, 1.35),
+        phase: r() * TAU,
+        seed: r() * 1e9,
+        speed: 0,
+        retire: 0,
+        respawns: 0,
+      };
+      rb.head = headSeed(i, r);
+      rb.head = { x: rb.head.x, y: rb.head.y };
+      buildTrailBackwards(rb);
+      ribbons.push(rb);
+    }
+  }
+
+  function entryPoint(r) {
+    if (layout.mode === 'portrait') {
+      return {
+        x: (0.10 + 0.80 * r()) * w,
+        y: (1.01 + 0.045 * r()) * h,
+      };
+    }
+    return {
+      x: (-0.015 + 0.06 * r()) * w,
+      y: (0.10 + 0.82 * r()) * h,
+    };
+  }
+
+  function respawnRibbon(rb) {
+    const r = simRng;
+    rb.life = LIFE_MIN + r() * (LIFE_MAX - LIFE_MIN);
+    rb.trail = layout.trail * (0.55 + r() * 0.60);
+    rb.width = 2.00 + r() * 4.50;
+    rb.brightness = Math.pow(0.30 + r() * 0.80, 1.35);
+    rb.phase = r() * TAU;
+    rb.age = 0;
+    rb.retire = 0;
+    rb.speed = 0;
+    rb.respawns++;
+    const p = entryPoint(r);
+    rb.head.x = p.x;
+    rb.head.y = p.y;
+    rb.pts = Array.from({ length: RIBBON_POINTS }, () => ({ x: p.x, y: p.y, s: 0 }));
+    if (!rb.ptsOut) {
+      rb.ptsOut = Array.from({ length: RIBBON_POINTS }, () => ({ x: 0, y: 0, s: 0 }));
+    }
+  }
+
+  function trimRibbon(rb) {
+    let total = polylineLength(rb.pts);
+    while (rb.pts.length > 2 && total > rb.trail) {
+      total -= Math.hypot(rb.pts[1].x - rb.pts[0].x, rb.pts[1].y - rb.pts[0].y);
+      rb.pts.shift();
+    }
+    if (!rb.ptsOut) {
+      rb.ptsOut = Array.from({ length: RIBBON_POINTS }, () => ({ x: 0, y: 0, s: 0 }));
+    }
+    resamplePolyline(rb.pts, RIBBON_POINTS, rb.ptsOut);
+    const swap = rb.pts;
+    rb.pts = rb.ptsOut;
+    rb.ptsOut = swap;
+    const last = rb.pts[rb.pts.length - 1];
+    rb.head.x = last.x;
+    rb.head.y = last.y;
+  }
+
+  function updateRibbon(rb, dt) {
+    if (rb.retire > 0) {
+      rb.retire -= dt;
+      if (rb.retire <= 0) respawnRibbon(rb);
+      return;
+    }
+
+    rb.age += dt;
+    sampleFlow(rb.head.x, rb.head.y, F);
+    const speed = Math.hypot(F.x, F.y);
+    rb.speed = speed;
+    rb.head.x += F.x * dt;
+    rb.head.y += F.y * dt;
+
+    rb.pts.push({ x: rb.head.x, y: rb.head.y, s: speed });
+    if (rb.pts.length > RIBBON_POINTS * 4) rb.pts.splice(0, rb.pts.length - RIBBON_POINTS * 4);
+    trimRibbon(rb);
+
+    if (
+      rb.head.x < -0.06 * w || rb.head.x > 1.06 * w ||
+      rb.head.y < -0.08 * h || rb.head.y > 1.08 * h
+    ) {
+      rb.retire = RETIRE_SECONDS;
+      return;
+    }
+    if (rb.age >= rb.life) rb.retire = RETIRE_SECONDS;
+  }
+
+  /* -------------------------------- filings -------------------------------- */
+
+  function makeFiling(r, x, y) {
+    return {
+      x,
+      y,
+      vx: layout.windX * baseSpeed,
+      vy: layout.windY * baseSpeed,
+      len: 5.0 + r() * 6.0,
+      alpha: 0.26 + r() * 0.30,
+      warm: r() < 0.22,
+      phase: r() * TAU,
+      respawns: 0,
+    };
+  }
+
+  function initFilings() {
+    filings = [];
+    const r = rngFor(701);
+    const count = Math.round(FILING_COUNT * detail);
+    for (let i = 0; i < count; i++) {
+      let x;
+      let y;
+      if (i < FILING_COUNT * 0.62 && ribbons.length) {
+        const rb = ribbons[Math.floor(r() * ribbons.length)];
+        const p = rb.pts[Math.floor(r() * rb.pts.length)];
+        x = p.x + (r() - 0.5) * Math.min(w, h) * 0.045;
+        y = p.y + (r() - 0.5) * Math.min(w, h) * 0.045;
+      } else {
+        x = r() * w;
+        y = r() * h;
+      }
+      filings.push(makeFiling(r, x, y));
+    }
+  }
+
+  function respawnFiling(f) {
+    const r = simRng;
+    if (layout.mode === 'portrait') {
+      f.x = r() * w;
+      f.y = (1.01 + 0.04 * r()) * h;
+    } else {
+      f.x = (-0.02 + 0.06 * r()) * w;
+      f.y = r() * h;
+    }
+    f.vx = layout.windX * baseSpeed;
+    f.vy = layout.windY * baseSpeed;
+    f.respawns++;
+  }
+
+  function updateFiling(f, dt) {
+    sampleFlow(f.x, f.y, F);
+    f.vx = F.x;
+    f.vy = F.y;
+    f.x += F.x * dt * 0.92;
+    f.y += F.y * dt * 0.92;
+    const mx = 0.05 * w;
+    const my = 0.05 * h;
+    if (f.x < -mx || f.x > w + mx || f.y < -my || f.y > h + my) respawnFiling(f);
+  }
+
+  function makeDust(r, x, y) {
+    return {
+      x,
+      y,
+      vx: layout.windX * baseSpeed,
+      vy: layout.windY * baseSpeed,
+      len: 1.4 + r() * 3.4,
+      alpha: 0.05 + r() * 0.13,
+      warm: r() < 0.10,
+      phase: r() * TAU,
+    };
+  }
+
+  function initDust() {
+    dust = [];
+    const r = rngFor(719);
+    const n = Math.round(DUST_COUNT * detail);
+    for (let i = 0; i < n; i++) {
+      let x;
+      let y;
+      if (i < n * 0.35 && ribbons.length) {
+        const rb = ribbons[Math.floor(r() * ribbons.length)];
+        const p = rb.pts[Math.floor(r() * rb.pts.length)];
+        x = p.x + (r() - 0.5) * Math.min(w, h) * 0.12;
+        y = p.y + (r() - 0.5) * Math.min(w, h) * 0.12;
+      } else {
+        x = r() * w;
+        y = r() * h;
+      }
+      dust.push(makeDust(r, x, y));
+    }
+  }
+
+  function respawnDust(m) {
+    const r = simRng;
+    if (layout.mode === 'portrait') {
+      m.x = r() * w;
+      m.y = (1.01 + 0.05 * r()) * h;
+    } else {
+      m.x = (-0.02 + 0.05 * r()) * w;
+      m.y = r() * h;
+    }
+    m.vx = layout.windX * baseSpeed;
+    m.vy = layout.windY * baseSpeed;
+  }
+
+  function updateDust(m, dt) {
+    sampleFlow(m.x, m.y, F);
+    m.vx = F.x;
+    m.vy = F.y;
+    m.x += F.x * dt * 1.30;
+    m.y += F.y * dt * 1.30;
+    const mx = 0.08 * w;
+    const my = 0.08 * h;
+    if (m.x < -mx || m.x > w + mx || m.y < -my || m.y > h + my) respawnDust(m);
+  }
+
+  function drawDust(t) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 0.65 * unit;
+
+    for (let pass = 0; pass < 3; pass++) {
+      ctx.beginPath();
+      let any = false;
+      for (let i = 0; i < dust.length; i++) {
+        const m = dust[i];
+        if (m.x < -10 || m.x > w + 10 || m.y < -10 || m.y > h + 10) continue;
+        const speed = Math.hypot(m.vx, m.vy);
+        let dx;
+        let dy;
+        if (speed > 0.5) {
+          dx = m.vx / speed;
+          dy = m.vy / speed;
+        } else {
+          dx = layout.windX;
+          dy = layout.windY;
+        }
+        const flicker = 0.70 + 0.30 * Math.sin(t * 1.15 + m.phase);
+        const len = m.len * unit * (0.85 + 0.30 * Math.sin(t * 0.9 + m.phase * 1.7));
+        const a = m.alpha * flicker;
+        const warm = m.warm;
+        if (pass === 2 ? !warm : warm) continue;
+        if (pass === 0 && a >= 0.10) continue;
+        if (pass === 1 && a < 0.10) continue;
+        ctx.moveTo(m.x - dx * len * 0.5, m.y - dy * len * 0.5);
+        ctx.lineTo(m.x + dx * len * 0.5, m.y + dy * len * 0.5);
+        any = true;
+      }
+      if (!any) continue;
+      ctx.strokeStyle = pass === 0
+        ? 'rgba(214,209,198,0.06)'
+        : pass === 1
+          ? 'rgba(214,209,198,0.14)'
+          : 'rgba(208,128,46,0.15)';
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function makeBokehSprite(rgb) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grd.addColorStop(0, 'rgba(' + rgb + ',0.55)');
+    grd.addColorStop(0.32, 'rgba(' + rgb + ',0.30)');
+    grd.addColorStop(0.68, 'rgba(' + rgb + ',0.09)');
+    grd.addColorStop(1, 'rgba(' + rgb + ',0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 128, 128);
+    return c;
+  }
+
+  function bakeBackground() {
+    bg.width = Math.max(1, Math.round(w * dpr));
+    bg.height = Math.max(1, Math.round(h * dpr));
+    bgx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    bgx.globalCompositeOperation = 'source-over';
+    bgx.globalAlpha = 1;
+
+    const ax = layout.anchorX;
+    const ay = layout.anchorY;
+    const sky = bgx.createRadialGradient(ax, ay, 0, ax, ay, Math.max(w, h) * 0.86);
+    sky.addColorStop(0, '#242426');
+    sky.addColorStop(0.30, '#1d1d1f');
+    sky.addColorStop(0.62, '#141416');
+    sky.addColorStop(0.86, '#0f0f11');
+    sky.addColorStop(1, '#0e0e10');
+    bgx.fillStyle = sky;
+    bgx.fillRect(0, 0, w, h);
+
+    const safe = bgx.createRadialGradient(w * 0.04, h * 0.03, 0, w * 0.04, h * 0.03, Math.max(w, h) * 0.56);
+    safe.addColorStop(0, 'rgba(172, 96, 48, 0.145)');
+    safe.addColorStop(0.38, 'rgba(140, 82, 44, 0.060)');
+    safe.addColorStop(1, 'rgba(100, 64, 42, 0)');
+    bgx.fillStyle = safe;
+    bgx.fillRect(0, 0, w, h);
+
+    const air = bgx.createRadialGradient(ax, ay, 0, ax, ay, Math.min(w, h) * 0.72);
+    air.addColorStop(0, 'rgba(188, 183, 172, 0.072)');
+    air.addColorStop(0.46, 'rgba(158, 155, 147, 0.030)');
+    air.addColorStop(1, 'rgba(140, 138, 132, 0)');
+    bgx.fillStyle = air;
+    bgx.fillRect(0, 0, w, h);
+
+    const sheet = bgx.createLinearGradient(w * 0.04, 0, w * 0.92, h);
+    sheet.addColorStop(0, 'rgba(190, 184, 172, 0.000)');
+    sheet.addColorStop(0.36, 'rgba(190, 184, 172, 0.034)');
+    sheet.addColorStop(0.62, 'rgba(212, 204, 190, 0.022)');
+    sheet.addColorStop(1, 'rgba(190, 184, 172, 0.000)');
+    bgx.fillStyle = sheet;
+    bgx.fillRect(0, 0, w, h);
+
+    const bloom = bgx.createRadialGradient(
+      w * 0.38, h * 0.46, 0,
+      w * 0.38, h * 0.46, Math.min(w, h) * 0.55,
+    );
+    bloom.addColorStop(0, 'rgba(206, 200, 188, 0.045)');
+    bloom.addColorStop(0.55, 'rgba(188, 182, 170, 0.018)');
+    bloom.addColorStop(1, 'rgba(188, 182, 170, 0)');
+    bgx.fillStyle = bloom;
+    bgx.fillRect(0, 0, w, h);
+
+    const fog = bgx.createRadialGradient(
+      w * 0.78, h * 0.76, 0,
+      w * 0.78, h * 0.76, Math.min(w, h) * 0.58,
+    );
+    fog.addColorStop(0, 'rgba(172, 168, 160, 0.030)');
+    fog.addColorStop(0.52, 'rgba(152, 148, 142, 0.014)');
+    fog.addColorStop(1, 'rgba(140, 138, 132, 0)');
+    bgx.fillStyle = fog;
+    bgx.fillRect(0, 0, w, h);
+
+    const step = Math.max(24, Math.min(w, h) / 14);
+    bgx.lineWidth = 0.6;
+    for (let x = step; x < w; x += step) {
+      const major = Math.round(x / step) % 4 === 0;
+      bgx.strokeStyle = major ? 'rgba(178, 170, 154, 0.115)' : 'rgba(158, 151, 139, 0.048)';
+      bgx.beginPath();
+      bgx.moveTo(Math.round(x) + 0.5, 0);
+      bgx.lineTo(Math.round(x) + 0.5, h);
+      bgx.stroke();
+    }
+    for (let y = step; y < h; y += step) {
+      const major = Math.round(y / step) % 4 === 0;
+      bgx.strokeStyle = major ? 'rgba(178, 170, 154, 0.105)' : 'rgba(158, 151, 139, 0.044)';
+      bgx.beginPath();
+      bgx.moveTo(0, Math.round(y) + 0.5);
+      bgx.lineTo(w, Math.round(y) + 0.5);
+      bgx.stroke();
+    }
+
+    const tick = Math.max(3, step * 0.20);
+    bgx.strokeStyle = 'rgba(196, 187, 170, 0.20)';
+    bgx.lineWidth = 0.7;
+    for (let x = step; x < w; x += step) {
+      const long = Math.round(x / step) % 4 === 0;
+      bgx.beginPath();
+      bgx.moveTo(Math.round(x) + 0.5, h - 10);
+      bgx.lineTo(Math.round(x) + 0.5, h - 10 - (long ? tick * 1.9 : tick));
+      bgx.stroke();
+    }
+    for (let y = step; y < h; y += step) {
+      const long = Math.round(y / step) % 4 === 0;
+      bgx.beginPath();
+      bgx.moveTo(10, Math.round(y) + 0.5);
+      bgx.lineTo(10 + (long ? tick * 1.9 : tick), Math.round(y) + 0.5);
+      bgx.stroke();
+    }
+
+    bgx.strokeStyle = 'rgba(200, 190, 172, 0.055)';
+    bgx.lineWidth = 0.7;
+    bgx.beginPath();
+    bgx.moveTo(ax - 14, ay);
+    bgx.lineTo(ax + 14, ay);
+    bgx.moveTo(ax, ay - 14);
+    bgx.lineTo(ax, ay + 14);
+    bgx.stroke();
+
+    bgx.setLineDash([1.5, 10]);
+    bgx.strokeStyle = 'rgba(184, 168, 146, 0.045)';
+    bgx.lineWidth = 0.8;
+    bgx.beginPath();
+    bgx.arc(ax, ay, Math.min(w, h) * 0.36, 0, TAU);
+    bgx.stroke();
+    bgx.setLineDash([]);
+
+    const dustRng = rngFor(921);
+    const dustCount = Math.round(260 * detail);
+    for (let i = 0; i < dustCount; i++) {
+      const x = dustRng() * w;
+      const y = dustRng() * h;
+      const a = 0.028 + dustRng() * 0.085;
+      const r = 0.4 + dustRng() * 1.1;
+      bgx.fillStyle = 'rgba(218, 210, 194,' + a.toFixed(3) + ')';
+      bgx.beginPath();
+      bgx.arc(x, y, r, 0, TAU);
+      bgx.fill();
+    }
+  }
+
+  function buildBokeh() {
+    const r = rngFor(913);
+    const anchors = [
+      [0.07, 0.80], [0.93, 0.28], [0.11, 0.16], [0.72, 0.91], [0.86, 0.70],
+    ];
+    bokeh = [];
+    for (let i = 0; i < anchors.length; i++) {
+      bokeh.push({
+        x: anchors[i][0] * w + (r() - 0.5) * w * 0.05,
+        y: anchors[i][1] * h + (r() - 0.5) * h * 0.05,
+        size: (0.042 + r() * 0.080) * Math.min(w, h),
+        alpha: 0.100 + r() * 0.080,
+        warm: i === 2,
+        driftX: 4 + r() * 8,
+        driftY: 3 + r() * 7,
+        period: 260 + r() * 220,
+        phase: r() * TAU,
+      });
+    }
+  }
+
+  function bakeGrain() {
+    const gw = Math.max(1, Math.round(w * 0.5));
+    const gh = Math.max(1, Math.round(h * 0.5));
+    grain.width = gw;
+    grain.height = gh;
+    grx.setTransform(1, 0, 0, 1, 0, 0);
+    grx.clearRect(0, 0, gw, gh);
+    const data = grx.createImageData(gw, gh);
+    if (!data || !data.data) return;
+    const px = data.data;
+    const r = rngFor(931);
+    for (let i = 0; i < gw * gh; i++) {
+      const o = i * 4;
+      if (r() > detail) {
+        px[o + 3] = 0;
+        continue;
+      }
+      const v = r();
+      if (v < 0.58) {
+        px[o] = 238; px[o + 1] = 232; px[o + 2] = 218; px[o + 3] = 5 + Math.round(v * 20);
+      } else if (v < 0.93) {
+        px[o] = 0; px[o + 1] = 0; px[o + 2] = 0; px[o + 3] = 7 + Math.round((v - 0.58) * 18);
+      } else {
+        px[o] = 208; px[o + 1] = 168; px[o + 2] = 132; px[o + 3] = 10 + Math.round((v - 0.93) * 130);
+      }
+    }
+    grx.putImageData(data, 0, 0);
+  }
+
+  function drawForegroundRibbon(g) {
+    const pts = layout.mode === 'portrait'
+      ? [[1.08, 0.12], [0.98, 0.01], [0.86, 0.06], [0.74, 0.14]]
+      : [[1.08, 0.10], [0.99, -0.02], [0.86, 0.02], [0.74, 0.08]];
+    const p = pts.map(([x, y]) => ({ x: x * w, y: y * h }));
+    const passes = [
+      { width: 100, alpha: 0.012, rgb: '214,208,196' },
+      { width: 66, alpha: 0.020, rgb: '214,208,196' },
+      { width: 40, alpha: 0.030, rgb: '226,219,204' },
+      { width: 20, alpha: 0.048, rgb: '236,229,214' },
+      { width: 38, alpha: 0.004, rgb: '208,138,62' },
+    ];
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    for (const pass of passes) {
+      g.strokeStyle = 'rgba(' + pass.rgb + ',' + pass.alpha + ')';
+      g.lineWidth = pass.width * unit;
+      g.beginPath();
+      g.moveTo(p[0].x, p[0].y);
+      g.bezierCurveTo(p[1].x, p[1].y, p[2].x, p[2].y, p[3].x, p[3].y);
+      g.stroke();
+    }
+    g.restore();
+  }
+
+  function bakeOverlay() {
+    overlay.width = Math.max(1, Math.round(w * dpr));
+    overlay.height = Math.max(1, Math.round(h * dpr));
+    ovx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ovx.globalCompositeOperation = 'source-over';
+    ovx.globalAlpha = 1;
+    ovx.clearRect(0, 0, w, h);
+
+    const vg = ovx.createRadialGradient(
+      layout.anchorX, layout.anchorY, Math.min(w, h) * 0.20,
+      layout.anchorX, layout.anchorY, Math.max(w, h) * 0.80,
+    );
+    vg.addColorStop(0, 'rgba(3,3,4,0)');
+    vg.addColorStop(0.52, 'rgba(3,3,4,0.20)');
+    vg.addColorStop(1, 'rgba(2,2,3,0.88)');
+    ovx.fillStyle = vg;
+    ovx.fillRect(0, 0, w, h);
+
+    const edge = Math.min(w, h) * 0.19;
+    const addEdge = (grad) => { ovx.fillStyle = grad; ovx.fillRect(0, 0, w, h); };
+    let eg = ovx.createLinearGradient(0, 0, 0, edge);
+    eg.addColorStop(0, 'rgba(2,2,3,0.62)');
+    eg.addColorStop(1, 'rgba(2,2,3,0)');
+    addEdge(eg);
+    eg = ovx.createLinearGradient(0, h, 0, h - edge);
+    eg.addColorStop(0, 'rgba(2,2,3,0.58)');
+    eg.addColorStop(1, 'rgba(2,2,3,0)');
+    addEdge(eg);
+    eg = ovx.createLinearGradient(0, 0, edge, 0);
+    eg.addColorStop(0, 'rgba(2,2,3,0.52)');
+    eg.addColorStop(1, 'rgba(2,2,3,0)');
+    addEdge(eg);
+    eg = ovx.createLinearGradient(w, 0, w - edge, 0);
+    eg.addColorStop(0, 'rgba(2,2,3,0.46)');
+    eg.addColorStop(1, 'rgba(2,2,3,0)');
+    addEdge(eg);
+
+    drawForegroundRibbon(ovx);
+
+    const r = rngFor(941);
+    ovx.lineCap = 'round';
+    for (let i = 0; i < 4; i++) {
+      const x0 = r() * w;
+      const y0 = r() * h;
+      const len = (0.10 + r() * 0.26) * w;
+      const ang = -0.55 + r() * 0.5;
+      ovx.strokeStyle = 'rgba(232,226,212,' + (0.010 + r() * 0.020).toFixed(3) + ')';
+      ovx.lineWidth = 0.5 + r() * 0.7;
+      ovx.beginPath();
+      ovx.moveTo(x0, y0);
+      ovx.quadraticCurveTo(
+        x0 + Math.cos(ang) * len * 0.5,
+        y0 + Math.sin(ang) * len * 0.5 + (r() - 0.5) * 26,
+        x0 + Math.cos(ang) * len,
+        y0 + Math.sin(ang) * len,
+      );
+      ovx.stroke();
+    }
+
+    bakeGrain();
+    ovx.globalCompositeOperation = 'source-over';
+    ovx.globalAlpha = 0.86;
+    ovx.imageSmoothingEnabled = true;
+    ovx.drawImage(grain, 0, 0, w, h);
+    ovx.globalAlpha = 1;
+  }
+
+  /* -------------------------------- drawing -------------------------------- */
+
+  function updateCamera() {
+    camZoom = 1 + ZOOM_AMP * Math.sin((TAU * time) / ZOOM_PERIOD + zoomPhase);
+  }
+
+  function drawSoftRibbons() {
+    if (!soft.width) return;
+    sfx.setTransform(0.4, 0, 0, 0.4, 0, 0);
+    sfx.globalCompositeOperation = 'source-over';
+    sfx.globalAlpha = 1;
+    sfx.clearRect(0, 0, w, h);
+    sfx.globalCompositeOperation = 'lighter';
+    sfx.lineCap = 'round';
+    sfx.lineJoin = 'round';
+
+    for (let ri = 0; ri < ribbons.length; ri++) {
+      const rb = ribbons[ri];
+      const src = rb.pts;
+      if (!src || src.length < 2) continue;
+      let fade = smoothstep(0, 2.0, rb.age);
+      if (rb.retire > 0) fade *= clamp(rb.retire / RETIRE_SECONDS, 0, 1);
+      else fade *= 1 - smoothstep(rb.life - 4, rb.life, rb.age);
+      if (fade <= 0.012) continue;
+      const baseWidth = rb.width * unit;
+      const sections = 2;
+      for (let si = 0; si < sections; si++) {
+        const from = Math.floor(((src.length - 1) * si) / sections);
+        const to = Math.floor(((src.length - 1) * (si + 1)) / sections);
+        if (to <= from) continue;
+        const mid = (from + to) >> 1;
+        const e = fade * edgeFade(src[mid].x, src[mid].y) * rb.brightness;
+        if (e <= 0.01) continue;
+        const u = sections > 1 ? si / (sections - 1) : 0;
+        const taper = smoothstep(0, 0.10, u) * (1 - 0.55 * smoothstep(0.88, 1, u));
+        sfx.beginPath();
+        sfx.moveTo(src[from].x, src[from].y);
+        for (let i = from + 1; i <= to; i++) sfx.lineTo(src[i].x, src[i].y);
+        sfx.strokeStyle = 'rgba(208,202,190,' + (e * taper * 0.010).toFixed(3) + ')';
+        sfx.lineWidth = baseWidth * 8.0;
+        sfx.stroke();
+        sfx.strokeStyle = 'rgba(216,211,200,' + (e * taper * 0.040).toFixed(3) + ')';
+        sfx.lineWidth = baseWidth * 5.0;
+        sfx.stroke();
+        sfx.strokeStyle = 'rgba(224,218,206,' + (e * taper * 0.10).toFixed(3) + ')';
+        sfx.lineWidth = baseWidth * 1.8;
+        sfx.stroke();
+      }
+    }
+    sfx.globalCompositeOperation = 'source-over';
+  }
+
+  function edgeFade(x, y) {
+    if (layout.mode === 'portrait') {
+      return smoothstep(0, 0.065 * h, y);
+    }
+    return smoothstep(0, 0.085 * h, y) * (1 - smoothstep(0.82 * w, 0.985 * w, x));
+  }
+
+  function drawRibbons(t) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const ve = vortexEnabled ? vortex.energy : 0;
+
+    for (let ri = 0; ri < ribbons.length; ri++) {
+      const rb = ribbons[ri];
+      const src = rb.pts;
+      if (!src || src.length < 2) continue;
+
+      let fade = smoothstep(0, 2.0, rb.age);
+      if (rb.retire > 0) fade *= clamp(rb.retire / RETIRE_SECONDS, 0, 1);
+      else fade *= 1 - smoothstep(rb.life - 4, rb.life, rb.age);
+      if (fade <= 0.015) continue;
+
+      // A very light swirl of already-developed silver around the pointer.
+      if (!rb.dp || rb.dp.length !== src.length) {
+        rb.dp = new Array(src.length);
+        for (let i = 0; i < src.length; i++) rb.dp[i] = { x: 0, y: 0, s: 0 };
+      }
+      const dp = rb.dp;
+      for (let i = 0; i < src.length; i++) {
+        const p = src[i];
+        dp[i].s = p.s || 0;
+        if (ve > 0.004) {
+          const dx = p.x - vortex.x;
+          const dy = p.y - vortex.y;
+          const d = Math.hypot(dx, dy);
+          if (d > 1e-3 && d < VORTEX_RADIUS) {
+            const f = Math.pow(1 - d / VORTEX_RADIUS, 2) * ve * 18;
+            dp[i].x = p.x - (dy / d) * f;
+            dp[i].y = p.y + (dx / d) * f;
+            continue;
+          }
+        }
+        dp[i].x = p.x;
+        dp[i].y = p.y;
+      }
+
+      const n = dp.length;
+      const baseWidth = rb.width * unit;
+      const bright = rb.brightness;
+
+      // A fast, fine flutter along the thread, like a hair in moving air.
+      if (n > 2) {
+        for (let i = 1; i < n - 1; i++) {
+          const p0 = dp[i - 1];
+          const p1 = dp[i + 1];
+          const tx = p1.x - p0.x;
+          const ty = p1.y - p0.y;
+          const tl = Math.hypot(tx, ty) || 1;
+          const off = (
+            Math.sin(i * 0.48 + t * 4.2 + rb.phase * 3.1) * 3.0 +
+            Math.sin(i * 1.15 + t * 6.6 + rb.phase * 5.7) * 1.25
+          ) * unit;
+          dp[i].x += (-ty / tl) * off;
+          dp[i].y += (tx / tl) * off;
+        }
+      }
+
+      // Four long passes: a soft outer body, a narrower inner body, the core
+      // and its specular line. Long sections are cheaper and smoother than
+      // stamping the width at every vertex.
+      const sections = 4;
+      for (let si = 0; si < sections; si++) {
+        const from = Math.floor(((n - 1) * si) / sections);
+        const to = Math.floor(((n - 1) * (si + 1)) / sections);
+        if (to <= from) continue;
+        const mid = (from + to) >> 1;
+        const e = fade * edgeFade(dp[mid].x, dp[mid].y);
+        if (e <= 0.01) continue;
+        const u = sections > 1 ? si / (sections - 1) : 0;
+        const taper = smoothstep(0, 0.10, u) * (1 - smoothstep(0.90, 1, u) * 0.12);
+        const shape = smoothstep(0.02, 0.22, u) * (1 - smoothstep(0.82, 1, u) * 0.55);
+        const speed = dp[mid].s || 0;
+        const sp = clamp((speed / baseSpeed - 0.92) / 1.20, 0, 1);
+        const pressure = 1.02 + 0.16 * Math.sin(rb.phase + si * 1.73);
+        const width = clamp(baseWidth * pressure * (0.55 + 0.45 * shape), 0.6 * unit, 6.2 * unit);
+        const coreW = clamp(
+          baseWidth * (0.46 - 0.10 * sp) * pressure * (0.55 + 0.45 * shape),
+          0.5 * unit,
+          3.6 * unit,
+        );
+        const a = e * taper * bright;
+
+        ctx.beginPath();
+        ctx.moveTo(dp[from].x, dp[from].y);
+        for (let i = from + 1; i <= to; i++) ctx.lineTo(dp[i].x, dp[i].y);
+
+        ctx.strokeStyle = 'rgba(216,211,200,' + (a * 0.10).toFixed(3) + ')';
+        ctx.lineWidth = width * 1.40;
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(216,211,200,' + (a * 0.18).toFixed(3) + ')';
+        ctx.lineWidth = width * 0.78;
+        ctx.stroke();
+
+        // Dashed exposure glints, moving along the thread. This breaks the
+        // solid-wire read and gives the eye a sense of fast airflow.
+        ctx.setLineDash([Math.max(7 * unit, 4), Math.max(9 * unit, 5)]);
+        ctx.lineDashOffset = -((t * 52 + rb.seed) % 16);
+        ctx.strokeStyle = 'rgba(238,234,224,' + (a * 0.55).toFixed(3) + ')';
+        ctx.lineWidth = coreW;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineDashOffset = 0;
+
+        ctx.strokeStyle = 'rgba(246,243,235,' + (a * 0.22).toFixed(3) + ')';
+        ctx.lineWidth = coreW * 0.42;
+        ctx.stroke();
+      }
+
+      // Sparse per-chunk details: a loose hair, a lit edge and a grain speck.
+      const chunks = Math.ceil((n - 1) / 10);
+      for (let c = 0; c < chunks; c++) {
+        const from = c * 10;
+        const to = Math.min(n - 1, from + 10);
+        if (to <= from) continue;
+        const mid = (from + to) >> 1;
+        const e = fade * edgeFade(dp[mid].x, dp[mid].y);
+        if (e <= 0.015) continue;
+        const u = chunks > 1 ? c / (chunks - 1) : 0;
+        const taper = smoothstep(0, 0.14, u) * (1 - 0.72 * smoothstep(0.84, 1, u));
+        const speed = dp[mid].s || 0;
+        const sp = clamp((speed / baseSpeed - 0.92) / 1.20, 0, 1);
+        const a = e * taper * bright;
+
+        const fdx = dp[to].x - dp[from].x;
+        const fdy = dp[to].y - dp[from].y;
+        const fdl = Math.hypot(fdx, fdy) || 1;
+        const fnx = -fdy / fdl;
+        const fny = fdx / fdl;
+
+        const offset = (hash1(rb.seed + c * 3.71) - 0.5) * baseWidth * 0.95;
+        ctx.beginPath();
+        ctx.moveTo(dp[from].x + fnx * offset, dp[from].y + fny * offset);
+        for (let i = from + 1; i <= to; i++) {
+          ctx.lineTo(dp[i].x + fnx * offset, dp[i].y + fny * offset);
+        }
+        ctx.strokeStyle = 'rgba(212,207,196,' + (a * 0.18).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(0.35 * unit, baseWidth * 0.04);
+        ctx.stroke();
+
+        const warmMix = smoothstep(0.26, 0.55, sp);
+        if (warmMix > 0.01 && a > 0.02) {
+          const nx = fnx * baseWidth * 0.56;
+          const ny = fny * baseWidth * 0.56;
+          ctx.beginPath();
+          ctx.moveTo(dp[from].x + nx, dp[from].y + ny);
+          for (let i = from + 1; i <= to; i++) ctx.lineTo(dp[i].x + nx, dp[i].y + ny);
+          ctx.strokeStyle = 'rgba(208,128,46,' + (a * warmMix * 0.62).toFixed(3) + ')';
+          ctx.lineWidth = Math.max(0.55 * unit, baseWidth * 0.10);
+          ctx.stroke();
+        }
+
+        if (u > 0.08 && u < 0.94) {
+          const gp = dp[from + ((to - from) >> 1)];
+          const gx = (hash1(rb.seed + c * 5.77) - 0.5) * 3.4 * unit;
+          const gy = (hash1(rb.seed + c * 8.31) - 0.5) * 3.4 * unit;
+          ctx.fillStyle = 'rgba(244,241,232,' + (a * 0.32).toFixed(3) + ')';
+          ctx.fillRect(gp.x + gx, gp.y + gy, 1.0 * unit, 1.0 * unit);
+        }
+      }
+
+      // Tail: the emulsion gives out into individual grains.
+      const flecks = 9;
+      for (let k = 0; k < flecks; k++) {
+        const idx = Math.min(n - 1, 1 + Math.round(k * 1.35));
+        const p = dp[idx];
+        const jx = (hash1(rb.seed + k * 7.13) - 0.5) * 11 * unit;
+        const jy = (hash1(rb.seed + k * 11.71) - 0.5) * 11 * unit;
+        const a = fade * (1 - k / (flecks + 1)) * 0.30 * edgeFade(p.x + jx, p.y + jy);
+        if (a <= 0.004) continue;
+        ctx.fillStyle = 'rgba(222,216,202,' + a.toFixed(3) + ')';
+        ctx.fillRect(p.x + jx, p.y + jy, 1.3 * unit, 1.3 * unit);
+      }
+
+      // A small fresh highlight where the exposure is still moving.
+      const hp = dp[n - 1];
+      const ha = fade * edgeFade(hp.x, hp.y);
+      if (ha > 0.04) {
+        ctx.beginPath();
+        ctx.arc(hp.x, hp.y, 1.15 * unit, 0, TAU);
+        ctx.fillStyle = 'rgba(242,238,228,' + (ha * 0.34).toFixed(3) + ')';
+        ctx.fill();
+      }
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawFilings(t) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 0.9 * unit;
+
+    for (let pass = 0; pass < 3; pass++) {
+      ctx.beginPath();
+      let any = false;
+      for (let i = 0; i < filings.length; i++) {
+        const f = filings[i];
+        if (f.x < -8 || f.x > w + 8 || f.y < -8 || f.y > h + 8) continue;
+        const speed = Math.hypot(f.vx, f.vy);
+        let dx;
+        let dy;
+        if (speed > 0.5) {
+          dx = f.vx / speed;
+          dy = f.vy / speed;
+        } else {
+          dx = layout.windX;
+          dy = layout.windY;
+        }
+        const flicker = 0.72 + 0.28 * Math.sin(t * 0.82 + f.phase * 1.7);
+        const len = f.len * unit * (0.82 + 0.30 * Math.sin(t * 0.63 + f.phase));
+        const a = f.alpha * flicker;
+        const warm = f.warm;
+        if (pass === 2 ? !warm : warm) continue;
+        if (pass === 0 && a >= 0.30) continue;
+        if (pass === 1 && a < 0.30) continue;
+        ctx.moveTo(f.x - dx * len * 0.5, f.y - dy * len * 0.5);
+        ctx.lineTo(f.x + dx * len * 0.5, f.y + dy * len * 0.5);
+        any = true;
+      }
+      if (!any) continue;
+      ctx.strokeStyle = pass === 0
+        ? 'rgba(198,192,180,0.20)'
+        : pass === 1
+          ? 'rgba(198,192,180,0.42)'
+          : 'rgba(208,128,46,0.46)';
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawVortex(t) {
+    if (!vortexEnabled || vortex.energy < 0.02) return;
+    const e = vortex.energy;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(vortex.x, vortex.y);
+
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, VORTEX_RADIUS);
+    g.addColorStop(0, 'rgba(184,134,90,' + (0.020 * e).toFixed(3) + ')');
+    g.addColorStop(0.55, 'rgba(184,134,90,' + (0.008 * e).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(184,134,90,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(-VORTEX_RADIUS, -VORTEX_RADIUS, VORTEX_RADIUS * 2, VORTEX_RADIUS * 2);
+
+    ctx.setLineDash([2, 8]);
+    ctx.lineDashOffset = -(t * 9) % 10;
+    ctx.strokeStyle = 'rgba(190,176,150,' + (0.14 * e).toFixed(3) + ')';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.arc(0, 0, VORTEX_RADIUS, 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
+
+    ctx.strokeStyle = 'rgba(208,138,62,' + (0.10 * e).toFixed(3) + ')';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.arc(0, 0, VORTEX_RADIUS * 0.62, t * 0.6, t * 0.6 + 2.1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, VORTEX_RADIUS * 0.62, t * 0.6 + Math.PI, t * 0.6 + Math.PI + 1.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBokeh(t) {
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < bokeh.length; i++) {
+      const b = bokeh[i];
+      const x = b.x + Math.sin((TAU * t) / b.period + b.phase) * b.driftX;
+      const y = b.y + Math.cos((TAU * t) / (b.period * 1.18) + b.phase * 1.3) * b.driftY;
+      const alpha = b.alpha * (0.82 + 0.18 * Math.sin((TAU * t) / (24 + i * 7) + b.phase));
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(
+        b.warm ? bokehAmber : bokehSilver,
+        x - b.size / 2, y - b.size / 2, b.size, b.size,
+      );
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function render() {
+    if (!w || !h || !bg.width) return;
+    updateCamera();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(bg, 0, 0, w, h);
+
+    ctx.save();
+    ctx.translate(layout.anchorX, layout.anchorY);
+    ctx.scale(camZoom, camZoom);
+    ctx.translate(-layout.anchorX, -layout.anchorY);
+
+    drawSoftRibbons();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.95;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(soft, 0, 0, w, h);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+
+    drawRibbons(time);
+    drawFilings(time);
+    drawDust(time);
+    drawVortex(time);
+
+    ctx.restore();
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(overlay, 0, 0, w, h);
+
+    drawBokeh(time);
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    frames++;
+  }
+
+  /* -------------------------------- HUD -------------------------------- */
+
+  function formatTime(t) {
+    const total = Math.max(0, Math.floor(t));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function refreshReadout(force) {
+    if (!force && el.body.classList.contains('hud-off')) return;
+    if (el.statRibbons) el.statRibbons.textContent = String(ribbons.length).padStart(3, '0');
+    if (el.statFilings) el.statFilings.textContent = String(filings.length).padStart(3, '0');
+    if (el.statGusts) el.statGusts.textContent = String(gustCount).padStart(3, '0');
+    if (el.statTime) el.statTime.textContent = formatTime(time);
+    if (el.liveExposure) el.liveExposure.textContent = formatTime(time);
+    if (el.panelStats) {
+      el.panelStats.textContent = ribbons.length + ' 丝带 · ' + filings.length + ' 铁屑 · ' + gustCount + ' 阵风';
+    }
+  }
+
+  function showToast(message) {
+    if (!el.toast) return;
+    el.toast.textContent = message;
+    el.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2400);
+  }
+
+  function togglePause() {
+    paused = !paused;
+    syncPlayback();
+    render();
+  }
+
+  function syncPlayback() {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    last = 0;
+    if (el.pause) el.pause.textContent = paused ? '继续' : '暂停';
+    if (!paused && !document.hidden) raf = requestAnimationFrame(frame);
+  }
+
+  function toggleHud() {
+    const off = el.body.classList.toggle('hud-off');
+    el.body.classList.remove('quiet');
+    if (!off) {
+      scheduleQuiet();
+      refreshReadout(true);
+    }
+    el.settings.setAttribute('aria-expanded', String(!el.panel.hidden));
+  }
+
+  function scheduleQuiet() {
+    clearTimeout(quietTimer);
+    quietTimer = setTimeout(() => {
+      if (!el.body.classList.contains('hud-off')) el.body.classList.add('quiet');
+    }, 16000);
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch { /* some wallpaper hosts do not expose fullscreen */ }
+  }
+
+  /* -------------------------------- loop & input -------------------------------- */
+
+  function frame(now) {
+    raf = 0;
+    if (paused || document.hidden) {
+      last = 0;
+      return;
+    }
+    if (!last) last = now;
+    // Render every display frame. On a 60 Hz panel this is twice as smooth as
+    // the old 30 fps cap; the simulation uses the real elapsed time.
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    update(dt);
+    render();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function update(dt) {
+    dt = clamp(dt, 0.001, 0.1);
+    time += dt;
+
+    updateVortex(dt);
+    scheduleGust();
+
+    if (gridTime < 0 || time - gridTime >= GRID_INTERVAL) buildFlowGrid();
+
+    for (let i = 0; i < ribbons.length; i++) updateRibbon(ribbons[i], dt);
+    for (let i = 0; i < filings.length; i++) updateFiling(filings[i], dt);
+    for (let i = 0; i < dust.length; i++) updateDust(dust[i], dt);
+
+    hudBlink += dt;
+    if (hudBlink > 0.5) {
+      hudBlink = 0;
+      refreshReadout();
+    }
+  }
+
+  function pointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: clamp(((e.clientX - rect.left) / Math.max(1, rect.width)) * w, 0, w),
+      y: clamp(((e.clientY - rect.top) / Math.max(1, rect.height)) * h, 0, h),
+    };
+  }
+
+  function onPointerMove(e) {
+    const p = pointerPos(e);
+    const now = Date.now();
+    const pressed = e.buttons === 1;
+    if (lastPointer.t) {
+      const dtm = Math.max(0.008, (now - lastPointer.t) / 1000);
+      const dist = Math.hypot(p.x - lastPointer.x, p.y - lastPointer.y);
+      const speed = dist / dtm;
+      if (vortexEnabled) {
+        const amount = clamp(speed / 2600, 0.02, 0.30) * (pressed ? 1 : 0.55);
+        stirVortex(p.x, p.y, amount, pressed);
+      }
+    }
+    lastPointer = { x: p.x, y: p.y, t: now };
+    vortex.x = p.x;
+    vortex.y = p.y;
+    vortex.inside = true;
+    if (pressed) vortex.pressed = true;
+    if (paused) render();
+  }
+
+  function onPointerDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    const p = pointerPos(e);
+    lastPointer = { x: p.x, y: p.y, t: Date.now() };
+    vortex.x = p.x;
+    vortex.y = p.y;
+    vortex.inside = true;
+    vortex.pressed = true;
+    vortex.lastInput = time;
+    if (vortexEnabled) stirVortex(p.x, p.y, 0.35, true);
+    if (paused) render();
+  }
+
+  function onPointerUp() {
+    vortex.pressed = false;
+    vortex.lastInput = time;
+    lastPointer.t = 0;
+    if (paused) render();
+  }
+
+  function onPointerLeave() {
+    vortex.inside = false;
+    vortex.pressed = false;
+    lastPointer.t = 0;
+    if (paused) render();
+  }
+
+  function onDoubleClick() {
+    clearStill();
+  }
+
+  /* -------------------------------- actions -------------------------------- */
+
+  function rebuildScene() {
+    buildFlowGrid();
+    initRibbons();
+    initFilings();
+    initDust();
+    buildBokeh();
+  }
+
+  function clearStill() {
+    gusts = [];
+    gustCount = 0;
+    nextGustAt = time + 20 + 20 * gustRng();
+    vortex.energy = 0;
+    vortex.inside = false;
+    vortex.pressed = false;
+    lastPointer.t = 0;
+    rebuildScene();
+    paused = true;
+    syncPlayback();
+    render();
+    refreshReadout(true);
+    showToast('构图已定影');
+  }
+
+  function reseed() {
+    seed = 1 + Math.floor(Math.random() * 2147483645);
+    resetRngs();
+    buildNoiseParams();
+    gusts = [];
+    gustCount = 0;
+    nextGustAt = time + 20 + 20 * gustRng();
+    vortex.energy = 0;
+    rebuildScene();
+    render();
+    refreshReadout(true);
+    showToast('换了一张新底片');
+  }
+
+  function resize() {
+    w = Math.max(1, innerWidth);
+    h = Math.max(1, innerHeight);
+    dpr = Math.min(devicePixelRatio || 1, 1.5, Math.max(0.5, Math.sqrt(MAX_PIXELS / (w * h))));
+    aspect = w / h;
+    applyLayout();
+
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    soft.width = Math.max(1, Math.round(w * 0.4));
+    soft.height = Math.max(1, Math.round(h * 0.4));
+
+    vortex.x = clamp(vortex.x, 0, w);
+    vortex.y = clamp(vortex.y, 0, h);
+
+    bakeBackground();
+    bakeOverlay();
+    buildFlowGrid();
+    initRibbons();
+    initFilings();
+    initDust();
+    buildBokeh();
+    updateCamera();
+    render();
+  }
+
+  /* -------------------------------- events -------------------------------- */
+
+  function installEvents() {
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerLeave);
+    canvas.addEventListener('pointerleave', onPointerLeave);
+    canvas.addEventListener('dblclick', onDoubleClick);
+
+    el.settings.addEventListener('click', () => {
+      const open = el.panel.hidden;
+      el.panel.hidden = !open;
+      el.settings.setAttribute('aria-expanded', String(open));
+      if (open) scheduleQuiet();
+    });
+    el.pause.addEventListener('click', togglePause);
+    document.getElementById('fullscreen').addEventListener('click', toggleFullscreen);
+    el.clear.addEventListener('click', clearStill);
+    el.reseed.addEventListener('click', () => {
+      if (!el.reseed.classList.contains('armed')) {
+        el.reseed.classList.add('armed');
+        el.reseed.textContent = '确认换底片？';
+        clearTimeout(reseedTimer);
+        reseedTimer = setTimeout(() => {
+          el.reseed.classList.remove('armed');
+          el.reseed.textContent = '换一张底片';
+        }, 3200);
+        return;
+      }
+      clearTimeout(reseedTimer);
+      el.reseed.classList.remove('armed');
+      el.reseed.textContent = '换一张底片';
+      reseed();
+    });
+    el.gust.checked = autoGust;
+    el.gust.addEventListener('change', () => {
+      autoGust = el.gust.checked;
+      if (autoGust && nextGustAt < time + 4) nextGustAt = time + 16;
+    });
+    el.vortex.checked = vortexEnabled;
+    el.vortex.addEventListener('change', () => {
+      vortexEnabled = el.vortex.checked;
+      if (!vortexEnabled) vortex.energy = 0;
+      if (paused) render();
+    });
+
+    addEventListener('keydown', (e) => {
+      if (e.target && e.target.matches && e.target.matches('input, select, button')) return;
+      if (e.repeat) return;
+      if (e.code === 'Space') { e.preventDefault(); togglePause(); }
+      else if (e.key && e.key.toLowerCase() === 'h') toggleHud();
+      else if (e.key && e.key.toLowerCase() === 'f') toggleFullscreen();
+    });
+
+    addEventListener('resize', resize);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        syncPlayback();
+      } else {
+        last = 0;
+        syncPlayback();
+        if (paused) render();
+      }
+    });
+    reducedMotion.addEventListener('change', (e) => {
+      if (stillParam === null) {
+        paused = e.matches;
+        syncPlayback();
+        render();
+      }
+    });
+    if (q.get('hud') === '0') el.body.classList.add('hud-off');
+    scheduleQuiet();
+  }
+
+  /* -------------------------------- debug api -------------------------------- */
+
+  const api = {
+    snapshot: () => ({
+      seed, t: time, paused, frames, w, h, dpr, aspect,
+      mode: layout.mode,
+      anchorX: layout.anchorX, anchorY: layout.anchorY,
+      trailLength: layout.trail,
+      flow: { x: layout.windX, y: layout.windY },
+      baseSpeed,
+      zoom: camZoom,
+      ribbons: ribbons.length,
+      filings: filings.length,
+      dust: dust.length,
+      gusts: gusts.length,
+      gustCount,
+      segments: ribbons.reduce((total, rb) => total + rb.pts.length, 0),
+      respawns: ribbons.reduce((total, rb) => total + rb.respawns, 0),
+      vortexEnergy: vortex.energy,
+      vortexPressed: vortex.pressed,
+      autoGust, vortexEnabled,
+      ages: ribbons.slice(0, 4).map((rb) => Math.round(rb.age * 100) / 100),
+      lives: ribbons.slice(0, 4).map((rb) => Math.round(rb.life * 100) / 100),
+      sample: ribbons.slice(0, 4).map((rb) => {
+        const tail = rb.pts[0];
+        const mid = rb.pts[Math.floor(rb.pts.length / 2)];
+        return {
+          x: Math.round(rb.head.x * 100) / 100,
+          y: Math.round(rb.head.y * 100) / 100,
+          age: Math.round(rb.age * 100) / 100,
+          trail: Math.round(rb.trail),
+          tailX: Math.round(tail.x * 100) / 100,
+          tailY: Math.round(tail.y * 100) / 100,
+          midX: Math.round(mid.x * 100) / 100,
+          midY: Math.round(mid.y * 100) / 100,
+        };
+      }),
+    }),
+    audit: () => {
+      let bad = 0;
+      let badFilings = 0;
+      let badDust = 0;
+      let maxSpeed = 0;
+      let maxAge = 0;
+      let minAge = Infinity;
+      let segments = 0;
+      let retiring = 0;
+      let respawns = 0;
+      for (const rb of ribbons) {
+        segments += rb.pts.length;
+        respawns += rb.respawns;
+        maxAge = Math.max(maxAge, rb.age);
+        minAge = Math.min(minAge, rb.age);
+        maxSpeed = Math.max(maxSpeed, rb.speed || 0);
+        if (rb.retire > 0) retiring++;
+        if (!Number.isFinite(rb.head.x + rb.head.y + rb.age + rb.life + rb.speed)) bad++;
+        for (const p of rb.pts) {
+          if (!Number.isFinite(p.x + p.y + p.s)) bad++;
+        }
+      }
+      for (const f of filings) {
+        if (!Number.isFinite(f.x + f.y + f.vx + f.vy)) badFilings++;
+        maxSpeed = Math.max(maxSpeed, Math.hypot(f.vx, f.vy));
+      }
+      for (const m of dust) {
+        if (!Number.isFinite(m.x + m.y + m.vx + m.vy)) badDust++;
+      }
+      if (!Number.isFinite(minAge)) minAge = 0;
+      return {
+        ribbons: ribbons.length,
+        filings: filings.length,
+        dust: dust.length,
+        gusts: gusts.length,
+        gustCount,
+        segments,
+        respawns,
+        bad,
+        badFilings,
+        badDust,
+        maxSpeed,
+        maxAge,
+        minAge,
+        retiring,
+        vortexEnergy: vortex.energy,
+        frames,
+        paused,
+      };
+    },
+    advance: (seconds) => {
+      const n = Math.max(1, Math.round(clamp(seconds, 0, 3600) * 30));
+      for (let i = 0; i < n; i++) update(1 / 30);
+      render();
+      return api.snapshot();
+    },
+    vortexTo: (nx, ny, pressed) => {
+      const x = clamp(nx, 0, 1) * w;
+      const y = clamp(ny, 0, 1) * h;
+      vortex.x = x;
+      vortex.y = y;
+      vortex.inside = true;
+      vortex.pressed = !!pressed;
+      vortex.energy = Math.max(vortex.energy, pressed ? 0.85 : 0.5);
+      vortex.lastInput = time;
+      if (paused) render();
+      return vortex.energy;
+    },
+    vortexRelease: () => {
+      vortex.pressed = false;
+      vortex.lastInput = time;
+      return vortex.energy;
+    },
+    vortexLeave: () => {
+      vortex.inside = false;
+      vortex.pressed = false;
+      return vortex.energy;
+    },
+    triggerGust: () => {
+      const g = triggerGust(true);
+      buildFlowGrid();
+      if (paused) render();
+      return g ? gusts.length : 0;
+    },
+    setGust: (v) => { autoGust = !!v; el.gust.checked = autoGust; },
+    setVortex: (v) => {
+      vortexEnabled = !!v;
+      el.vortex.checked = vortexEnabled;
+      if (!vortexEnabled) vortex.energy = 0;
+      if (paused) render();
+    },
+    clearStill,
+    reseed,
+    togglePause,
+    render,
+    vortexEnergy: () => vortex.energy,
+  };
+  window.__lumenWind = api;
+
+  /* -------------------------------- boot -------------------------------- */
+
+  function boot() {
+    const requestedTime = time;
+    // A still plate is already a complete long exposure: the backwards-built
+    // trails are the frame. Only a moving plate needs the extra pre-roll.
+    const warm = paused ? 0 : Math.min(warmSeconds, requestedTime);
+    time = requestedTime - warm;
+
+    buildNoiseParams();
+    resetRngs();
+    buildBokehSprites();
+    installEvents();
+    nextGustAt = time + 20 + 20 * gustRng();
+    resize();
+
+    const steps = Math.round(warm * 30);
+    for (let i = 0; i < steps; i++) update(1 / 30);
+    if (steps > 0) render();
+
+    refreshReadout(true);
+    syncPlayback();
+  }
+
+  function buildBokehSprites() {
+    bokehSilver = makeBokehSprite('214,208,194');
+    bokehAmber = makeBokehSprite('208,138,62');
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

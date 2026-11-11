@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>字海 · Words in Orbit</title>
+<style>
+:root{color-scheme:dark;font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#d8ede7;background:#070e16}
+*{box-sizing:border-box}body{margin:0;overflow:hidden}canvas{position:fixed;inset:0;width:100%;height:100%}
+.chrome{transition:opacity .5s}body.quiet .chrome{opacity:0;pointer-events:none}
+header{position:fixed;left:4.5vw;top:5.5vh;pointer-events:none}.eyebrow{font-size:11px;letter-spacing:4px;color:#88a5a5}h1{font-size:30px;font-weight:400;letter-spacing:12px;margin:18px 0 10px}.sub{color:#69828c;font-size:12px;letter-spacing:2px}
+.top-right{position:fixed;right:4.5vw;top:6vh;text-align:right;font-size:11px;letter-spacing:2px;color:#789293}.signal{display:inline-block;width:5px;height:5px;border-radius:50%;background:#bdc69d;margin-right:8px}.signal.live{background:#a5f6da;box-shadow:0 0 10px #a5f6da}.numbers{margin-top:12px;color:#b6cfca;font-variant-numeric:tabular-nums;letter-spacing:1px}
+footer{position:fixed;bottom:4.5vh;left:4.5vw;right:4.5vw;display:flex;justify-content:space-between;align-items:end;gap:12px}.caption{font-size:11px;color:#637a85;letter-spacing:2px;line-height:2}.caption b{color:#95aea9;font-weight:400}.actions{display:flex;gap:8px}button{font:inherit;font-size:12px;color:#b8cfc9;border:1px solid #29403e;border-radius:25px;padding:10px 17px;background:#0d1a20b8;cursor:pointer}button:hover,button:focus-visible{border-color:#9bdecb;color:#e0fff4;outline:none}button.primary{color:#0b2420;background:#b5e9d7;border-color:#b5e9d7}
+dialog{position:fixed;inset:auto 3vw 12vh auto;margin:0;width:360px;max-width:92vw;max-height:78vh;overflow:auto;border:1px solid #314b4c;border-radius:18px;padding:24px;background:#0b1721ed;backdrop-filter:blur(24px);box-shadow:0 22px 90px #0008;color:#c5d8d4}dialog::backdrop{background:#01070a55}dialog h2{font-size:18px;font-weight:400;letter-spacing:3px;margin:0 0 12px}.close{float:right;padding:2px 9px;border:0;font-size:20px}p,label{font-size:12px;line-height:1.9;color:#8aa3aa}textarea,input[type=text]{width:100%;border:1px solid #30484c;background:#07121b;color:#d3ebe1;border-radius:10px;padding:12px;font:14px/1.7 "Microsoft YaHei",sans-serif;outline:none}textarea:focus,input:focus{border-color:#9bd3bf}textarea{height:115px;resize:vertical}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:15px}.row label{white-space:nowrap}input[type=range]{accent-color:#a8decb;width:165px}.divider{height:1px;background:#243a40;margin:22px 0 18px}.notice{min-height:20px;color:#b9d8c9}.small{font-size:11px;color:#6e8992}.danger{color:#d8b09f}#clearConfirm{display:none}#empty{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;color:#8baaa9;font-size:14px;letter-spacing:2px}
+@media(max-width:600px){h1{font-size:23px}.top-right{top:6vh;letter-spacing:0}.caption{font-size:10px;letter-spacing:0}.actions{gap:5px}button{padding:9px 12px}footer{align-items:center}.caption span{display:none}dialog{bottom:13vh}}
+</style>
+</head>
+<body>
+<canvas id="sky" aria-label="按词频缩放、旋转流动的立体词云"></canvas>
+<header class="chrome"><div class="eyebrow">WORDS IN ORBIT / 01</div><h1>字 海</h1><div class="sub">每一次表达，都有回响。</div></header>
+<div class="top-right chrome"><div><i id="signal" class="signal"></i><span id="source">演示词云 · 非个人数据</span></div><div class="numbers"><span id="unique">0</span> 个词 &nbsp; / &nbsp; <span id="total">0</span> 次回响</div></div>
+<div id="empty" hidden>还没有词语<br><p>打开「输入与设置」，让第一句话进入字海。</p></div>
+<footer class="chrome"><div class="caption"><b>让常说的话，成为你的风景。</b><br><span>SPACE 暂停 &nbsp; · &nbsp; H 隐藏界面 &nbsp; · &nbsp; F 全屏</span></div><div class="actions"><button id="pause">暂停</button><button id="settings">输入与设置 ↗</button></div></footer>
+<dialog id="panel"><button id="close" class="close" aria-label="关闭">×</button><h2>让文字流入</h2><p>在这里用输入法打字，文字确认后自动统计。也可粘贴一段文字；演示词不会混入你的记录。</p><textarea id="editor" placeholder="试着输入：星光、晚风，以及今天的灵感……" aria-label="输入要统计的文字"></textarea><div id="notice" class="notice small" role="status">仅保存在本机；不会上传文字。</div>
+<div class="row"><label for="speed">流动速度</label><input id="speed" type="range" min="0" max="2" step="0.1" value="0.65"></div>
+<div class="row"><label for="limit">显示词数 <span id="limitLabel">120</span></label><input id="limit" type="range" min="20" max="200" step="10" value="120"></div>
+<div class="divider"></div><h2>连接 Windows 输入</h2><p>先运行同目录的「启动输入统计.cmd」，再粘贴窗口里显示的连接口令。只统计支持辅助功能接口的输入框；密码框跳过。此功能为近似统计，未支持的应用不会产生记录。</p><input id="token" type="text" autocomplete="off" spellcheck="false" placeholder="粘贴采集器口令" aria-label="本地采集器口令"><div class="row"><button id="connect" class="primary">连接采集器</button><button id="disconnect">断开</button></div><div class="row"><button id="capturePause">暂停系统采集</button></div><p class="small">连接后显示系统词频；本页输入暂停计数，避免重复。关闭采集器窗口即可停止跨应用统计。断开壁纸只停止读取，不会关闭采集器。</p>
+<div class="divider"></div><div class="row"><button id="demo">演示词云</button><button id="mine">我的词云</button><button id="clear" class="danger">清空</button></div><div id="clearConfirm"><p>清空当前来源的词频记录？此操作无法撤销。</p><div class="row"><button id="confirmClear" class="danger">确认清空</button><button id="cancelClear">取消</button></div></div>
+</dialog>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id), ctx = $('sky').getContext('2d');
+const STORE = 'lumen.wordcloud.v1';
+const stop = new Set('的 了 是 在 和 与 及 或 而 也 就 都 很 啊 呢 吗 吧 哦 嗯 一个 这个 那个 这些 那些 我 你 他 她 它 我们 你们 他们 the a an and or to of in is are it for on with'.split(' '));
+const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('zh-CN', {granularity:'word'}) : null;
+const demoWords = '灵感 宇宙 自由 热爱 生活 星光 想象 创造 时间 温柔 远方 山海 探索 光影 未来 晚风 梦想 生长 相遇 世界 思考 旅行 记录 陪伴 平静 季节 喜欢 故事 音乐 天空 海洋 森林 云朵 日落 清晨 期待 好奇 勇气 设计 代码 浪漫 夏天 月亮 自然 朋友 快乐 微光 瞬间 呼吸 方向 答案 表达 流动 心跳 发现 回响 理想 慢慢 明天 无限 诗意 散步 花园 旅途 雨声 书写 旷野 星河 新鲜 色彩 旋律 飞行 秩序 岛屿 记忆 认真 专注 山川 光芒 银河 创意 文字 编程 美好 学习 自在 幸运 宁静 探险 风景 日常 细节 柔软 清澈 Inspiration Orbit Dream Create Wonder Flow Light Imagine Tomorrow'.split(' ');
+const demo = new Map(demoWords.map((w,i)=>[w,Math.max(1,Math.round(100/Math.pow(1+i*.13,1.65)))]));
+let counts=new Map(), remote=new Map(), mode='demo', token='', connected=false, capturePaused=false, revision=-1, requestSerial=0;
+let speed=.65, limit=120, paused=matchMedia('(prefers-reduced-motion: reduce)').matches, time=7, last=0, nodes=[], W=0,H=0,dpr=1, composing=false, baseline='', inputTimer, statusText='';
+function clean(entries){return new Map((Array.isArray(entries)?entries:[]).filter(x=>Array.isArray(x)&&typeof x[0]==='string'&&x[0].length<=40&&Number.isSafeInteger(x[1])&&x[1]>0).slice(0,10000));}
+try{const s=JSON.parse(localStorage.getItem(STORE)||'null');if(s){counts=clean(s.words);mode=s.mode==='demo'?'demo':'mine';token=typeof s.token==='string'?s.token:'';speed=Number.isFinite(s.speed)?Math.max(0,Math.min(2,s.speed)):.65;limit=Number.isFinite(s.limit)?Math.max(20,Math.min(200,s.limit)):120;}}catch{}
+const hashToken=new URLSearchParams(location.hash.slice(1)).get('token');if(hashToken&&/^[a-f0-9]{48}$/.test(hashToken)){token=hashToken;history.replaceState(null,'',location.pathname+location.search);}
+function save(){try{localStorage.setItem(STORE,JSON.stringify({words:[...counts],mode,token,speed,limit}));}catch{$('notice').textContent='存储不可用；当前记录只保留到关闭页面。';}}
+function words(text){const normalized=text.normalize('NFKC').toLowerCase();const parts=segmenter?[...segmenter.segment(normalized)].filter(x=>x.isWordLike).map(x=>x.segment):(normalized.match(/[\p{L}\p{N}]+/gu)||[]);return parts.filter(w=>w.length<=24&&!/^\d+$/.test(w)&&!stop.has(w));}
+function addText(text){if(connected)return;for(const w of words(text)){if(counts.has(w)||counts.size<10000)counts.set(w,(counts.get(w)||0)+1);}mode='mine';save();rebuild();}
+function inserted(before,after){let a=0,b=0;while(a<before.length&&a<after.length&&before[a]===after[a])a++;while(b<before.length-a&&b<after.length-a&&before[before.length-1-b]===after[after.length-1-b])b++;return after.slice(a,after.length-b);}
+function commit(){clearTimeout(inputTimer);if(composing)return;const value=$('editor').value;const text=inserted(baseline,value);baseline=value;if(text)addText(text);}
+$('editor').addEventListener('compositionstart',()=>{commit();composing=true;clearTimeout(inputTimer);});
+$('editor').addEventListener('compositionend',()=>{composing=false;commit();});
+$('editor').addEventListener('input',e=>{if(composing||e.isComposing)return;clearTimeout(inputTimer);inputTimer=setTimeout(commit,600);});
+$('editor').addEventListener('blur',commit);
+function active(){return connected?remote:mode==='demo'?demo:counts;}
+function hash(s){let h=2166136261;for(const c of s){h^=c.codePointAt(0);h=Math.imul(h,16777619);}return(h>>>0)/4294967295;}
+function rebuild(){const entries=[...active()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'zh-CN')).slice(0,limit),max=entries[0]?.[1]||1;
+const previous=new Map(nodes.map(n=>[n.word,n])),retained=new Set(entries.map(([word])=>word));
+const slots=new Map(entries.map(([word])=>word).sort((a,b)=>hash(a)-hash(b)).map((word,i)=>[word,i]));
+const next=entries.map(([word,count])=>{
+  const targetSize=12+44*Math.sqrt(count/max),old=previous.get(word);
+  if(old){old.count=count;old.targetSize=targetSize;old.targetAlpha=1;return old;}
+  const i=slots.get(word),y=1-2*(i+.5)/entries.length,r=Math.sqrt(1-y*y),angle=i*Math.PI*(3-Math.sqrt(5));
+  ctx.font='100px "Segoe UI", "Microsoft YaHei", sans-serif';
+  return{word,count,x:Math.cos(angle)*r,y,z:Math.sin(angle)*r,phase:hash(word)*Math.PI*2,size:targetSize,targetSize,widthRatio:ctx.measureText(word).width/100,ox:0,oy:0,vx:0,vy:0,alpha:previous.size&&!paused?0:1,targetAlpha:1};
+});
+// Existing words keep their own orbit even when frequency rank or word count changes.
+// Retiring words fade out instead of disappearing on a polling boundary.
+for(const n of nodes)if(!retained.has(n.word)&&n.alpha>.01){n.targetAlpha=0;next.push(n);}
+nodes=next;
+$('unique').textContent=active().size.toLocaleString();$('total').textContent=[...active().values()].reduce((a,b)=>a+b,0).toLocaleString();$('empty').hidden=nodes.length>0;updateStatus();draw();}
+function updateStatus(){ $('source').textContent=connected?(capturePaused?'系统采集已暂停':statusText||'系统输入 · 已连接'):(token?'采集器未连接 · '+(mode==='demo'?'演示词云':'本页词频'):mode==='demo'?'演示词云 · 非个人数据':'本页输入 · 本机保存');$('signal').classList.toggle('live',connected&&!capturePaused);$('capturePause').textContent=capturePaused?'继续系统采集':'暂停系统采集';$('pause').textContent=paused?'继续':'暂停';}
+function resize(){const oldW=W,oldH=H;W=innerWidth;H=innerHeight;if(oldW&&oldH)for(const n of nodes){n.ox*=W/oldW;n.oy*=H/oldH;n.vx*=W/oldW;n.vy*=H/oldH;}dpr=Math.min(devicePixelRatio||1,2,Math.sqrt(3800000/(W*H)));$('sky').width=Math.round(W*dpr);$('sky').height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw();}
+function positions(){const a=time*.115,c=Math.cos(a),s=Math.sin(a),tilt=.16*Math.sin(time*.075),ct=Math.cos(tilt),st=Math.sin(tilt),unit=Math.min(W*.41,H*.43);return nodes.map(n=>{const x=n.x*c+n.z*s,z=-n.x*s+n.z*c,y=n.y*ct-z*st,zz=n.y*st+z*ct,p=1/(1-zz*.23),drift=Math.sin(time*.32+n.phase)*.035;return{...n,sx:W*.50+(x+drift)*unit*(W>H?1.28:.92)*p+n.ox,sy:H*.52+(y+Math.cos(time*.27+n.phase)*.035)*unit*.81*p+n.oy,depth:zz,p,size:n.size*Math.min(1.18,Math.max(.48,Math.min(W/1200,H/820)))};});}
+function advance(dt){
+  // Persist velocity between frames. Smooth elliptical repulsion has no axis/sign
+  // switch, unlike repeatedly solving rectangles from scratch on every frame.
+  const steps=Math.max(1,Math.ceil(dt*120)),h=dt/steps,unit=Math.min(W*.41,H*.43);
+  for(let step=0;step<steps;step++){
+    time+=h*speed;
+    const ease=1-Math.exp(-h*3.5);
+    for(const n of nodes){n.size+=(n.targetSize-n.size)*ease;n.alpha+=(n.targetAlpha-n.alpha)*ease;}
+    const points=positions(),forces=points.map(()=>({x:0,y:0}));
+    for(let i=0;i<points.length;i++)for(let j=i+1;j<points.length;j++){
+      const u=points[i],v=points[j],rx=(Math.min(W*.55,u.size*u.widthRatio)+Math.min(W*.55,v.size*v.widthRatio))*.5+8,ry=(u.size+v.size)*.5+7;
+      const dx=(v.sx-u.sx)/rx,dy=(v.sy-u.sy)/ry,q=dx*dx+dy*dy;
+      if(q>=1)continue;
+      const strength=(1-q)*(1-q)*unit*16*u.alpha*v.alpha,fx=dx*strength*.4,fy=dy*strength;
+      forces[i].x-=fx;forces[j].x+=fx;forces[i].y-=fy;forces[j].y+=fy;
+    }
+    for(let i=0;i<nodes.length;i++){
+      const n=nodes[i],p=points[i],f=forces[i],half=Math.min(W*.55,p.size*p.widthRatio)/2;
+      f.x+=Math.max(0,half+8-p.sx)*45-Math.max(0,p.sx-(W-half-8))*45;
+      f.y+=Math.max(0,H*.17+p.size/2-p.sy)*45-Math.max(0,p.sy-(H*.86-p.size/2))*45;
+      n.vx+=(f.x-n.ox*28-n.vx*12)*h;n.vy+=(f.y-n.oy*28-n.vy*12)*h;
+      const velocity=Math.hypot(n.vx,n.vy),maxVelocity=unit*.55;
+      if(velocity>maxVelocity){n.vx*=maxVelocity/velocity;n.vy*=maxVelocity/velocity;}
+      n.ox+=n.vx*h;n.oy+=n.vy*h;
+    }
+  }
+  nodes=nodes.filter(n=>n.targetAlpha||n.alpha>.01);
+}
+function draw(){if(!W)return;ctx.clearRect(0,0,W,H);ctx.fillStyle='#070e16';ctx.fillRect(0,0,W,H);let glow=ctx.createRadialGradient(W*.49,H*.5,0,W*.49,H*.5,Math.max(W,H)*.55);glow.addColorStop(0,'#12302e');glow.addColorStop(.48,'#0c1c27');glow.addColorStop(1,'#070e16');ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
+for(let i=0;i<100;i++){const x=hash('x'+i)*W,y=(hash('y'+i)*H-time*(.7+i%3)*.3%H+H)%H;ctx.globalAlpha=.12+hash('a'+i)*.2;ctx.fillStyle='#a7d6d4';ctx.beginPath();ctx.arc(x,y,i%7===0?1.15:.55,0,7);ctx.fill();}ctx.globalAlpha=1;
+// Quiet orbital traces give the cloud a visible volume without hiding the words.
+ctx.save();ctx.translate(W*.5,H*.52);ctx.rotate(-.16);const orbit=Math.min(W*.41,H*.43);for(let i=0;i<3;i++){ctx.strokeStyle=`rgba(130,199,191,${.045-i*.009})`;ctx.lineWidth=.7;ctx.beginPath();ctx.ellipse(0,0,orbit*(W>H?1.48:1),orbit*(.38+i*.14),0,0,Math.PI*2);ctx.stroke();}ctx.restore();
+const points=positions().sort((a,b)=>a.depth-b.depth);ctx.textAlign='center';ctx.textBaseline='middle';for(const n of points){const depth=(n.depth+1)/2;ctx.globalAlpha=(.13+depth*.84)*n.alpha;const fontSize=n.size;ctx.font=`400 ${fontSize}px "Segoe UI", "Microsoft YaHei", sans-serif`;const warmth=Math.max(0,Math.min(1,(n.size-32)/18)),base=n.phase<2?[159,203,215]:n.phase<4?[130,188,174]:[182,201,192];ctx.fillStyle=`rgb(${base.map((c,i)=>Math.round(c+([211,248,222][i]-c)*warmth)).join(',')})`;ctx.shadowColor='#9dd9b5';ctx.shadowBlur=8*Math.max(0,(depth-.65)/.35)*warmth;ctx.fillText(n.word,n.sx,n.sy,Math.min(W*.55,fontSize*n.word.length));}ctx.shadowBlur=0;ctx.globalAlpha=1;
+}
+function frame(now){const dt=last?Math.min(.05,(now-last)/1000):0;last=now;if(!paused&&!document.hidden){advance(dt);draw();}requestAnimationFrame(frame);}
+function pause(){paused=!paused;updateStatus();draw();}
+async function poll(){if(!token)return;const serial=++requestSerial,key=token;try{const response=await fetch('http://127.0.0.1:18767/api/snapshot',{headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(2500),cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);const data=await response.json();if(serial!==requestSerial||key!==token)return;const changed=!connected||revision!==data.revision;connected=true;capturePaused=!!data.paused;statusText=data.status;revision=data.revision;remote=clean(data.words);if(changed)rebuild();else updateStatus();}catch{if(serial!==requestSerial)return;const was=connected;connected=false;revision=-1;if(was)rebuild();else updateStatus();}}
+async function command(action){try{const r=await fetch('http://127.0.0.1:18767/api/'+action,{method:'POST',headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(2500)});if(!r.ok)throw Error();await poll();}catch{$('notice').textContent='采集器未响应，请检查它是否仍在运行。';}}
+$('settings').onclick=()=>{$('panel').showModal();};$('close').onclick=()=>{$('panel').close();};$('pause').onclick=pause;
+$('speed').value=speed;$('limit').value=limit;$('limitLabel').textContent=limit;$('token').value=token;
+$('speed').oninput=e=>{speed=Number(e.target.value);save();};$('limit').oninput=e=>{limit=Number(e.target.value);$('limitLabel').textContent=limit;save();rebuild();};
+$('connect').onclick=()=>{const v=$('token').value.trim();if(!/^[a-f0-9]{48}$/.test(v)){$('notice').textContent='请复制采集器显示的完整口令。';return;}token=v;revision=-1;save();poll();};
+$('disconnect').onclick=()=>{token='';connected=false;requestSerial++;revision=-1;$('token').value='';save();rebuild();};
+$('capturePause').onclick=()=>{if(connected)command(capturePaused?'resume':'pause');};
+$('demo').onclick=()=>{if(connected){$('notice').textContent='请先断开采集器，再切换演示。';return;}mode='demo';save();rebuild();};$('mine').onclick=()=>{mode='mine';save();rebuild();};
+$('clear').onclick=()=>{$('clearConfirm').style.display='block';};$('cancelClear').onclick=()=>{$('clearConfirm').style.display='none';};$('confirmClear').onclick=()=>{if(connected)command('clear');else{counts.clear();mode='mine';save();rebuild();}$('clearConfirm').style.display='none';};
+addEventListener('keydown',e=>{if(e.target.closest('input,textarea,button')||$('panel').open)return;if(e.code==='Space'){e.preventDefault();pause();}if(e.key.toLowerCase()==='h')document.body.classList.toggle('quiet');if(e.key.toLowerCase()==='f'){if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>{});}});
+addEventListener('resize',resize);document.addEventListener('visibilitychange',()=>{last=0;});
+// Deterministic scene access for local regression checks and preview generation.
+window.__WORDCLOUD__={read:()=>({mode,connected,paused,time,counts:[...active()],nodes:positions()}),setTime:t=>{time=t;draw();},step:dt=>advance(dt),addText,inserted,words};
+resize();rebuild();save();poll();setInterval(poll,2500);requestAnimationFrame(frame);
+})();
+</script>
+</body></html>
