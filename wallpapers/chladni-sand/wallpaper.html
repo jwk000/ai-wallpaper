@@ -1,0 +1,2032 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<meta name="theme-color" content="#0f1210">
+<title>克拉尼之沙 · 无声的频率</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #080a08;
+    --paper: #eee6d6;
+    --sand: #cfc6b4;
+    --brass: #a9793f;
+    --accent: #c9a15b;
+    --muted: rgba(226, 216, 198, .56);
+    --faint: rgba(206, 194, 172, .27);
+    --line: rgba(201, 161, 91, .18);
+    --sans: "Helvetica Neue", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --serif: "Songti SC", "SimSun", "Noto Serif CJK SC", serif;
+    --mono: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --pad: clamp(20px, 3.2vw, 54px);
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--ink); }
+  body {
+    position: fixed; inset: 0; font-family: var(--sans); color: var(--paper);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none;
+    cursor: default;
+  }
+  #scene { position: fixed; inset: 0; z-index: 1; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+  .hud a, .hud button, .hud input, .hud label, .hud .controls, .hud #panel { pointer-events: auto; }
+
+  /* 极淡的一层暗角，让标题压在亮铜上也能读。 */
+  .hud::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(64% 44% at 0% 0%, rgba(4, 6, 5, .70), transparent 62%),
+      radial-gradient(50% 42% at 100% 100%, rgba(4, 6, 5, .48), transparent 74%);
+  }
+
+  .masthead {
+    position: absolute; left: var(--pad); top: var(--pad);
+    display: flex; align-items: center; gap: 11px;
+    font-family: var(--mono); font-size: 8px; letter-spacing: .30em; color: var(--muted);
+    transition: opacity 1.2s;
+  }
+  .mark { width: 13px; height: 13px; border: 1px solid rgba(201, 161, 91, .58); border-radius: 50%; position: relative; }
+  .mark::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--accent); opacity: .82; }
+  .brand { color: rgba(244, 236, 222, .88); letter-spacing: .34em; }
+  .rule { width: 28px; height: 1px; background: var(--line); }
+  .collection { color: var(--faint); letter-spacing: .24em; }
+  .index { color: rgba(201, 161, 91, .64); border: 1px solid var(--line); border-radius: 3px; padding: 3px 6px; letter-spacing: .12em; }
+
+  .live {
+    position: absolute; right: var(--pad); top: calc(var(--pad) + 2px); text-align: right;
+    font-family: var(--mono); font-size: 8px; letter-spacing: .20em; color: var(--faint);
+    display: flex; align-items: center; gap: 8px; transition: opacity 1.6s;
+  }
+  .live .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px rgba(201, 161, 91, .85); animation: breathe 5.4s ease-in-out infinite; }
+  .live b { color: rgba(240, 232, 216, .64); font-weight: 400; letter-spacing: .16em; }
+  @keyframes breathe { 0%, 100% { opacity: .28; } 50% { opacity: 1; } }
+
+  .caption { position: absolute; left: var(--pad); top: calc(var(--pad) + 52px); width: min(548px, 46vw); transition: opacity 2.2s ease; }
+  .kicker { margin: 0; font-family: var(--mono); font-size: 8px; letter-spacing: .30em; color: rgba(201, 161, 91, .78); }
+  h1 {
+    margin: 14px 0 11px; font-family: var(--serif); font-weight: 400;
+    font-size: clamp(32px, 3.55vw, 54px); line-height: 1.08; letter-spacing: .19em;
+    color: #f5efe4; text-shadow: 0 2px 36px rgba(3, 4, 3, .82);
+  }
+  .caption .sub { margin: 0; font-size: 11px; line-height: 2.0; letter-spacing: .10em; color: var(--muted); }
+  .measure { margin-top: 18px; display: flex; align-items: center; gap: 13px; }
+  .measure .line { width: 36px; height: 1px; background: rgba(201, 161, 91, .46); flex: none; }
+  .measure span { font-family: var(--mono); font-size: 8px; letter-spacing: .14em; color: var(--faint); }
+
+  .readout {
+    position: absolute; left: var(--pad); bottom: var(--pad);
+    display: flex; gap: clamp(16px, 2.4vw, 40px); transition: opacity 1.6s;
+  }
+  .readout div { display: flex; flex-direction: column; gap: 6px; }
+  .readout span { font-family: var(--mono); font-size: 7px; letter-spacing: .19em; color: var(--faint); }
+  .readout b { font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: .08em; color: rgba(242, 233, 216, .72); }
+
+  .controls {
+    position: absolute; right: var(--pad); bottom: var(--pad);
+    display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+    opacity: .30; transition: opacity .35s;
+  }
+  .controls:hover, .controls:focus-within, .controls:has([aria-expanded="true"]) { opacity: 1; }
+  button {
+    font: inherit; cursor: pointer; color: #efe6d6;
+    background: rgba(11, 13, 11, .88); border: 1px solid rgba(201, 161, 91, .24);
+    border-radius: 7px; padding: 9px 13px; font-size: 10.5px; letter-spacing: .14em;
+    backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+    transition: border-color .25s, background .25s, color .25s;
+  }
+  button:hover { border-color: rgba(201, 161, 91, .58); background: rgba(24, 23, 19, .96); }
+  button:focus-visible, input:focus-visible { outline: 2px solid rgba(201, 161, 91, .85); outline-offset: 4px; }
+  #panel {
+    width: 284px; max-height: calc(100vh - 100px); overflow: auto; padding: 18px; touch-action: pan-y;
+    display: flex; flex-direction: column; gap: 12px;
+    border: 1px solid rgba(201, 161, 91, .20); border-radius: 11px;
+    background: rgba(10, 12, 10, .95); box-shadow: 0 20px 70px rgba(0, 0, 0, .64);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  #panel[hidden] { display: none; }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
+  .panel-head b { font-family: var(--serif); font-weight: 400; font-size: 13px; letter-spacing: .18em; color: rgba(246, 238, 224, .92); }
+  .panel-head span { font-family: var(--mono); font-size: 7px; letter-spacing: .12em; color: var(--faint); }
+  .row { display: flex; gap: 8px; }
+  .row button { flex: 1; }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 11px; letter-spacing: .08em; color: var(--muted); }
+  .switch input { width: 15px; height: 15px; accent-color: var(--accent); margin: 0; }
+  .panel .tips { margin: 2px 0 0; font-size: 8.5px; line-height: 1.95; letter-spacing: .06em; color: var(--faint); }
+  .panel .tips b { color: var(--muted); font-weight: 400; }
+  .danger { color: #ecd0ad; }
+  .danger.armed { border-color: rgba(201, 161, 91, .78); color: #ffe0b6; background: rgba(52, 38, 20, .78); }
+
+  .toast {
+    position: absolute; left: 50%; bottom: 12%; transform: translate(-50%, 12px);
+    padding: 8px 15px; border: 1px solid rgba(201, 161, 91, .22); border-radius: 999px;
+    background: rgba(9, 11, 9, .82); color: rgba(242, 234, 220, .80);
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: .16em;
+    opacity: 0; transition: opacity .7s, transform .7s; pointer-events: none;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  body.quiet .caption, body.quiet .masthead, body.quiet .readout { opacity: 0; }
+  body.quiet .live { opacity: .20; }
+  body.hud-off .masthead, body.hud-off .caption, body.hud-off .readout,
+  body.hud-off .live, body.hud-off .toast, body.hud-off .controls, body.hud-off .hud::before { display: none; }
+  body.hud-off .hud { pointer-events: none; }
+
+  @media (max-width: 760px), (max-height: 600px) {
+    .readout, .live { display: none; }
+    .caption { width: min(86vw, 430px); top: calc(var(--pad) + 42px); }
+    h1 { font-size: clamp(27px, 8vw, 42px); letter-spacing: .14em; }
+    .caption .sub { font-size: 10px; line-height: 1.9; }
+    .measure { margin-top: 13px; }
+    .measure span { letter-spacing: .08em; }
+    .collection, .masthead .rule, .index { display: none; }
+    .controls { right: 16px; bottom: 16px; }
+    .toast { bottom: 17%; }
+  }
+  @media (max-width: 460px) {
+    .caption .sub br { display: none; }
+    .measure { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hud *, .toast { transition-duration: .01s !important; }
+    .live .dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" role="img" aria-label="一块拉丝黄铜板斜放在深色工作台上，板上细沙在看不见的振动里排成严格对称的节线花纹；左上留白，右下露出一小段失焦的线缆"></canvas>
+
+<div class="hud" id="hud">
+  <header class="masthead">
+    <span class="mark"></span>
+    <span class="brand">LUMEN</span>
+    <span class="rule"></span>
+    <span class="collection">声学仪器室</span>
+    <span class="index">06</span>
+  </header>
+
+  <div class="live">
+    <span class="dot"></span>
+    <span>PLATE DRIVEN</span>
+    <b id="liveClock">00:00</b>
+  </div>
+
+  <div class="caption">
+    <p class="kicker">CHLADNI PLATE / NODE FIGURES</p>
+    <h1>克拉尼之沙</h1>
+    <p class="sub">一块拉丝黄铜板上，薄薄一层细沙。<br>板在响，人听不见；沙沿着看不见的坡面排队，停成严格对称的节线。</p>
+    <div class="measure"><span class="line"></span><span>9 000 GRAINS · 96 × 96 FIELD · NO RESET</span></div>
+  </div>
+
+  <div class="readout">
+    <div><span>MODE</span><b id="statMode">m 1 · n 2</b></div>
+    <div><span>GRAINS</span><b id="statGrains">9000</b></div>
+    <div><span>STATE</span><b id="statState">已收敛</b></div>
+    <div><span>ELAPSED</span><b id="statTime">00:00</b></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="controls">
+    <div id="panel" hidden>
+      <div class="panel-head"><b>调频台</b><span>无存档 · 一直在响</span></div>
+      <div class="row"><button id="pause">暂停</button><button id="fullscreen">全屏</button></div>
+      <label class="switch"><span>自动换模态</span><input id="auto" type="checkbox" checked></label>
+      <label class="switch"><span>指针调频</span><input id="tune" type="checkbox" checked></label>
+      <div class="row"><button id="tap">敲一下板</button><button id="reseed" class="danger">换一块板</button></div>
+      <p class="tips">指针左右调 m、上下调 n · 点击是冲激<br><b>↑</b>/<b>↓</b> 换模态 · <b>Space</b> 暂停 · <b>H</b> 隐藏 · <b>F</b> 全屏<br><span id="panelStats">万二沙 · m1 n2</span></p>
+    </div>
+    <button id="settings" aria-expanded="false" aria-controls="panel">调频台</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ------------------------------------------------------------------ *
+   *  Chladni sand, on a brushed brass plate.
+   *
+   *  Modes     f(u,v) = cos(n*pi*u)cos(m*pi*v) - cos(m*pi*u)cos(n*pi*v),
+   *            precomputed into a 96 x 96 table of f and its gradient.
+   *  Grains    nine thousand of them; each one slides down the |f| slope,
+   *            is pushed apart by its spatial-bucket neighbours, and is
+   *            damped hard, so the node lines settle instead of buzzing.
+   *  Camera    a 30 degree oblique, orthographic view. The plate is a
+   *            rhombus, breathing one degree and pushing in two percent
+   *            every three minutes. Nothing else moves.
+   *  Still     a still frame is sampled, not integrated: each grain is
+   *            rejection-sampled onto the current node set (and blended
+   *            from the previous set mid-migration), so every t is a
+   *            complete photograph.
+   *
+   *  One file, Canvas 2D, no images, fonts, audio or network.
+   * ------------------------------------------------------------------ */
+
+  const TAU = Math.PI * 2;
+  const DEFAULT_SEED = 20261110;
+
+  const MAX_GRAINS = 9000;
+  const FIELD_N = 96;
+  const MAX_PIXELS = 2600000;
+  const DPR_CAP = 1.5;
+
+  const THETA0 = Math.PI / 6;          // plate turned 30 degrees in its own plane
+  const SQUASH = 0.5;                  // sin(30 deg): a 30 degree oblique view
+  const TILT_AMP = 0.0174533;          // +-1 degree breathing
+  const TILT_PERIOD = 96;
+  const ZOOM_PERIOD = 180;             // 2% push-in every three minutes
+  const ZOOM_AMP = 0.02;
+  const LIGHT_PERIOD = 96;
+
+  const MODE_TAU = 2.2;                // a mode change is ~95% done in 7 s
+  const NODE_BAND = 0.085;             // |f| accepted when sampling a node line
+  const NODE_THRESHOLD = 0.055;        // below this amplitude the plate is quiet
+  const DWELL_MIN = 44;
+  const DWELL_MAX = 62;
+  const POINTER_HOLD = 8;
+  const MANUAL_HOLD = 90;
+  const MIGRATE_SPAN = 8;
+
+  const K_FORCE = 0.07;
+  const V_TAU = 0.75;
+  const V_MAX = 0.22;
+  const A_MAX = 1.5;
+  const REPEL_R = 0.0062;
+  const REPEL_K = 0.45;
+  const STICTION = 0.012;             // below this speed the sand starts to grip
+  const SLEEP_SPEED = 0.005;
+  const SLEEP_FRAMES = 24;
+
+  const BUCKET = 160;
+  const BUCKET_INV = BUCKET * 0.5;
+
+  const ROUTE_A = [[1, 2], [2, 3], [3, 5], [4, 7]];
+  const ROUTE_B = [[4, 7], [6, 4], [5, 3], [3, 2], [1, 2]];
+  const MANUAL_ORDER = [[1, 2], [2, 3], [3, 5], [4, 7], [6, 4], [5, 3], [3, 2], [4, 5]];
+
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const fract = (v) => v - Math.floor(v);
+  const smoothstep = (a, b, x) => {
+    const t = clamp((x - a) / (b - a), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* ------------------------------ parameters ------------------------------ */
+
+  const q = new URLSearchParams(location.search);
+  const numberParam = (key, fallback, min, max) => {
+    if (!q.has(key)) return fallback;
+    const value = Number(q.get(key));
+    return Number.isFinite(value) ? clamp(value, min, max) : fallback;
+  };
+
+  let seed = q.has('seed') ? Math.floor(numberParam('seed', DEFAULT_SEED, 1, 2147483646)) : DEFAULT_SEED;
+  let time = numberParam('t', 0, 0, 86400);
+  const detail = numberParam('detail', 1, 0.5, 1);
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const stillParam = q.has('still') ? q.get('still') !== '0' : null;
+  let paused = stillParam !== null ? stillParam : reducedMotion.matches;
+  let autoMode = q.get('auto') !== '0';
+  let tuneEnabled = q.get('tune') !== '0';
+
+  const GRAIN_COUNT = Math.max(1200, Math.round(MAX_GRAINS * detail));
+
+  function rngFor(salt) {
+    return mulberry32((seed ^ Math.imul(salt | 0, 0x9E3779B1)) >>> 0);
+  }
+
+  /* -------------------------------- runtime -------------------------------- */
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+  const bg = document.createElement('canvas');
+  const bgx = bg.getContext('2d', { alpha: false });
+  const plateC = document.createElement('canvas');
+  const plx = plateC.getContext('2d');
+  const overlay = document.createElement('canvas');
+  const ovx = overlay.getContext('2d');
+  const moteC = document.createElement('canvas');
+  const mtx = moteC.getContext('2d');
+
+  const el = {
+    body: document.body,
+    settings: document.getElementById('settings'),
+    panel: document.getElementById('panel'),
+    pause: document.getElementById('pause'),
+    auto: document.getElementById('auto'),
+    tune: document.getElementById('tune'),
+    tap: document.getElementById('tap'),
+    reseed: document.getElementById('reseed'),
+    toast: document.getElementById('toast'),
+    statMode: document.getElementById('statMode'),
+    statGrains: document.getElementById('statGrains'),
+    statState: document.getElementById('statState'),
+    statTime: document.getElementById('statTime'),
+    liveClock: document.getElementById('liveClock'),
+    panelStats: document.getElementById('panelStats'),
+  };
+
+  let w = 0, h = 0, dpr = 1, aspect = 1;
+  let layout = { mode: 'landscape', s: 480, cx: 0, cy: 0, bake: 1 };
+  const cam = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0, s: 480, zoom: 1, tilt: 0 };
+  let camPhase = 0, camPhase2 = 0, lightPhase = 0;
+
+  let frames = 0, last = 0, raf = 0;
+  let hudClock = 0, quietTimer = 0, toastTimer = 0, reseedTimer = 0;
+
+  /* ---------------------------------- grains ---------------------------------- */
+
+  const gU = new Float32Array(GRAIN_COUNT);
+  const gV = new Float32Array(GRAIN_COUNT);
+  const gVX = new Float32Array(GRAIN_COUNT);
+  const gVY = new Float32Array(GRAIN_COUNT);
+  const gMob = new Float32Array(GRAIN_COUNT);
+  const gTone = new Float32Array(GRAIN_COUNT);
+  const gPhase = new Float32Array(GRAIN_COUNT);
+  const gSize = new Float32Array(GRAIN_COUNT);
+  const gDust = new Uint8Array(GRAIN_COUNT);
+  const gSleep = new Uint8Array(GRAIN_COUNT);
+  const gStill = new Uint8Array(GRAIN_COUNT);
+  const gDens = new Uint8Array(GRAIN_COUNT);
+  const sx = new Float32Array(GRAIN_COUNT);
+  const sy = new Float32Array(GRAIN_COUNT);
+  const bucketHead = new Int32Array(BUCKET * BUCKET);
+  const bucketNext = new Int32Array(GRAIN_COUNT);
+
+  let grainsReady = false;
+  let sleeping = 0;
+  let awakeCount = 0;
+
+  /* ----------------------------------- field ----------------------------------- */
+
+  const F = new Float32Array(FIELD_N * FIELD_N);
+  const GX = new Float32Array(FIELD_N * FIELD_N);
+  const GY = new Float32Array(FIELD_N * FIELD_N);
+  const cosM1 = new Float32Array(FIELD_N);
+  const cosN1 = new Float32Array(FIELD_N);
+  const sinM1 = new Float32Array(FIELD_N);
+  const sinN1 = new Float32Array(FIELD_N);
+  const FIELD_HALF = (FIELD_N - 1) * 0.5;
+  const FIELD_INV = 1 / (FIELD_N - 1);
+
+  let fieldM = -1, fieldN = -1;
+  let fieldWakes = 0;
+
+  /* ---------------------------------- modes ---------------------------------- */
+
+  let curM = 1, curN = 2;
+  let targetM = 1, targetN = 2;
+  let manualM = 1, manualN = 2;
+  let manualUntil = -1;
+  let moveStart = 0;
+  let pointerM = 1, pointerN = 2;
+  let pointerInside = false;
+  let pointerLast = -999;
+  let pointerX = 0, pointerY = 0;
+
+  let vibration = 0;
+  let tapX = 0, tapY = 0;
+
+  const segments = [];
+  let queue = [];
+  let queueIndex = 0;
+  let cycle = 0;
+  let scheduleRng = null;
+  let segCursor = 0;
+
+  const sample = { f: 0, x: 0, y: 0 };
+  const nodeA = { u: 0, v: 0 };
+  const nodeB = { u: 0, v: 0 };
+
+  /* -------------------------------- layout -------------------------------- */
+
+  function layoutFor(width, height) {
+    const ratio = width / height;
+    const minDim = Math.min(width, height);
+    if (ratio <= 0.85) {
+      return {
+        mode: 'portrait',
+        s: height * 0.62,
+        cx: width * 0.50,
+        cy: height * 0.36,
+        bake: clamp(Math.sqrt(2200000 / (width * height)), 0.5, 1),
+      };
+    }
+    return {
+      mode: ratio >= 1.9 ? 'ultrawide' : 'landscape',
+      s: minDim * (ratio >= 1.9 ? 0.515 : 0.455),
+      cx: width * (ratio >= 1.9 ? 0.50 : 0.535),
+      cy: height * (ratio >= 1.9 ? 0.55 : 0.555),
+      bake: clamp(Math.sqrt(2200000 / (width * height)), 0.5, 1),
+    };
+  }
+
+  /* --------------------------------- camera --------------------------------- */
+
+  function updateCamera() {
+    const tilt = TILT_AMP * Math.sin((TAU * time) / TILT_PERIOD + camPhase);
+    const zoom = 1 + ZOOM_AMP * 0.5 * (1 - Math.cos((TAU * (time + camPhase2)) / ZOOM_PERIOD));
+    const th = THETA0 + tilt;
+    const ct = Math.cos(th);
+    const st = Math.sin(th);
+    cam.tilt = tilt;
+    cam.zoom = zoom;
+    cam.s = layout.s * zoom;
+    cam.a = ct;
+    cam.c = -st;
+    cam.b = SQUASH * st;
+    cam.d = SQUASH * ct;
+    cam.e = layout.cx;
+    cam.f = layout.cy;
+  }
+
+  function projectX(u, v) { return cam.e + cam.a * (u * cam.s) + cam.c * (v * cam.s); }
+  function projectY(u, v) { return cam.f + cam.b * (u * cam.s) + cam.d * (v * cam.s); }
+
+  /* ------------------------------ mode schedule ------------------------------ */
+
+  function sameMode(a, b) { return a[0] === b[0] && a[1] === b[1]; }
+
+  function refillQueue() {
+    const routes = cycle % 2 === 0 ? [ROUTE_A, ROUTE_B] : [ROUTE_B, ROUTE_A];
+    const out = [];
+    for (let r = 0; r < routes.length; r++) {
+      const route = routes[r];
+      for (let i = 0; i < route.length; i++) {
+        if (out.length && sameMode(out[out.length - 1], route[i])) continue;
+        out.push([route[i][0], route[i][1]]);
+      }
+    }
+    // A route join can leave a dead transition at the seam; drop it too.
+    if (queue.length && out.length && sameMode(queue[queue.length - 1], out[0])) out.shift();
+    queue = out;
+    queueIndex = 0;
+    cycle += 1;
+  }
+
+  function takeNextMode(fromM, fromN) {
+    for (let guard = 0; guard < 16; guard++) {
+      if (queueIndex >= queue.length) refillQueue();
+      const mode = queue[queueIndex++];
+      if (mode[0] === fromM && mode[1] === fromN) continue;
+      return mode;
+    }
+    return [fromM, fromN === 2 ? 3 : 2];
+  }
+
+  function appendSegment() {
+    const prev = segments[segments.length - 1];
+    const mode = takeNextMode(prev.m, prev.n);
+    const dwell = DWELL_MIN + (DWELL_MAX - DWELL_MIN) * scheduleRng();
+    segments.push({
+      m: mode[0],
+      n: mode[1],
+      fromM: prev.m,
+      fromN: prev.n,
+      start: prev.end,
+      end: prev.end + dwell,
+    });
+    segCursor = Math.max(0, segments.length - 2);
+  }
+
+  function ensureSchedule(until) {
+    if (!segments.length) {
+      scheduleRng = rngFor(707);
+      cycle = 0;
+      queue = [];
+      queueIndex = 0;
+      refillQueue();
+      const mode = takeNextMode(-1, -1);
+      segments.push({
+        m: mode[0], n: mode[1], fromM: mode[0], fromN: mode[1],
+        start: 0, end: DWELL_MIN + (DWELL_MAX - DWELL_MIN) * scheduleRng(),
+      });
+      segCursor = 0;
+    }
+    let guard = 0;
+    while (segments[segments.length - 1].end < until + 150 && guard++ < 5000) appendSegment();
+  }
+
+  function segmentAt(t) {
+    if (!segments.length) return null;
+    let i = segCursor;
+    if (i >= segments.length) i = segments.length - 1;
+    while (i > 0 && t < segments[i].start) i--;
+    while (i < segments.length - 1 && t >= segments[i].end) i++;
+    segCursor = i;
+    return segments[i];
+  }
+
+  function scheduleState(t) {
+    const seg = segmentAt(t);
+    if (!seg) return { m: 1, n: 2, targetM: 1, targetN: 2, prevM: 1, prevN: 2, since: 999 };
+    const since = Math.max(0, t - seg.start);
+    const e = Math.exp(-since / MODE_TAU);
+    return {
+      m: seg.m + (seg.fromM - seg.m) * e,
+      n: seg.n + (seg.fromN - seg.n) * e,
+      targetM: seg.m,
+      targetN: seg.n,
+      prevM: seg.fromM,
+      prevN: seg.fromN,
+      since,
+    };
+  }
+
+  /* ------------------------------- chladni field ------------------------------- */
+
+  function buildField(m, n) {
+    const pm = Math.PI * m;
+    const pn = Math.PI * n;
+    for (let i = 0; i < FIELD_N; i++) {
+      const x = -1 + i * 2 * FIELD_INV;
+      cosM1[i] = Math.cos(pm * x);
+      cosN1[i] = Math.cos(pn * x);
+      sinM1[i] = Math.sin(pm * x);
+      sinN1[i] = Math.sin(pn * x);
+    }
+    for (let j = 0; j < FIELD_N; j++) {
+      const cMv = cosM1[j], cNv = cosN1[j], sMv = sinM1[j], sNv = sinN1[j];
+      for (let i = 0; i < FIELD_N; i++) {
+        const idx = j * FIELD_N + i;
+        F[idx] = cosN1[i] * cMv - cosM1[i] * cNv;
+        GX[idx] = -pn * sinN1[i] * cMv + pm * sinM1[i] * cNv;
+        GY[idx] = -pm * cosN1[i] * sMv + pn * cosM1[i] * sNv;
+      }
+    }
+    fieldM = m;
+    fieldN = n;
+  }
+
+  function rebuildFieldIfNeeded() {
+    if (fieldM < 0) { buildField(curM, curN); return; }
+    const d = Math.abs(curM - fieldM) + Math.abs(curN - fieldN);
+    if (d > 0.0035) {
+      buildField(curM, curN);
+      // Keep the sand moving only while the mode is actually in flight; once
+      // the tuning has arrived, a rebuild is a 1e-3 correction and the grains
+      // are allowed to sleep through it.
+      if (time - moveStart < MIGRATE_SPAN + 2) wakeAll();
+    }
+  }
+
+  function sampleField(u, v, out) {
+    const gx = clamp((u + 1) * FIELD_HALF, 0, FIELD_N - 1.000001);
+    const gy = clamp((v + 1) * FIELD_HALF, 0, FIELD_N - 1.000001);
+    const i0 = gx | 0;
+    const j0 = gy | 0;
+    const i1 = i0 + 1 < FIELD_N ? i0 + 1 : i0;
+    const j1 = j0 + 1 < FIELD_N ? j0 + 1 : j0;
+    const fx = gx - i0;
+    const fy = gy - j0;
+    const r0 = j0 * FIELD_N;
+    const r1 = j1 * FIELD_N;
+    const w00 = (1 - fx) * (1 - fy);
+    const w10 = fx * (1 - fy);
+    const w01 = (1 - fx) * fy;
+    const w11 = fx * fy;
+    out.f = F[r0 + i0] * w00 + F[r0 + i1] * w10 + F[r1 + i0] * w01 + F[r1 + i1] * w11;
+    out.x = GX[r0 + i0] * w00 + GX[r0 + i1] * w10 + GX[r1 + i0] * w01 + GX[r1 + i1] * w11;
+    out.y = GY[r0 + i0] * w00 + GY[r0 + i1] * w10 + GY[r1 + i0] * w01 + GY[r1 + i1] * w11;
+    return out;
+  }
+
+  function chladniAt(m, n, u, v) {
+    const pm = Math.PI * m;
+    const pn = Math.PI * n;
+    return Math.cos(pn * u) * Math.cos(pm * v) - Math.cos(pm * u) * Math.cos(pn * v);
+  }
+
+  function nodeSample(m, n, rng, out) {
+    const pm = Math.PI * m;
+    const pn = Math.PI * n;
+    let bestU = 0, bestV = 0, bestF = 9;
+    for (let k = 0; k < 48; k++) {
+      const u = rng() * 1.94 - 0.97;
+      const v = rng() * 1.94 - 0.97;
+      const f = Math.cos(pn * u) * Math.cos(pm * v) - Math.cos(pm * u) * Math.cos(pn * v);
+      const af = f < 0 ? -f : f;
+      if (af < bestF) { bestF = af; bestU = u; bestV = v; }
+      if (af < NODE_BAND) { out.u = u; out.v = v; return out; }
+    }
+    out.u = bestU;
+    out.v = bestV;
+    return out;
+  }
+
+  /* ---------------------------------- grains ---------------------------------- */
+
+  function wakeAll() {
+    gSleep.fill(0);
+    gStill.fill(0);
+    fieldWakes++;
+  }
+
+  function buildGrains() {
+    const rng = rngFor(0x51ed270b);
+    const st = scheduleState(time);
+    const settle = st.since <= 0 ? 1 : smoothstep(0, 1, clamp(st.since / MIGRATE_SPAN, 0, 1));
+    const sizeScale = clamp(Math.sqrt(layout.s / 500), 0.8, 1.7);
+    for (let i = 0; i < GRAIN_COUNT; i++) {
+      const dust = i % 17 === 0;
+      let u = 0, v = 0;
+      if (dust) {
+        u = rng() * 1.9 - 0.95;
+        v = rng() * 1.9 - 0.95;
+      } else {
+        nodeSample(st.targetM, st.targetN, rng, nodeA);
+        if (settle >= 0.999) {
+          u = nodeA.u;
+          v = nodeA.v;
+        } else {
+          nodeSample(st.prevM, st.prevN, rng, nodeB);
+          const delay = rng() * 0.45;
+          const k = smoothstep(0, 1, clamp((settle - delay) / (1 - delay), 0, 1));
+          u = lerp(nodeB.u, nodeA.u, k);
+          v = lerp(nodeB.v, nodeA.v, k);
+        }
+        u += (rng() * 2 - 1) * 0.0032;
+        v += (rng() * 2 - 1) * 0.0032;
+      }
+      gU[i] = clamp(u, -0.985, 0.985);
+      gV[i] = clamp(v, -0.985, 0.985);
+      gVX[i] = 0;
+      gVY[i] = 0;
+      gDust[i] = dust ? 1 : 0;
+      gMob[i] = dust ? 0.05 : 0.5 + 0.5 * rng();
+      const lightAmt = clamp(0.55 - 0.5 * (gU[i] * 0.94 + gV[i] * 0.34), 0.06, 1);
+      gTone[i] = clamp(0.28 + 0.68 * lightAmt + (rng() - 0.5) * 0.18, 0.10, 1);
+      gPhase[i] = rng() * TAU;
+      gSize[i] = (1.55 + rng() * 1.0) * sizeScale;
+      gSleep[i] = 1;
+      gStill[i] = 200;
+      gDens[i] = 0;
+    }
+    sleeping = GRAIN_COUNT;
+    awakeCount = 0;
+    grainsReady = true;
+  }
+
+  /* ----------------------------------- physics ----------------------------------- */
+
+  function updateBuckets() {
+    bucketHead.fill(-1);
+    for (let i = 0; i < GRAIN_COUNT; i++) {
+      const ci = clamp(((gU[i] + 1) * BUCKET_INV) | 0, 0, BUCKET - 1);
+      const cj = clamp(((gV[i] + 1) * BUCKET_INV) | 0, 0, BUCKET - 1);
+      const cell = cj * BUCKET + ci;
+      bucketNext[i] = bucketHead[cell];
+      bucketHead[cell] = i;
+    }
+  }
+
+  function repel(dt) {
+    const r2 = REPEL_R * REPEL_R;
+    const push = REPEL_K * dt;
+    for (let i = 0; i < GRAIN_COUNT; i++) {
+      if (gSleep[i]) continue;
+      const ui = gU[i], vi = gV[i];
+      const ci = ((ui + 1) * BUCKET_INV) | 0;
+      const cj = ((vi + 1) * BUCKET_INV) | 0;
+      let neighbours = 0;
+      for (let dj = 0; dj <= 1; dj++) {
+        const nj = cj + dj;
+        if (nj >= BUCKET) continue;
+        for (let di = 0; di <= 1; di++) {
+          const ni = ci + di;
+          if (ni >= BUCKET) continue;
+          let j = bucketHead[nj * BUCKET + ni];
+          while (j >= 0) {
+            if (j !== i && !gSleep[j]) {
+              const du = gU[j] - ui;
+              const dv = gV[j] - vi;
+              const d2 = du * du + dv * dv;
+              if (d2 < r2 && d2 > 1e-12) {
+                neighbours++;
+                const d = Math.sqrt(d2);
+                const f = (1 - d / REPEL_R) * push / d;
+                const px = du * f;
+                const py = dv * f;
+                gVX[i] -= px; gVY[i] -= py;
+                gVX[j] += px; gVY[j] += py;
+              }
+            }
+            j = bucketNext[j];
+          }
+        }
+      }
+      gDens[i] = neighbours > 6 ? 6 : neighbours;
+    }
+  }
+
+  function stepGrains(dt) {
+    const vib = vibration;
+    const damp = 1 / (1 + dt / V_TAU);
+    let awake = 0;
+    for (let i = 0; i < GRAIN_COUNT; i++) {
+      if (gSleep[i]) continue;
+      awake++;
+      const u = gU[i];
+      const v = gV[i];
+      sampleField(u, v, sample);
+      const mob = gMob[i];
+      // Real Chladni sand only moves where the local amplitude clears a
+      // threshold; inside the node band the plate is quiet and the grains rest.
+      const af = sample.f < 0 ? -sample.f : sample.f;
+      const drive = af > NODE_THRESHOLD ? (sample.f < 0 ? -(af - NODE_THRESHOLD) : af - NODE_THRESHOLD) : 0;
+      let ax = -K_FORCE * drive * sample.x * mob;
+      let ay = -K_FORCE * drive * sample.y * mob;
+      const am2 = ax * ax + ay * ay;
+      if (am2 > A_MAX * A_MAX) {
+        const k = A_MAX / Math.sqrt(am2);
+        ax *= k; ay *= k;
+      }
+      let vx = gVX[i] + ax * dt;
+      let vy = gVY[i] + ay * dt;
+      if (vib > 0.001) {
+        vx += Math.sin(time * 23.7 + gPhase[i]) * vib * 0.55 * dt;
+        vy += Math.cos(time * 19.3 + gPhase[i] * 1.3) * vib * 0.55 * dt;
+      }
+      vx *= damp;
+      vy *= damp;
+      const sp2 = vx * vx + vy * vy;
+      if (sp2 > V_MAX * V_MAX) {
+        const k = V_MAX / Math.sqrt(sp2);
+        vx *= k; vy *= k;
+      }
+      if (sp2 < STICTION * STICTION) {
+        // Static friction: a grain that has almost stopped grips the plate.
+        vx *= 0.72;
+        vy *= 0.72;
+      }
+      let nu = u + vx * dt;
+      let nv = v + vy * dt;
+      if (nu < -0.995) { nu = -0.995; vx = 0; }
+      else if (nu > 0.995) { nu = 0.995; vx = 0; }
+      if (nv < -0.995) { nv = -0.995; vy = 0; }
+      else if (nv > 0.995) { nv = 0.995; vy = 0; }
+      gU[i] = nu;
+      gV[i] = nv;
+      gVX[i] = vx;
+      gVY[i] = vy;
+      if (vx * vx + vy * vy < SLEEP_SPEED * SLEEP_SPEED) {
+        if (gStill[i] < 250) gStill[i]++;
+        if (gStill[i] > SLEEP_FRAMES) { gSleep[i] = 1; gVX[i] = 0; gVY[i] = 0; }
+      } else if (gStill[i] > 0) {
+        gStill[i] = 0;
+      }
+    }
+    awakeCount = awake;
+    if (awake > 0) {
+      updateBuckets();
+      repel(dt);
+    }
+    sleeping = GRAIN_COUNT - awake;
+  }
+
+  /* ------------------------------- mode + input ------------------------------- */
+
+  function pointerActive() {
+    return tuneEnabled && pointerInside && time - pointerLast < POINTER_HOLD;
+  }
+
+  function clampPair(m, n) {
+    let mm = clamp(m, 1, 7.2);
+    let nn = clamp(n, 1, 7.2);
+    if (Math.abs(mm - nn) < 0.45) {
+      nn = mm + (mm <= 3.6 ? 0.45 : -0.45);
+      nn = clamp(nn, 1, 7.2);
+    }
+    return [mm, nn];
+  }
+
+  function updateMode(dt) {
+    let tm = targetM;
+    let tn = targetN;
+    if (pointerActive()) {
+      const pair = clampPair(pointerM, pointerN);
+      tm = pair[0];
+      tn = pair[1];
+    } else if (time < manualUntil) {
+      tm = manualM;
+      tn = manualN;
+    } else if (autoMode) {
+      const seg = segmentAt(time);
+      if (seg) { tm = seg.m; tn = seg.n; }
+    }
+    if (tm !== targetM || tn !== targetN) {
+      targetM = tm;
+      targetN = tn;
+      moveStart = time;
+    }
+    const k = 1 - Math.exp(-dt / MODE_TAU);
+    curM += (targetM - curM) * k;
+    curN += (targetN - curN) * k;
+  }
+
+  function updateVibration(dt) {
+    if (vibration > 0) {
+      vibration *= Math.exp(-dt / 1.4);
+      if (vibration < 0.0015) vibration = 0;
+    }
+    if (vibration > 0.02) wakeAll();
+  }
+
+  function tapPlate(px, py, strength) {
+    vibration = Math.min(1.4, vibration + (strength || 1));
+    tapX = px;
+    tapY = py;
+    const rng = rngFor(0x2b7f16a3 ^ ((time * 10) | 0));
+    for (let i = 0; i < GRAIN_COUNT; i++) {
+      const dx = gU[i] - tapX;
+      const dy = gV[i] - tapY;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const falloff = Math.exp(-(d * d) / 0.16);
+      const ang = gPhase[i] + rng() * 0.4;
+      const kick = 0.32 * falloff * vibration;
+      gVX[i] += Math.cos(ang) * kick;
+      gVY[i] += Math.sin(ang) * kick;
+      gSleep[i] = 0;
+      gStill[i] = 0;
+    }
+  }
+
+  function setModeTarget(m, n, hold) {
+    const pair = clampPair(m, n);
+    manualM = pair[0];
+    manualN = pair[1];
+    pointerM = pair[0];
+    pointerN = pair[1];
+    manualUntil = time + (hold === undefined ? MANUAL_HOLD : hold);
+    moveStart = time;
+    // Reflect the new destination at once, so a paused plate reports where it
+    // is heading; the sand still travels there over the next several seconds.
+    targetM = pair[0];
+    targetN = pair[1];
+  }
+
+  function stepMode(dir) {
+    let best = 0;
+    let bestD = 1e9;
+    for (let i = 0; i < MANUAL_ORDER.length; i++) {
+      const d = Math.abs(MANUAL_ORDER[i][0] - targetM) + Math.abs(MANUAL_ORDER[i][1] - targetN);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    const next = MANUAL_ORDER[(best + (dir >= 0 ? 1 : MANUAL_ORDER.length - 1)) % MANUAL_ORDER.length];
+    setModeTarget(next[0], next[1]);
+    showToast('调到 m ' + next[0] + ' · n ' + next[1]);
+    return [next[0], next[1]];
+  }
+
+  /* ----------------------------------- update ----------------------------------- */
+
+  function update(dt) {
+    dt = clamp(dt, 0.0005, 0.1);
+    time += dt;
+    ensureSchedule(time);
+    updateMode(dt);
+    rebuildFieldIfNeeded();
+    updateVibration(dt);
+    if (grainsReady) stepGrains(dt);
+    hudClock += dt;
+    if (hudClock > 0.4) {
+      hudClock = 0;
+      refreshReadout();
+    }
+  }
+
+  /* ---------------------------------- sprites ---------------------------------- */
+
+  function makeMoteSprite() {
+    moteC.width = 64;
+    moteC.height = 64;
+    mtx.setTransform(1, 0, 0, 1, 0, 0);
+    mtx.clearRect(0, 0, 64, 64);
+    const g = mtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(242, 226, 196, 0.85)');
+    g.addColorStop(0.35, 'rgba(236, 214, 176, 0.30)');
+    g.addColorStop(1, 'rgba(230, 197, 138, 0)');
+    mtx.fillStyle = g;
+    mtx.fillRect(0, 0, 64, 64);
+    return moteC;
+  }
+
+  /* ------------------------------- bake: background ------------------------------- */
+
+  function plateCorners(scaleK, dy, zoom) {
+    const s = layout.s * scaleK * (zoom || 1);
+    const cx = layout.cx * scaleK;
+    const cy = layout.cy * scaleK + (dy || 0);
+    const ct = Math.cos(THETA0);
+    const st = Math.sin(THETA0);
+    const base = [[1, 1], [1, -1], [-1, -1], [-1, 1]];
+    const out = [];
+    for (let i = 0; i < 4; i++) {
+      const u = base[i][0];
+      const v = base[i][1];
+      out.push([cx + s * (u * ct - v * st), cy + s * SQUASH * (u * st + v * ct)]);
+    }
+    return out;
+  }
+
+  function tracePolygon(c, pts) {
+    c.beginPath();
+    c.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]);
+    c.closePath();
+  }
+
+  function bakeBackground() {
+    const bw = Math.max(1, Math.round(w * layout.bake));
+    const bh = Math.max(1, Math.round(h * layout.bake));
+    bg.width = bw;
+    bg.height = bh;
+    bgx.setTransform(1, 0, 0, 1, 0, 0);
+    bgx.filter = 'none';
+    const k = bw / w;
+    const rng = rngFor(0x7c3a91d5);
+    const scale = clamp(layout.s / 500, 0.6, 2.2);
+
+    const base = bgx.createLinearGradient(0, 0, 0, bh);
+    base.addColorStop(0, '#1c2620');
+    base.addColorStop(0.34, '#161d18');
+    base.addColorStop(0.66, '#0e130f');
+    base.addColorStop(1, '#070a08');
+    bgx.fillStyle = base;
+    bgx.fillRect(0, 0, bw, bh);
+
+    // Key light, upper left, same direction as the light on the plate.
+    const key = bgx.createRadialGradient(bw * 0.22, bh * 0.14, 0, bw * 0.22, bh * 0.14, Math.max(bw, bh) * 0.74);
+    key.addColorStop(0, 'rgba(228, 200, 152, 0.145)');
+    key.addColorStop(0.42, 'rgba(150, 140, 104, 0.055)');
+    key.addColorStop(1, 'rgba(10, 14, 10, 0)');
+    bgx.fillStyle = key;
+    bgx.fillRect(0, 0, bw, bh);
+
+    // Cool spill on the far side, so the warm plate sits in a cold room.
+    const cool = bgx.createRadialGradient(bw * 0.88, bh * 0.70, 0, bw * 0.88, bh * 0.70, Math.max(bw, bh) * 0.48);
+    cool.addColorStop(0, 'rgba(50, 78, 66, 0.17)');
+    cool.addColorStop(1, 'rgba(20, 30, 24, 0)');
+    bgx.fillStyle = cool;
+    bgx.fillRect(0, 0, bw, bh);
+
+    // The table itself: a broad, very soft sheen under and behind the plate.
+    bgx.save();
+    bgx.translate(layout.cx * k, layout.cy * k + layout.s * 0.62 * k);
+    bgx.scale(1, 0.30);
+    const sheen = bgx.createRadialGradient(0, 0, 0, 0, 0, layout.s * 2.1 * k);
+    sheen.addColorStop(0, 'rgba(150, 141, 104, 0.30)');
+    sheen.addColorStop(0.5, 'rgba(88, 92, 68, 0.14)');
+    sheen.addColorStop(1, 'rgba(10, 12, 10, 0)');
+    bgx.fillStyle = sheen;
+    bgx.fillRect(-layout.s * 2.4 * k, -layout.s * 2.4 * k, layout.s * 4.8 * k, layout.s * 4.8 * k);
+    bgx.restore();
+
+    // Faint horizontal grain on the bench.
+    for (let i = 0; i < 90; i++) {
+      const y = (0.52 + rng() * 0.50) * bh;
+      const a = 0.012 + rng() * 0.030;
+      bgx.strokeStyle = rng() > 0.5
+        ? 'rgba(168, 160, 124, ' + a.toFixed(3) + ')'
+        : 'rgba(4, 6, 4, ' + (a * 1.6).toFixed(3) + ')';
+      bgx.lineWidth = 0.6 + rng() * 2.4;
+      bgx.beginPath();
+      bgx.moveTo(-bw * 0.05, y);
+      bgx.lineTo(bw * 1.05, y + (rng() - 0.5) * 8);
+      bgx.stroke();
+    }
+
+    // Out-of-focus instrument knobs behind the plate.
+    const knobs = layout.mode === 'portrait'
+      ? [
+        { x: 0.135, y: 0.855, r: 0.135, bright: 0.55, led: true },
+        { x: 0.560, y: 0.930, r: 0.095, bright: 0.38, led: false },
+      ]
+      : layout.mode === 'ultrawide'
+        ? [
+          { x: 0.085, y: 0.42, r: 0.105, bright: 0.62, led: true },
+          { x: 0.935, y: 0.34, r: 0.125, bright: 0.55, led: true },
+          { x: 0.170, y: 0.80, r: 0.075, bright: 0.35, led: false },
+          { x: 0.815, y: 0.135, r: 0.060, bright: 0.42, led: false },
+        ]
+        : [
+          { x: 0.100, y: 0.405, r: 0.098, bright: 0.34, led: true },
+          { x: 0.900, y: 0.355, r: 0.112, bright: 0.30, led: true },
+          { x: 0.790, y: 0.165, r: 0.055, bright: 0.24, led: false },
+          { x: 0.185, y: 0.795, r: 0.068, bright: 0.22, led: false },
+        ];
+    bgx.save();
+    bgx.filter = 'blur(' + (Math.max(7, 15 * scale) * k).toFixed(1) + 'px)';
+    for (let i = 0; i < knobs.length; i++) {
+      const kn = knobs[i];
+      const cx = kn.x * bw;
+      const cy = kn.y * bh;
+      const rr = kn.r * Math.min(bw, bh);
+      // body
+      const g = bgx.createRadialGradient(cx - rr * 0.34, cy - rr * 0.38, rr * 0.08, cx, cy, rr);
+      g.addColorStop(0, 'rgba(84, 82, 62, ' + kn.bright.toFixed(2) + ')');
+      g.addColorStop(0.55, 'rgba(34, 40, 33, 0.92)');
+      g.addColorStop(0.94, 'rgba(20, 25, 20, 0.55)');
+      g.addColorStop(1, 'rgba(10, 13, 10, 0)');
+      bgx.fillStyle = g;
+      bgx.beginPath();
+      bgx.arc(cx, cy, rr, 0, TAU);
+      bgx.fill();
+      // rim catch light
+      bgx.strokeStyle = 'rgba(224, 192, 132, 0.26)';
+      bgx.lineWidth = Math.max(1.2, rr * 0.055);
+      bgx.beginPath();
+      bgx.arc(cx, cy, rr * 0.86, Math.PI * 1.02, Math.PI * 1.68);
+      bgx.stroke();
+      // a slot mark on the dial
+      bgx.strokeStyle = 'rgba(232, 208, 160, 0.20)';
+      bgx.lineWidth = Math.max(1.2, rr * 0.06);
+      bgx.beginPath();
+      bgx.moveTo(cx + Math.cos(-2.2) * rr * 0.28, cy + Math.sin(-2.2) * rr * 0.28);
+      bgx.lineTo(cx + Math.cos(-2.2) * rr * 0.74, cy + Math.sin(-2.2) * rr * 0.74);
+      bgx.stroke();
+    }
+    // One instrument body, mostly out of frame at the right.
+    bgx.fillStyle = 'rgba(26, 33, 27, 0.92)';
+    bgx.beginPath();
+    const bx = bw * (layout.mode === 'portrait' ? 0.62 : 0.845);
+    const by = bh * (layout.mode === 'portrait' ? 0.58 : 0.28);
+    const bwid = bw * (layout.mode === 'portrait' ? 0.5 : 0.30);
+    const bhei = bh * (layout.mode === 'portrait' ? 0.30 : 0.42);
+    bgx.rect(bx, by, bwid, bhei);
+    bgx.fill();
+    bgx.strokeStyle = 'rgba(208, 172, 112, 0.16)';
+    bgx.lineWidth = Math.max(1.2, 2 * scale * k);
+    bgx.strokeRect(bx, by, bwid, bhei);
+    bgx.restore();
+    bgx.filter = 'none';
+
+    // Amber indicator lights, a slow bokeh of the instrument panel.
+    const leds = [];
+    for (let i = 0; i < 7; i++) {
+      leds.push({ x: (0.04 + rng() * 0.90), y: (0.06 + rng() * 0.46), r: 0.010 + rng() * 0.030 });
+    }
+    for (let i = 0; i < leds.length; i++) {
+      const led = leds[i];
+      const x = led.x * bw;
+      const y = led.y * bh;
+      const rr = Math.max(3, led.r * Math.min(bw, bh) * 2.4);
+      const g = bgx.createRadialGradient(x, y, 0, x, y, rr);
+      g.addColorStop(0, 'rgba(246, 196, 112, ' + (0.30 + rng() * 0.26).toFixed(3) + ')');
+      g.addColorStop(0.30, 'rgba(214, 152, 68, 0.13)');
+      g.addColorStop(1, 'rgba(180, 120, 50, 0)');
+      bgx.fillStyle = g;
+      bgx.beginPath();
+      bgx.arc(x, y, rr, 0, TAU);
+      bgx.fill();
+    }
+
+    // Dust suspended in the key light.
+    for (let i = 0; i < 64; i++) {
+      const x = (0.02 + rng() * 0.72) * bw;
+      const y = (0.02 + rng() * 0.82) * bh;
+      const falloff = 1 - clamp(Math.hypot(x / bw - 0.22, y / bh - 0.18) / 0.98, 0, 1);
+      const a = (0.04 + rng() * 0.12) * falloff;
+      const r = (0.5 + rng() * 1.6) * k;
+      bgx.fillStyle = 'rgba(236, 222, 192, ' + a.toFixed(3) + ')';
+      bgx.beginPath();
+      bgx.arc(x, y, r, 0, TAU);
+      bgx.fill();
+    }
+
+    // Contact shadow: the plate's own rhombus, twice — one tight and dark
+    // under the front edges, one wide and soft for the bounce.
+    const th = layout.s * k * 0.055;
+    bgx.save();
+    bgx.filter = 'blur(' + Math.max(10, layout.s * k * 0.055).toFixed(1) + 'px)';
+    bgx.fillStyle = 'rgba(2, 3, 2, 0.78)';
+    tracePolygon(bgx, plateCorners(k, th * 1.6, 1));
+    bgx.fill();
+    bgx.restore();
+    bgx.filter = 'none';
+
+    bgx.save();
+    bgx.filter = 'blur(' + Math.max(4, layout.s * k * 0.016).toFixed(1) + 'px)';
+    bgx.fillStyle = 'rgba(3, 4, 3, 0.70)';
+    tracePolygon(bgx, plateCorners(k, th * 0.55, 1));
+    bgx.fill();
+    bgx.restore();
+    bgx.filter = 'none';
+
+    // Warm bounce light coming back off the brass onto the bench.
+    const bounce = bgx.createRadialGradient(
+      layout.cx * k, layout.cy * k + layout.s * 0.75 * k, 0,
+      layout.cx * k, layout.cy * k + layout.s * 0.75 * k, layout.s * 1.25 * k,
+    );
+    bounce.addColorStop(0, 'rgba(210, 152, 80, 0.15)');
+    bounce.addColorStop(0.55, 'rgba(162, 114, 62, 0.06)');
+    bounce.addColorStop(1, 'rgba(160, 112, 60, 0)');
+    bgx.fillStyle = bounce;
+    bgx.fillRect(0, 0, bw, bh);
+
+    // A soft far edge of the bench, like the end of a table.
+    const edge = bgx.createLinearGradient(0, bh * 0.66, 0, bh);
+    edge.addColorStop(0, 'rgba(78, 82, 62, 0)');
+    edge.addColorStop(1, 'rgba(78, 82, 62, 0.13)');
+    bgx.fillStyle = edge;
+    bgx.fillRect(0, bh * 0.66, bw, bh * 0.34);
+  }
+  /* --------------------------------- bake: plate --------------------------------- */
+
+  function platePath(c, s, radius) {
+    const r = Math.min(radius, s * 0.5);
+    c.beginPath();
+    c.moveTo(-s + r, -s);
+    c.lineTo(s - r, -s);
+    c.quadraticCurveTo(s, -s, s, -s + r);
+    c.lineTo(s, s - r);
+    c.quadraticCurveTo(s, s, s - r, s);
+    c.lineTo(-s + r, s);
+    c.quadraticCurveTo(-s, s, -s, s - r);
+    c.lineTo(-s, -s + r);
+    c.quadraticCurveTo(-s, -s, -s + r, -s);
+    c.closePath();
+  }
+
+  function bakePlate() {
+    const s = Math.max(48, Math.round(layout.s));
+    // Bake at (nearly) device resolution: at 4K the plate is drawn at 0.56x,
+    // and resampling a full-size plate image every frame is what costs 27 ms.
+    const k = clamp(dpr * 1.06, 0.5, 1);
+    const size = Math.ceil(s * 2.06 * k);
+    plateC.width = size;
+    plateC.height = size;
+    const c = plx;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.filter = 'none';
+    c.clearRect(0, 0, size, size);
+    c.scale(k, k);
+    c.translate(size / (2 * k), size / (2 * k));
+
+    const rng = rngFor(0x19d6c4f1);
+    const half = s;
+
+    platePath(c, half, half * 0.018);
+    c.save();
+    c.clip();
+
+    // Brass body. The key light sits off the upper left, which is -u / -v in
+    // plate space once the 30 degree projection is applied.
+    const body = c.createLinearGradient(-half * 0.92, -half * 0.26, half * 0.96, half * 0.30);
+    body.addColorStop(0, '#f6dca8');
+    body.addColorStop(0.11, '#e6c184');
+    body.addColorStop(0.28, '#cd9d57');
+    body.addColorStop(0.50, '#b3843f');
+    body.addColorStop(0.72, '#8e642b');
+    body.addColorStop(0.88, '#6d4b20');
+    body.addColorStop(1, '#4f3616');
+    c.fillStyle = body;
+    c.fillRect(-half, -half, half * 2, half * 2);
+
+    // A broad specular sheen across the lit third of the plate.
+    c.save();
+    c.translate(-half * 0.40, -half * 0.42);
+    c.scale(1, 0.30);
+    const sheen = c.createRadialGradient(0, 0, 0, 0, 0, half * 0.88);
+    sheen.addColorStop(0, 'rgba(255, 244, 214, 0.34)');
+    sheen.addColorStop(0.42, 'rgba(255, 230, 180, 0.12)');
+    sheen.addColorStop(1, 'rgba(255, 220, 160, 0)');
+    c.fillStyle = sheen;
+    c.fillRect(-half * 3, -half * 3, half * 6, half * 6);
+    c.restore();
+
+    // Brushed metal: a thousand streaks running along u.
+    for (let i = 0; i < 1150; i++) {
+      const y = -half + (i / 1150) * half * 2 + (rng() - 0.5) * 2.4;
+      const bright = rng() > 0.42;
+      const a = 0.012 + rng() * 0.075;
+      c.strokeStyle = bright
+        ? 'rgba(255, 240, 204, ' + a.toFixed(3) + ')'
+        : 'rgba(46, 27, 9, ' + (a * 0.9).toFixed(3) + ')';
+      c.lineWidth = 0.5 + rng() * 1.5;
+      const x0 = -half + rng() * half * 0.25;
+      c.beginPath();
+      c.moveTo(x0, y);
+      c.lineTo(half - rng() * half * 0.2, y + (rng() - 0.5) * 4.2);
+      c.stroke();
+    }
+
+    // A handful of deeper scratches.
+    for (let i = 0; i < 26; i++) {
+      const y = (rng() * 2 - 1) * half * 0.95;
+      c.strokeStyle = rng() > 0.5
+        ? 'rgba(255, 246, 218, ' + (0.05 + rng() * 0.09).toFixed(3) + ')'
+        : 'rgba(40, 24, 8, ' + (0.05 + rng() * 0.07).toFixed(3) + ')';
+      c.lineWidth = 0.5 + rng() * 0.9;
+      c.beginPath();
+      c.moveTo(-half * (0.2 + rng() * 0.7), y);
+      c.lineTo(half * (0.2 + rng() * 0.7), y + (rng() - 0.5) * 7);
+      c.stroke();
+    }
+
+    // Polished wear where the sand sits, plus patina smudges.
+    for (let i = 0; i < 8; i++) {
+      const x = (rng() * 2 - 1) * half * 0.62;
+      const y = (rng() * 2 - 1) * half * 0.62;
+      const r = half * (0.10 + rng() * 0.30);
+      const warm = rng() > 0.45;
+      const wg = c.createRadialGradient(x, y, 0, x, y, r);
+      wg.addColorStop(0, warm ? 'rgba(255, 236, 196, 0.085)' : 'rgba(64, 40, 16, 0.075)');
+      wg.addColorStop(1, 'rgba(120, 90, 50, 0)');
+      c.fillStyle = wg;
+      c.beginPath();
+      c.arc(x, y, r, 0, TAU);
+      c.fill();
+    }
+
+    // Patina speckle.
+    for (let i = 0; i < 3200; i++) {
+      const x = (rng() * 2 - 1) * half;
+      const y = (rng() * 2 - 1) * half;
+      const a = 0.015 + rng() * 0.065;
+      const dark = rng() > 0.40;
+      c.fillStyle = dark
+        ? 'rgba(44, 28, 11, ' + a.toFixed(3) + ')'
+        : 'rgba(255, 240, 204, ' + (a * 1.25).toFixed(3) + ')';
+      const r = 0.4 + rng() * 1.2;
+      c.fillRect(x, y, r, r);
+    }
+
+    // Light falls off toward the far corner.
+    const fall = c.createLinearGradient(-half * 0.25, -half * 0.12, half, half * 0.46);
+    fall.addColorStop(0, 'rgba(18, 10, 3, 0)');
+    fall.addColorStop(0.55, 'rgba(18, 10, 3, 0.16)');
+    fall.addColorStop(1, 'rgba(12, 7, 2, 0.42)');
+    c.fillStyle = fall;
+    c.fillRect(-half, -half, half * 2, half * 2);
+
+    // Bevel: bright along the two back edges (v = -1, u = -1), dark along the
+    // two front edges, so the plate has a little vertical thickness.
+    const bw = Math.max(2.4, half * 0.011);
+    const topBevel = c.createLinearGradient(0, -half, 0, -half + bw * 2.4);
+    topBevel.addColorStop(0, 'rgba(255, 249, 224, 0.95)');
+    topBevel.addColorStop(0.40, 'rgba(255, 238, 196, 0.34)');
+    topBevel.addColorStop(1, 'rgba(255, 232, 180, 0)');
+    c.fillStyle = topBevel;
+    c.fillRect(-half, -half, half * 2, bw * 2.4);
+
+    const leftBevel = c.createLinearGradient(-half, 0, -half + bw * 2.4, 0);
+    leftBevel.addColorStop(0, 'rgba(255, 246, 216, 0.80)');
+    leftBevel.addColorStop(0.40, 'rgba(255, 236, 192, 0.26)');
+    leftBevel.addColorStop(1, 'rgba(255, 230, 178, 0)');
+    c.fillStyle = leftBevel;
+    c.fillRect(-half, -half, bw * 2.4, half * 2);
+
+    const bottomBevel = c.createLinearGradient(0, half, 0, half - bw * 3.4);
+    bottomBevel.addColorStop(0, 'rgba(24, 13, 3, 0.60)');
+    bottomBevel.addColorStop(0.5, 'rgba(30, 17, 5, 0.20)');
+    bottomBevel.addColorStop(1, 'rgba(30, 17, 5, 0)');
+    c.fillStyle = bottomBevel;
+    c.fillRect(-half, half - bw * 3.4, half * 2, bw * 3.4);
+
+    const rightBevel = c.createLinearGradient(half, 0, half - bw * 3.4, 0);
+    rightBevel.addColorStop(0, 'rgba(24, 13, 3, 0.55)');
+    rightBevel.addColorStop(0.5, 'rgba(30, 17, 5, 0.18)');
+    rightBevel.addColorStop(1, 'rgba(30, 17, 5, 0)');
+    c.fillStyle = rightBevel;
+    c.fillRect(half - bw * 3.4, -half, bw * 3.4, half * 2);
+
+    // The sand does not quite reach the rim: a soft inner vignette.
+    const rim = c.createLinearGradient(half * 0.55, half * 0.30, half, half * 0.72);
+    rim.addColorStop(0, 'rgba(22, 13, 4, 0)');
+    rim.addColorStop(1, 'rgba(22, 13, 4, 0.20)');
+    c.fillStyle = rim;
+    c.fillRect(half * 0.55, half * 0.30, half * 0.45, half * 0.70);
+
+    c.restore();
+
+    // Hairline edge, so the plate reads as a solid object against the table.
+    platePath(c, half * 0.997, half * 0.017);
+    c.lineWidth = Math.max(1.2, half * 0.005);
+    c.strokeStyle = 'rgba(38, 23, 7, 0.55)';
+    c.stroke();
+  }
+  function drawPlateSides() {
+    const corners = [[1, 1], [1, -1], [-1, -1], [-1, 1]];
+    const px = [];
+    const py = [];
+    let bottom = 0;
+    for (let i = 0; i < 4; i++) {
+      px[i] = projectX(corners[i][0], corners[i][1]);
+      py[i] = projectY(corners[i][0], corners[i][1]);
+      if (py[i] > py[bottom]) bottom = i;
+    }
+    const th = Math.max(6, layout.s * 0.032);
+    const left = (bottom + 3) % 4;
+    const right = (bottom + 1) % 4;
+    for (let e = 0; e < 2; e++) {
+      const a = bottom;
+      const b = e === 0 ? left : right;
+      const lit = e === 0;
+      const y0 = Math.min(py[a], py[b]);
+      const y1 = Math.max(py[a], py[b]) + th;
+      const grad = ctx.createLinearGradient(0, y0, 0, y1);
+      if (lit) {
+        grad.addColorStop(0, 'rgba(126, 93, 50, 0.99)');
+        grad.addColorStop(0.42, 'rgba(88, 64, 34, 1)');
+        grad.addColorStop(1, 'rgba(34, 25, 14, 1)');
+      } else {
+        grad.addColorStop(0, 'rgba(88, 64, 34, 0.99)');
+        grad.addColorStop(0.42, 'rgba(56, 41, 22, 1)');
+        grad.addColorStop(1, 'rgba(22, 16, 9, 1)');
+      }
+      ctx.beginPath();
+      ctx.moveTo(px[a], py[a]);
+      ctx.lineTo(px[b], py[b]);
+      ctx.lineTo(px[b], py[b] + th);
+      ctx.lineTo(px[a], py[a] + th);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+      // The cut edge catches a little light along its lower rim.
+      ctx.beginPath();
+      ctx.moveTo(px[b], py[b] + th);
+      ctx.lineTo(px[a], py[a] + th);
+      ctx.strokeStyle = lit ? 'rgba(232, 194, 130, 0.34)' : 'rgba(196, 158, 100, 0.18)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    // A warm hairline where the top surface meets the cut edge, so the near
+    // edge separates from the dark bench.
+    ctx.beginPath();
+    ctx.moveTo(px[left], py[left]);
+    ctx.lineTo(px[bottom], py[bottom]);
+    ctx.lineTo(px[right], py[right]);
+    ctx.strokeStyle = 'rgba(244, 212, 156, 0.30)';
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+  }
+
+  /* ------------------------------- bake: overlay ------------------------------- */
+
+  function bakeOverlay() {
+    const bw = Math.max(1, Math.round(w * layout.bake));
+    const bh = Math.max(1, Math.round(h * layout.bake));
+    overlay.width = bw;
+    overlay.height = bh;
+    ovx.setTransform(1, 0, 0, 1, 0, 0);
+    ovx.filter = 'none';
+    ovx.clearRect(0, 0, bw, bh);
+    const k = bw / w;
+    const scale = clamp(layout.s / 500, 0.6, 2.2);
+    const rng = rngFor(0x4f1bbcdc);
+
+    // Vignette.
+    const vg = ovx.createRadialGradient(bw * 0.5, bh * 0.46, Math.min(bw, bh) * 0.30, bw * 0.5, bh * 0.46, Math.max(bw, bh) * 0.80);
+    vg.addColorStop(0, 'rgba(4, 6, 5, 0)');
+    vg.addColorStop(0.60, 'rgba(4, 6, 5, 0.24)');
+    vg.addColorStop(1, 'rgba(3, 4, 3, 0.74)');
+    ovx.fillStyle = vg;
+    ovx.fillRect(0, 0, bw, bh);
+
+    // Foreground cable, deep out of focus, along the lower right. It sits in
+    // front of the plate's near edge so the plate has something to sit behind.
+    ovx.save();
+    ovx.filter = 'blur(' + (Math.max(4, 6 * scale) * k).toFixed(1) + 'px)';
+    const cableY = layout.mode === 'portrait' ? 0.06 : 0;
+    const cg = ovx.createLinearGradient(bw * 0.55, bh, bw, bh * 0.78);
+    cg.addColorStop(0, '#17130d');
+    cg.addColorStop(0.45, '#0d0b08');
+    cg.addColorStop(1, '#070605');
+    ovx.strokeStyle = cg;
+    ovx.lineWidth = Math.max(9, 26 * scale * k);
+    ovx.lineCap = 'round';
+    ovx.beginPath();
+    ovx.moveTo(bw * 0.585, bh * (1.045 + cableY));
+    ovx.bezierCurveTo(bw * 0.70, bh * (0.985 + cableY), bw * 0.84, bh * (0.905 + cableY), bw * 1.05, bh * (0.815 + cableY));
+    ovx.stroke();
+    ovx.strokeStyle = 'rgba(206, 168, 108, 0.22)';
+    ovx.lineWidth = Math.max(1.4, 2.6 * scale * k);
+    ovx.beginPath();
+    ovx.moveTo(bw * 0.590, bh * (1.030 + cableY));
+    ovx.bezierCurveTo(bw * 0.705, bh * (0.968 + cableY), bw * 0.845, bh * (0.892 + cableY), bw * 1.05, bh * (0.800 + cableY));
+    ovx.stroke();
+    ovx.restore();
+    ovx.filter = 'none';
+
+    // Grains that fell off the plate onto the bench, just past the near edge.
+    const grainBand = layout.mode === 'portrait'
+      ? { x0: 0.02, x1: 0.42, y0: 0.79, y1: 0.95 }
+      : { x0: 0.52, x1: 0.95, y0: 0.80, y1: 0.95 };
+    for (let i = 0; i < 40; i++) {
+      const t = rng();
+      const x = (grainBand.x0 + t * (grainBand.x1 - grainBand.x0)) * bw + (rng() - 0.5) * 26 * k;
+      const y = (grainBand.y0 + t * (grainBand.y1 - grainBand.y0)) * bh + (rng() - 0.5) * 18 * k;
+      const a = 0.20 + rng() * 0.45;
+      ovx.fillStyle = 'rgba(207, 196, 175, ' + a.toFixed(3) + ')';
+      const r = (0.7 + rng() * 1.0) * k;
+      ovx.fillRect(x, y, r, r);
+      ovx.fillStyle = 'rgba(10, 8, 4, 0.32)';
+      ovx.fillRect(x + 0.9 * k, y + 0.9 * k, r, r);
+    }
+
+    // A whisper of light in the upper left, as if from an off-frame lamp.
+    const flare = ovx.createRadialGradient(bw * 0.14, bh * 0.05, 0, bw * 0.14, bh * 0.05, Math.max(bw, bh) * 0.46);
+    flare.addColorStop(0, 'rgba(240, 214, 168, 0.075)');
+    flare.addColorStop(1, 'rgba(240, 214, 168, 0)');
+    ovx.globalCompositeOperation = 'lighter';
+    ovx.fillStyle = flare;
+    ovx.fillRect(0, 0, bw, bh);
+    ovx.globalCompositeOperation = 'source-over';
+
+    // Film grain, deterministic.
+    for (let i = 0; i < 5600; i++) {
+      const x = rng() * bw;
+      const y = rng() * bh;
+      const a = 0.012 + rng() * 0.042;
+      ovx.fillStyle = rng() > 0.5
+        ? 'rgba(238, 226, 202, ' + a.toFixed(3) + ')'
+        : 'rgba(2, 3, 2, ' + (a * 1.4).toFixed(3) + ')';
+      ovx.fillRect(x, y, 1, 1);
+    }
+  }
+  /* ----------------------------------- render ----------------------------------- */
+
+  const TONE_FILL = [
+    'rgba(142, 130, 111, 0.50)',
+    'rgba(180, 168, 147, 0.56)',
+    'rgba(218, 206, 184, 0.62)',
+  ];
+  const TONE_SIZE = [0.96, 1.08, 1.20];
+
+  function drawSand() {
+    const a = cam.a, b = cam.b, c = cam.c, d = cam.d, e = cam.e, f = cam.f, s = cam.s;
+    const as = a * s, cs = c * s, bs = b * s, ds = d * s;
+    const lightAmt = 0.92 + 0.08 * Math.sin((TAU * time) / LIGHT_PERIOD + lightPhase);
+
+    for (let i = 0; i < GRAIN_COUNT; i++) {
+      const u = gU[i], v = gV[i];
+      sx[i] = e + as * u + cs * v;
+      sy[i] = f + bs * u + ds * v;
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Halo: the light that scatters off a dense heap of sand. One path, one
+    // fill; it is what makes a filled node line read as a grey face while a
+    // stray grain still reads as a single speck.
+    ctx.fillStyle = 'rgba(236, 224, 198, 0.050)';
+    ctx.beginPath();
+    for (let i = 0; i < GRAIN_COUNT; i++) {
+      const hw = gSize[i] * 1.55;
+      ctx.rect(sx[i] - hw, sy[i] - hw, hw * 2, hw * 2);
+    }
+    ctx.fill();
+
+    for (let bucket = 0; bucket < 3; bucket++) {
+      ctx.fillStyle = TONE_FILL[bucket];
+      ctx.beginPath();
+      let any = false;
+      const sizeK = TONE_SIZE[bucket] * (0.90 + 0.10 * lightAmt);
+      for (let i = 0; i < GRAIN_COUNT; i++) {
+        let tone = gTone[i] * lightAmt;
+        if (gDens[i] > 3) tone *= 0.92;
+        let idx = (tone * 3) | 0;
+        if (idx < 0) idx = 0;
+        else if (idx > 2) idx = 2;
+        if (idx !== bucket) continue;
+        const hw = gSize[i] * sizeK * 0.5;
+        ctx.rect(sx[i] - hw, sy[i] - hw, hw * 2, hw * 2);
+        any = true;
+      }
+      if (any) ctx.fill();
+    }
+  }
+
+  function drawLightBreath() {
+    const breath = 0.5 + 0.5 * Math.sin((TAU * time) / LIGHT_PERIOD + lightPhase);
+    const r = layout.s * cam.zoom * 1.55;
+    const g = ctx.createRadialGradient(layout.cx, layout.cy, 0, layout.cx, layout.cy, r);
+    g.addColorStop(0, 'rgba(240, 206, 148, ' + (0.018 + 0.026 * breath).toFixed(3) + ')');
+    g.addColorStop(0.6, 'rgba(226, 186, 122, ' + (0.006 + 0.010 * breath).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(226, 186, 122, 0)');
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = g;
+    ctx.fillRect(layout.cx - r, layout.cy - r, r * 2, r * 2);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  const motes = [];
+  function buildMotes() {
+    const rng = rngFor(0x2c1b3a77);
+    motes.length = 0;
+    for (let i = 0; i < 11; i++) {
+      motes.push({
+        x: (0.06 + rng() * 0.86) * w,
+        y: (0.05 + rng() * 0.78) * h,
+        r: (7 + rng() * 26) * clamp(layout.s / 500, 0.7, 1.8),
+        ax: 8 + rng() * 26,
+        ay: 6 + rng() * 20,
+        px: 40 + rng() * 90,
+        py: 50 + rng() * 90,
+        a: 0.05 + rng() * 0.09,
+        ph: rng() * TAU,
+      });
+    }
+  }
+
+  function drawMotes() {
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < motes.length; i++) {
+      const m = motes[i];
+      const x = m.x + Math.sin((TAU * time) / m.px + m.ph) * m.ax;
+      const y = m.y + Math.cos((TAU * time) / m.py + m.ph * 1.7) * m.ay;
+      const r = m.r * (0.86 + 0.14 * Math.sin((TAU * time) / (m.px * 1.6) + m.ph));
+      ctx.globalAlpha = m.a;
+      ctx.drawImage(moteC, x - r, y - r, r * 2, r * 2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function render() {
+    if (!w || !h || !bg.width) return;
+    updateCamera();
+    const a = cam.a, b = cam.b, c = cam.c, d = cam.d, e = cam.e, f = cam.f, s = cam.s;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(bg, 0, 0, w, h);
+
+    ctx.setTransform(dpr * a, dpr * b, dpr * c, dpr * d, dpr * e, dpr * f);
+    ctx.drawImage(plateC, -s, -s, s * 2, s * 2);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawPlateSides();
+    if (grainsReady) drawSand();
+    drawLightBreath();
+    ctx.drawImage(overlay, 0, 0, w, h);
+    drawMotes();
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    frames++;
+  }
+
+  /* ------------------------------------ HUD ------------------------------------ */
+
+  function formatTime(t) {
+    const total = Math.max(0, Math.floor(t));
+    const m = Math.floor(total / 60);
+    const sec = total % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  function settleProgress() {
+    return clamp((time - moveStart) / MIGRATE_SPAN, 0, 1);
+  }
+
+  function refreshReadout(force) {
+    if (!force && el.body.classList.contains('hud-off')) return;
+    const m = curM.toFixed(2);
+    const n = curN.toFixed(2);
+    const p = settleProgress();
+    const moving = p < 0.985;
+    if (el.statMode) el.statMode.textContent = 'm ' + m + ' · n ' + n;
+    if (el.statGrains) el.statGrains.textContent = String(GRAIN_COUNT);
+    if (el.statState) el.statState.textContent = moving ? '迁移 ' + Math.round(p * 100) + '%' : '已收敛';
+    if (el.statTime) el.statTime.textContent = formatTime(time);
+    if (el.liveClock) el.liveClock.textContent = formatTime(time);
+    if (el.panelStats) {
+      el.panelStats.textContent = GRAIN_COUNT + ' 沙 · m ' + m + ' n ' + n + ' · ' + (moving ? '迁移中' : '已收敛');
+    }
+  }
+
+  function showToast(message) {
+    if (!el.toast) return;
+    el.toast.textContent = message;
+    el.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2400);
+  }
+
+  function syncPlayback() {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    last = 0;
+    if (el.pause) el.pause.textContent = paused ? '继续' : '暂停';
+    if (!paused && !document.hidden) raf = requestAnimationFrame(frame);
+  }
+
+  function togglePause() {
+    paused = !paused;
+    syncPlayback();
+    render();
+    refreshReadout(true);
+  }
+
+  function toggleHud() {
+    const off = el.body.classList.toggle('hud-off');
+    el.body.classList.remove('quiet');
+    if (!off) {
+      scheduleQuiet();
+      refreshReadout(true);
+    }
+    el.settings.setAttribute('aria-expanded', String(!el.panel.hidden));
+  }
+
+  function scheduleQuiet() {
+    clearTimeout(quietTimer);
+    quietTimer = setTimeout(() => {
+      if (!el.body.classList.contains('hud-off')) el.body.classList.add('quiet');
+    }, 16000);
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch (error) { /* some wallpaper hosts do not expose fullscreen */ }
+  }
+
+  function reseed() {
+    seed = 1 + Math.floor(Math.random() * 2147483645);
+    camPhase = rngFor(11)() * TAU;
+    camPhase2 = rngFor(13)() * TAU;
+    lightPhase = rngFor(17)() * TAU;
+    segments.length = 0;
+    queue = [];
+    queueIndex = 0;
+    cycle = 0;
+    segCursor = 0;
+    ensureSchedule(time);
+    buildGrains();
+    buildField(curM, curN);
+    resetPlateNoise();
+    render();
+    refreshReadout(true);
+    showToast('换了一块新板');
+  }
+
+  function resetPlateNoise() {
+    bakePlate();
+    bakeOverlay();
+  }
+
+  /* -------------------------------- loop & input -------------------------------- */
+
+  function frame(now) {
+    raf = 0;
+    if (paused || document.hidden) {
+      last = 0;
+      return;
+    }
+    if (!last) last = now;
+    const elapsed = (now - last) / 1000;
+    last = now;
+    if (elapsed > 0.012) {
+      const dt = clamp(elapsed, 0.001, 0.1);
+      update(dt);
+      render();
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function pointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: clamp(((e.clientX - rect.left) / Math.max(1, rect.width)) * w, 0, w),
+      y: clamp(((e.clientY - rect.top) / Math.max(1, rect.height)) * h, 0, h),
+    };
+  }
+
+  function onPointerMove(e) {
+    const p = pointerPos(e);
+    pointerX = p.x / Math.max(1, w);
+    pointerY = p.y / Math.max(1, h);
+    pointerInside = true;
+    pointerLast = time;
+    pointerM = 1 + pointerX * 6.2;
+    pointerN = 1 + pointerY * 6.2;
+    if (paused) render();
+  }
+
+  function onPointerDown(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    const p = pointerPos(e);
+    pointerX = p.x / Math.max(1, w);
+    pointerY = p.y / Math.max(1, h);
+    pointerInside = true;
+    pointerLast = time;
+    pointerM = 1 + pointerX * 6.2;
+    pointerN = 1 + pointerY * 6.2;
+    tapPlate(pointerM, pointerN, 1);
+    if (paused) {
+      for (let i = 0; i < 18; i++) update(1 / 30);
+      render();
+      refreshReadout(true);
+    }
+  }
+
+  function onPointerUp() {
+    if (paused) render();
+  }
+
+  function onPointerLeave() {
+    pointerInside = false;
+    if (paused) render();
+  }
+
+  function installEvents() {
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerLeave);
+    canvas.addEventListener('pointerleave', onPointerLeave);
+
+    el.settings.addEventListener('click', () => {
+      const open = el.panel.hidden;
+      el.panel.hidden = !open;
+      el.settings.setAttribute('aria-expanded', String(open));
+      if (open) scheduleQuiet();
+    });
+    el.pause.addEventListener('click', togglePause);
+    document.getElementById('fullscreen').addEventListener('click', toggleFullscreen);
+    el.tap.addEventListener('click', () => {
+      tapPlate(0, 0, 1);
+      if (paused) {
+        for (let i = 0; i < 18; i++) update(1 / 30);
+        render();
+      }
+      showToast('敲了一下板');
+    });
+    el.reseed.addEventListener('click', () => {
+      if (!el.reseed.classList.contains('armed')) {
+        el.reseed.classList.add('armed');
+        el.reseed.textContent = '确认换板？';
+        clearTimeout(reseedTimer);
+        reseedTimer = setTimeout(() => {
+          el.reseed.classList.remove('armed');
+          el.reseed.textContent = '换一块板';
+        }, 3200);
+        return;
+      }
+      clearTimeout(reseedTimer);
+      el.reseed.classList.remove('armed');
+      el.reseed.textContent = '换一块板';
+      reseed();
+    });
+    el.auto.checked = autoMode;
+    el.auto.addEventListener('change', () => {
+      autoMode = el.auto.checked;
+      if (autoMode) {
+        const seg = segmentAt(time);
+        if (seg) { manualUntil = -1; }
+      }
+    });
+    el.tune.checked = tuneEnabled;
+    el.tune.addEventListener('change', () => {
+      tuneEnabled = el.tune.checked;
+      if (paused) render();
+    });
+
+    addEventListener('keydown', (e) => {
+      if (e.target && e.target.matches && e.target.matches('input, select, button')) return;
+      if (e.repeat) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePause();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        stepMode(1);
+        if (paused) render();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        stepMode(-1);
+        if (paused) render();
+      } else if (e.key && e.key.toLowerCase() === 'h') {
+        toggleHud();
+      } else if (e.key && e.key.toLowerCase() === 'f') {
+        toggleFullscreen();
+      }
+    });
+
+    addEventListener('resize', resize);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        syncPlayback();
+      } else {
+        last = 0;
+        syncPlayback();
+        if (paused) render();
+      }
+    });
+    reducedMotion.addEventListener('change', (e) => {
+      if (stillParam === null) {
+        paused = e.matches;
+        syncPlayback();
+        render();
+        refreshReadout(true);
+      }
+    });
+    if (q.get('hud') === '0') el.body.classList.add('hud-off');
+    scheduleQuiet();
+  }
+
+  /* ---------------------------------- resize ---------------------------------- */
+
+  function resize() {
+    w = Math.max(1, innerWidth);
+    h = Math.max(1, innerHeight);
+    dpr = Math.min(devicePixelRatio || 1, DPR_CAP, Math.max(0.5, Math.sqrt(MAX_PIXELS / (w * h))));
+    aspect = w / h;
+    layout = layoutFor(w, h);
+
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (!grainsReady) {
+      buildField(curM, curN);
+      buildGrains();
+    }
+    bakeBackground();
+    bakePlate();
+    bakeOverlay();
+    buildMotes();
+    updateCamera();
+    render();
+    refreshReadout(true);
+  }
+
+  /* --------------------------------- debug api --------------------------------- */
+
+  const api = {
+    snapshot: () => ({
+      seed, t: time, paused, frames, w, h, dpr, aspect,
+      mode: layout.mode,
+      plate: { s: layout.s, cx: layout.cx, cy: layout.cy },
+      grains: GRAIN_COUNT,
+      grainCap: MAX_GRAINS,
+      m: curM, n: curN, targetM, targetN,
+      settle: settleProgress(),
+      vibration,
+      sleeping,
+      autoMode, tuneEnabled,
+      tilt: cam.tilt, zoom: cam.zoom,
+      field: { n: FIELD_N, m: fieldM, n2: fieldN },
+      schedule: { segments: segments.length, cycle, queueIndex },
+      sample: Array.from({ length: 6 }, (_, i) => ({
+        u: Math.round(gU[i] * 10000) / 10000,
+        v: Math.round(gV[i] * 10000) / 10000,
+      })),
+    }),
+    audit: () => {
+      let bad = 0;
+      let outside = 0;
+      let asleep = 0;
+      let maxSpeed = 0;
+      let sumF = 0;
+      let minU = 9, maxU = -9, minV = 9, maxV = -9;
+      for (let i = 0; i < GRAIN_COUNT; i++) {
+        const u = gU[i], v = gV[i], vx = gVX[i], vy = gVY[i];
+        if (!Number.isFinite(u + v + vx + vy)) bad++;
+        if (Math.abs(u) > 1.0001 || Math.abs(v) > 1.0001) outside++;
+        if (gSleep[i]) asleep++;
+        const sp = Math.sqrt(vx * vx + vy * vy);
+        if (sp > maxSpeed) maxSpeed = sp;
+        if (u < minU) minU = u;
+        if (u > maxU) maxU = u;
+        if (v < minV) minV = v;
+        if (v > maxV) maxV = v;
+        sampleField(u, v, sample);
+        const af = sample.f < 0 ? -sample.f : sample.f;
+        sumF += af;
+      }
+      let maxBucket = 0;
+      for (let i = 0; i < BUCKET * BUCKET; i++) {
+        let count = 0;
+        let j = bucketHead[i];
+        while (j >= 0 && count < 64) { count++; j = bucketNext[j]; }
+        if (count > maxBucket) maxBucket = count;
+      }
+      return {
+        grains: GRAIN_COUNT,
+        bad,
+        outside,
+        sleeping: asleep,
+        awake: GRAIN_COUNT - asleep,
+        maxSpeed,
+        meanF: sumF / GRAIN_COUNT,
+        m: curM,
+        n: curN,
+        targetM,
+        targetN,
+        vibration,
+        fieldWakes,
+        maxBucket,
+        bounds: { minU, maxU, minV, maxV },
+        frames,
+        paused,
+      };
+    },
+    advance: (seconds) => {
+      const n = Math.max(1, Math.round(clamp(seconds, 0, 3600) * 30));
+      for (let i = 0; i < n; i++) update(1 / 30);
+      render();
+      return api.snapshot();
+    },
+    tuneTo: (nx, ny, pressed) => {
+      pointerX = clamp(nx, 0, 1);
+      pointerY = clamp(ny, 0, 1);
+      pointerInside = !!pressed;
+      pointerLast = time;
+      pointerM = 1 + pointerX * 6.2;
+      pointerN = 1 + pointerY * 6.2;
+      if (paused) render();
+      return { pointerM, pointerN };
+    },
+    tuneLeave: () => {
+      pointerInside = false;
+      return true;
+    },
+    tap: (u, v) => {
+      tapPlate(
+        u === undefined ? 0 : clamp(u, -1, 1),
+        v === undefined ? 0 : clamp(v, -1, 1),
+        1,
+      );
+      if (paused) render();
+      return vibration;
+    },
+    stepMode,
+    setMode: (m, n) => {
+      setModeTarget(m, n);
+      if (paused) render();
+      return [manualM, manualN];
+    },
+    setAuto: (v) => { autoMode = !!v; if (el.auto) el.auto.checked = autoMode; },
+    setTune: (v) => { tuneEnabled = !!v; if (el.tune) el.tune.checked = tuneEnabled; },
+    togglePause,
+    setSeed: (value) => {
+      seed = Math.floor(clamp(Number(value) || 1, 1, 2147483646));
+      segments.length = 0;
+      queue = [];
+      queueIndex = 0;
+      cycle = 0;
+      segCursor = 0;
+      ensureSchedule(time);
+      buildGrains();
+      buildField(curM, curN);
+      render();
+      return seed;
+    },
+    render,
+    vibration: () => vibration,
+  };
+  window.__lumenChladni = api;
+
+  /* ----------------------------------- boot ----------------------------------- */
+
+  function boot() {
+    if (!q.has('seed')) seed = DEFAULT_SEED;
+    const r = rngFor(0x7f4a7c15);
+    camPhase = r() * TAU;
+    camPhase2 = r() * TAU;
+    lightPhase = r() * TAU;
+    makeMoteSprite();
+    ensureSchedule(time);
+    const st = scheduleState(time);
+    curM = st.m;
+    curN = st.n;
+    targetM = st.targetM;
+    targetN = st.targetN;
+    manualM = st.targetM;
+    manualN = st.targetN;
+    const quiet = st.prevM === st.targetM && st.prevN === st.targetN;
+    moveStart = quiet || st.since >= MIGRATE_SPAN ? time - MIGRATE_SPAN : time - st.since;
+    pointerM = curM;
+    pointerN = curN;
+    buildField(curM, curN);
+    installEvents();
+    resize();
+    refreshReadout(true);
+    syncPlayback();
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

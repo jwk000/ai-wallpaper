@@ -1,0 +1,8 @@
+{
+  "title": "克拉尼之沙 · 无声的频率",
+  "subtitle": "Chladni Sand · Silent Frequency",
+  "description": "一块拉丝黄铜板上铺着细沙，模态每几十秒换一次，沙粒沿着看不见的坡面迁到新的节线，停成严格对称的花纹；指针是调频旋钮，点击等于敲一下板。",
+  "tags": ["Canvas 2D", "克拉尼图形", "声学", "黄铜", "颗粒", "交互"],
+  "accent": "#c9a15b",
+  "order": 6.1
+}

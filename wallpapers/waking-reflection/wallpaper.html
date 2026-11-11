@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>雨城的倒影先醒了 · The Reflection Wakes First</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070a10;color:#f2eadb;font-family:system-ui,"Microsoft YaHei",sans-serif}canvas{display:block;width:100%;height:100%;touch-action:none}button,select,input{font:inherit;accent-color:#8da6d0}button,select{color:inherit;background:#ffffff0c;border:1px solid #ffffff24;border-radius:7px;padding:8px 12px}button{cursor:pointer}button:hover{background:#ffffff1c}button:focus-visible,select:focus-visible{outline:2px solid #8da6d0;outline-offset:4px}#settings{position:fixed;right:20px;bottom:20px;opacity:0;transition:opacity .3s;background:#111820b8;backdrop-filter:blur(12px)}body:hover #settings,body:focus-within #settings,body.intro #settings{opacity:.75}#panel{position:fixed;bottom:72px;right:20px;width:min(330px,calc(100vw - 40px));max-height:calc(100vh - 100px);overflow:auto;background:#10151eea;border:1px solid #ffffff25;border-radius:14px;padding:22px;backdrop-filter:blur(20px);box-shadow:0 18px 70px #0006}#panel[hidden]{display:none}h1{font-family:serif;font-size:23px;font-weight:400;margin:0 0 5px}small{font-size:10px;letter-spacing:2px;color:#8da6d0}p{font-size:12px;line-height:1.8;color:#c3c6cd}.controls{display:flex;flex-wrap:wrap;gap:8px}.row{display:flex;align-items:center;justify-content:space-between;margin:14px 0;font-size:12px}#status{display:block;margin-top:14px;color:#a4b1c1;font-size:11px}kbd{font-family:inherit;color:#eee}body.clean #settings{opacity:0;pointer-events:none}body.clean #panel{display:none}
+</style></head><body class="intro"><canvas id="scene" aria-label="雨城的倒影先醒了：雨夜的窗灯与电车在倒影中提前出现，水中的楼宇渐渐长成树；雨圈偶尔让两个世界重新对齐。"></canvas>
+<button id="settings" type="button" aria-controls="panel" aria-expanded="false" title="显示设置（H）">☷ 设置</button>
+<aside id="panel" hidden aria-label="壁纸设置"><h1>雨城的倒影先醒了</h1><small>The Reflection Wakes First</small><p>雨夜的窗灯与电车在倒影中提前出现，水中的楼宇渐渐长成树；雨圈偶尔让两个世界重新对齐。</p><div class="controls"><button id="pause" type="button">暂停</button><button id="event" type="button">两个世界对齐</button><button id="reseed" type="button">变换构图</button></div><label class="row">时间流速<select id="speed"><option value="0.5">舒缓 · ½</option><option value="1" selected>自然 · 1</option><option value="2">轻快 · 2</option></select></label><label class="row">画质<select id="quality"><option value="high">精细</option><option value="low">节能</option></select></label><p><kbd>空格</kbd> 暂停 / 继续 · <kbd>H</kbd> 设置<br><kbd>E</kbd> 特殊事件 · <kbd>R</kbd> 变换构图</p><output id="status" aria-live="polite"></output></aside>
+<script>(() => {
+  'use strict';
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const params = new URLSearchParams(location.search);
+  const TAU = Math.PI * 2;
+  const clamp = (x, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, x));
+  const mix = (a, b, x) => a + (b - a) * x;
+  const smooth = (a, b, x) => { const v = clamp((x - a) / (b - a)); return v * v * (3 - 2 * v); };
+  const mod = (x, n) => ((x % n) + n) % n;
+  function numberParam(key, fallback, lo, hi) {
+    const v = params.has(key) ? Number(params.get(key)) : NaN;
+    return Number.isFinite(v) ? clamp(v, lo, hi) : fallback;
+  }
+  let seed = numberParam('seed', 20261111, 1, 4294967295) >>> 0;
+  function randomSource(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let v = Math.imul(s ^ s >>> 15, 1 | s); v ^= v + Math.imul(v ^ v >>> 7, 61 | v); return ((v ^ v >>> 14) >>> 0) / 4294967296; }; }
+  let rand = randomSource(seed);
+  // Smooth, bounded harmonic field: no texture or network input.
+  const field = (x, y = 0) => Math.sin(x * 1.73 + y * .73) * .5 + Math.sin(x * 3.17 - y * 1.37) * .27 + Math.sin(x * 7.13 + y * 2.71) * .13 + Math.cos(x * 13.31 - y) * .1;
+  const rgba = (r, g, b, a) => `rgba(${r},${g},${b},${clamp(a)})`;
+  let w = 1, h = 1, unit = 1, dpr = 1;
+  let t = numberParam('t', 24, 0, 1e8), speed = 1, frames = 0, raf = 0, last = null;
+  let quality = params.get('quality') === 'low' ? 'low' : 'high';
+  const media = matchMedia('(prefers-reduced-motion: reduce)');
+  let paused = params.has('still') ? params.get('still') !== '0' : media.matches;
+  let manualMotion = params.has('still');
+  let specialStart = -1e9, drawMs = 0, clockDate = new Date();
+  const pointer = { x: 0, y: 0, active: false };
+  const panel = document.getElementById('panel');
+  const status = document.getElementById('status');
+  function circle(x, y, r, color) { if (r <= 0) return; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); }
+  function ellipse(x, y, rx, ry, color, rotation = 0) { ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, Math.max(.01, rx), Math.max(.01, ry), rotation, 0, TAU); ctx.fill(); }
+  function glow(x, y, r, color) { const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(.1, r)); g.addColorStop(0, color); g.addColorStop(1, 'transparent'); circle(x, y, r, g); }
+  function background(top, bottom) { const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, top); g.addColorStop(1, bottom); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
+  function stroke(color, width = 1) { ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke(); }
+  function eventPhase(time, period, duration, offset = 0) {
+    const manual = time - specialStart;
+    if (manual >= 0 && manual <= duration) return manual / duration;
+    const cycle = mod(time + offset, period);
+    return cycle < duration ? cycle / duration : -1;
+  }
+  const bell = p => p < 0 ? 0 : Math.sin(clamp(p) * Math.PI) ** 2;
+  function stars(list, time, alpha = .6) {
+    for (const p of list) circle(p.x * w, p.y * h, p.r, rgba(174, 191, 214, alpha * (.65 + .35 * Math.sin(time * .25 + p.a))));
+  }
+  function makeStars(count) { return Array.from({ length: count }, () => ({ x: rand(), y: rand(), r: .3 + rand() * 1.1, a: rand() * TAU })); }
+  function vignette(alpha = .35) { const g = ctx.createRadialGradient(w / 2, h * .46, unit * .2, w / 2, h / 2, Math.hypot(w, h) * .55); g.addColorStop(0, 'transparent'); g.addColorStop(1, `rgba(0,0,0,${alpha})`); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
+
+  function createArtwork() {
+  let buildings, rain, rings, city, mirror;
+  function reset() {
+    buildings = [];
+    for (let layer = 0; layer < 3; layer++) {
+      let x = -.04;
+      while (x < 1.04) {
+        const width = .025 + rand() * .052, height = .09 + rand() * (.23 - layer * .04);
+        const windows = Array.from({ length: 6 * 12 }, () => rand());
+        buildings.push({ x, width, height, layer, windows, a: rand() * TAU }); x += width + .003;
+      }
+    }
+    rain = Array.from({ length: 190 }, () => ({ x: rand(), y: rand(), speed: .08 + rand() * .12, length: .006 + rand() * .014 }));
+    rings = Array.from({ length: 24 }, () => ({ x: rand(), y: .62 + rand() * .36, a: rand() * 4 }));
+  }
+  reset();
+  function drawCity(target, time, trees) {
+    const c = target.getContext('2d'), ratio = target.width / w;
+    c.setTransform(ratio, 0, 0, ratio, 0, 0); c.clearRect(0, 0, w, h * .58);
+    const base = h * .555;
+    for (const b of buildings) {
+      const x = b.x * w, bw = b.width * w, bh = b.height * h, y = base - bh + b.layer * h * .012;
+      c.globalAlpha = 1 - trees * .83;
+      c.fillStyle = ['#253045', '#19283a', '#101e2e'][b.layer]; c.fillRect(x, y, bw, bh);
+      c.strokeStyle = '#6d829324'; c.lineWidth = .8; c.strokeRect(x, y, bw, bh);
+      c.fillStyle = '#9ab8cf20'; c.fillRect(x + bw * .2, y - 4, bw * .55, 4);
+      const cols = Math.max(2, Math.floor(bw / 11)), rows = Math.max(3, Math.floor(bh / 13));
+      for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) {
+        const q = b.windows[(row * 6 + col) % 72];
+        const lit = Math.sin(time * .13 + q * 50 + b.a) > .1 + q * .7;
+        if (!lit) continue;
+        c.fillStyle = q > .6 ? '#d5b08395' : '#8cb9ce75';
+        c.fillRect(x + bw * (col + .5) / cols, y + 8 + row * 12, Math.max(1.2, bw / cols * .3), 3.5);
+      }
+      if (trees > .005) {
+        c.globalAlpha = trees;
+        c.strokeStyle = '#658b9290'; c.lineWidth = 1.4;
+        const tx = x + bw * .5;
+        c.beginPath(); c.moveTo(tx, base); c.lineTo(tx, y - bh * .08);
+        for (let k = 1; k <= 7; k++) {
+          const yy = base - bh * k / 9, dx = bw * (.55 - k * .045);
+          c.moveTo(tx, yy + bh * .12); c.lineTo(tx - dx, yy - bh * .04);
+          c.moveTo(tx, yy + bh * .08); c.lineTo(tx + dx, yy - bh * .07);
+        }
+        c.stroke();
+        c.fillStyle = '#46747a48';
+        for (let k = 0; k < 7; k++) { c.beginPath(); c.ellipse(tx + Math.sin(k * 2.4) * bw * .22, y + bh * .25 + k * bh * .07, bw * .42, bh * .19, k * .4, 0, TAU); c.fill(); }
+      }
+      c.globalAlpha = 1;
+    }
+    // Elevated tram appears nine seconds earlier in the water.
+    const tramX = mod(time * .018, 1.3) * w - w * .2, tramY = base - h * .035;
+    c.fillStyle = '#213443'; c.fillRect(0, base - 3, w, 3);
+    c.fillStyle = '#b8d6dd18'; c.fillRect(0, tramY + 15, w, 1);
+    c.fillStyle = '#63828b'; c.fillRect(tramX, tramY, unit * .12, unit * .018);
+    c.fillStyle = '#e1c992';
+    for (let j = 0; j < 7; j++) c.fillRect(tramX + 4 + j * unit * .015, tramY + 3, unit * .009, unit * .006);
+    c.fillStyle = '#c9857c'; c.fillRect(w * .72, h * .42, 4, h * .065);
+    c.fillStyle = '#9baebb'; c.font = `${Math.max(9, unit * .012)}px serif`; c.fillText('雨', w * .72 - unit * .004, h * .411);
+  }
+  return {
+    reset, eventDuration: 16,
+    resize() { city = document.createElement('canvas'); mirror = document.createElement('canvas'); for (const c of [city, mirror]) { c.width = Math.min(1600, Math.ceil(w)); c.height = Math.ceil(h * .58 * c.width / w); } },
+    snapshot: () => ({ buildings: buildings.length, rain: rain.length, reflectionLead: 9 * (1 - bell(eventPhase(t, 150, 16, 55))) }),
+    draw(time) {
+      background('#111d30', '#091320');
+      glow(w * .68, h * .27, unit * .48, 'rgba(107,135,158,.14)');
+      const alignment = bell(eventPhase(time, 150, 16, 55));
+      const forest = (.5 + .5 * Math.sin(time * TAU / 140 - .8)) * (1 - alignment);
+      drawCity(city, time, 0); drawCity(mirror, time + 9 * (1 - alignment), forest);
+      ctx.drawImage(city, 0, 0, w, h * .58);
+      const horizon = h * .56, scale = mirror.width / w;
+      const strip = quality === 'low' ? 6 : 3;
+      for (let y = horizon; y < h; y += strip) {
+        const depth = (y - horizon) / (h - horizon), sy = (horizon - (y - horizon) * .88) * scale;
+        const dx = (Math.sin(y * .037 + time * .9) + Math.sin(y * .09 - time * .6)) * (1 + depth * 5) * (1 - alignment * .75);
+        ctx.globalAlpha = .75 - depth * .28;
+        ctx.drawImage(mirror, 0, Math.max(0, sy), mirror.width, strip * scale * .88, dx, y, w, strip + .6);
+      }
+      ctx.globalAlpha = 1;
+      const water = ctx.createLinearGradient(0, horizon, 0, h); water.addColorStop(0, '#26415612'); water.addColorStop(1, '#081827aa'); ctx.fillStyle = water; ctx.fillRect(0, horizon, w, h - horizon);
+      ctx.fillStyle = '#70889936'; ctx.fillRect(0, horizon, w, 1);
+      ctx.beginPath();
+      for (const r of rain) {
+        const y = mod(r.y + time * r.speed, 1) * h, x = mod(r.x - time * .008, 1) * w;
+        ctx.moveTo(x, y); ctx.lineTo(x - r.length * h * .18, y + r.length * h);
+      }
+      stroke('rgba(150,177,201,.17)', .7);
+      for (const r of rings) {
+        const age = mod(time * .34 + r.a, 1), radius = unit * (.004 + age * .021);
+        ctx.beginPath(); ctx.ellipse(r.x * w, r.y * h, radius, radius * .22, 0, 0, TAU); stroke(`rgba(139,178,200,${(1 - age) * .26})`, .6);
+      }
+      if (alignment > 0) { ctx.beginPath(); ctx.ellipse(w * .51, h * .76, unit * (.05 + alignment * .7), unit * (.02 + alignment * .12), 0, 0, TAU); stroke(`rgba(186,218,230,${alignment * .16})`, 1); }
+      vignette(.48);
+    },
+  };
+}
+
+
+  const art = createArtwork();
+  function draw() {
+    const begin = performance.now();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    art.draw(t);
+    drawMs = performance.now() - begin;
+    frames++;
+  }
+  function resize() {
+    w = Math.max(1, innerWidth); h = Math.max(1, innerHeight); unit = Math.min(w, h);
+    const budget = quality === 'low' ? 1200000 : 2600000;
+    dpr = Math.min(devicePixelRatio || 1, 2, Math.sqrt(budget / (w * h)));
+    canvas.width = Math.max(1, Math.floor(w * dpr)); canvas.height = Math.max(1, Math.floor(h * dpr));
+    art.resize?.(); draw();
+  }
+  function syncPanel() {
+    document.getElementById('pause').textContent = paused ? '继续' : '暂停';
+    document.getElementById('pause').setAttribute('aria-pressed', String(paused));
+    document.getElementById('settings').setAttribute('aria-expanded', String(!panel.hidden));
+    status.textContent = art.status?.() || (paused ? '画面已暂停' : '离线绘制 · 30 FPS');
+  }
+  function loop(now) {
+    raf = 0;
+    if (paused || document.hidden) { last = null; return; }
+    if (last === null) last = now;
+    if (now - last >= 1000 / 30 - .5) {
+      const dt = Math.min(.1, (now - last) / 1000); last = now;
+      t += dt * speed; clockDate = new Date(); art.update?.(dt, t); draw();
+      if (!panel.hidden) syncPanel();
+    }
+    raf = requestAnimationFrame(loop);
+  }
+  function schedule() { if (!raf && !paused && !document.hidden) { last = null; raf = requestAnimationFrame(loop); } }
+  function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; last = null; }
+  function togglePause() { paused = !paused; manualMotion = true; if (paused) { stop(); art.flush?.(); } else { clockDate = new Date(); schedule(); } syncPanel(); }
+  function trigger() { specialStart = t - (paused ? (art.eventDuration || 20) * .5 : 0); draw(); syncPanel(); }
+  function reseed() { seed = (seed + 2654435761) >>> 0; rand = randomSource(seed); art.reset?.(); art.resize?.(); draw(); }
+  function togglePanel() { document.body.classList.remove('clean'); panel.hidden = !panel.hidden; syncPanel(); }
+  document.getElementById('settings').addEventListener('click', togglePanel);
+  document.getElementById('pause').addEventListener('click', togglePause);
+  document.getElementById('event').addEventListener('click', trigger);
+  document.getElementById('reseed').addEventListener('click', reseed);
+  document.getElementById('speed').addEventListener('change', e => { speed = Number(e.target.value); });
+  document.getElementById('quality').value = quality;
+  document.getElementById('quality').addEventListener('change', e => { quality = e.target.value; resize(); });
+  addEventListener('keydown', e => {
+    if (e.repeat || /INPUT|SELECT|TEXTAREA|BUTTON/.test(e.target.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); togglePause(); }
+    else if (e.key.toLowerCase() === 'h') togglePanel();
+    else if (e.key.toLowerCase() === 'e') trigger();
+    else if (e.key.toLowerCase() === 'r') reseed();
+  });
+  canvas.addEventListener('pointermove', e => { pointer.x = (e.clientX / w - .5) * 2; pointer.y = (e.clientY / h - .5) * 2; pointer.active = true; });
+  canvas.addEventListener('pointerleave', () => { pointer.active = false; pointer.x = pointer.y = 0; });
+  addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); art.flush?.(); } else { clockDate = new Date(); if (!paused) draw(); schedule(); } });
+  addEventListener('pagehide', () => { stop(); art.flush?.(); });
+  media.addEventListener('change', e => { if (!manualMotion) { paused = e.matches; if (paused) stop(); else schedule(); syncPanel(); } });
+  if (params.get('hud') === '0') document.body.classList.add('clean');
+  setTimeout(() => document.body.classList.remove('intro'), 4500);
+  // Small diagnostics surface for deterministic captures and long-duration checks.
+  window.__dreamAtlas = {
+    snapshot: () => ({ id: 'waking-reflection', seed, t, paused, frames, w, h, dpr, quality, speed, drawMs, scheduled: !!raf, specialStart, ...art.snapshot?.() }),
+    seek(time) { if (!Number.isFinite(time) || time < 0) throw new Error('Invalid time'); t = time; draw(); },
+    render: draw,
+    trigger,
+    // Advance active time only for persistence verification; normal playback uses RAF.
+    advance(seconds) { if (!Number.isFinite(seconds) || seconds < 0 || seconds > 86400) throw new Error('Invalid duration'); t += seconds * speed; art.update?.(seconds, t); draw(); },
+    flush() { art.flush?.(); },
+  };
+  resize(); syncPanel(); schedule();
+})();
+</script></body></html>

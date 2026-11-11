@@ -21,6 +21,8 @@
     "setup:electron": "node scripts/ensure-electron.js --install",
     "postinstall": "node scripts/ensure-electron.js",
     "build:site": "node scripts/build-site.js",
+    "build:dream-atlas": "node scripts/dream-atlas/build.cjs",
+    "verify:dream-atlas": "node scripts/verify-dream-atlas.cjs",
     "preview:site": "node scripts/build-site.js --serve",
     "build:host": "powershell -NoProfile -ExecutionPolicy Bypass -File native/build-windows-host.ps1",
     "release:notes": "node scripts/release-notes.js --out release-notes.md",

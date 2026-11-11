@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>引力标本馆 · A Cabinet of Gravity</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070a10;color:#f2eadb;font-family:system-ui,"Microsoft YaHei",sans-serif}canvas{display:block;width:100%;height:100%;touch-action:none}button,select,input{font:inherit;accent-color:#d7b77d}button,select{color:inherit;background:#ffffff0c;border:1px solid #ffffff24;border-radius:7px;padding:8px 12px}button{cursor:pointer}button:hover{background:#ffffff1c}button:focus-visible,select:focus-visible{outline:2px solid #d7b77d;outline-offset:4px}#settings{position:fixed;right:20px;bottom:20px;opacity:0;transition:opacity .3s;background:#111820b8;backdrop-filter:blur(12px)}body:hover #settings,body:focus-within #settings,body.intro #settings{opacity:.75}#panel{position:fixed;bottom:72px;right:20px;width:min(330px,calc(100vw - 40px));max-height:calc(100vh - 100px);overflow:auto;background:#10151eea;border:1px solid #ffffff25;border-radius:14px;padding:22px;backdrop-filter:blur(20px);box-shadow:0 18px 70px #0006}#panel[hidden]{display:none}h1{font-family:serif;font-size:23px;font-weight:400;margin:0 0 5px}small{font-size:10px;letter-spacing:2px;color:#d7b77d}p{font-size:12px;line-height:1.8;color:#c3c6cd}.controls{display:flex;flex-wrap:wrap;gap:8px}.row{display:flex;align-items:center;justify-content:space-between;margin:14px 0;font-size:12px}#status{display:block;margin-top:14px;color:#a4b1c1;font-size:11px}kbd{font-family:inherit;color:#eee}body.clean #settings{opacity:0;pointer-events:none}body.clean #panel{display:none}
+</style></head><body class="intro"><canvas id="scene" aria-label="引力标本馆：玻璃容器中的万点星尘，沿多重引力轨道编织光丝；指针轻轻倾斜星系，潮汐偶尔将它舒展开。"></canvas>
+<button id="settings" type="button" aria-controls="panel" aria-expanded="false" title="显示设置（H）">☷ 设置</button>
+<aside id="panel" hidden aria-label="壁纸设置"><h1>引力标本馆</h1><small>A Cabinet of Gravity</small><p>玻璃容器中的万点星尘，沿多重引力轨道编织光丝；指针轻轻倾斜星系，潮汐偶尔将它舒展开。</p><div class="controls"><button id="pause" type="button">暂停</button><button id="event" type="button">潮汐展开</button><button id="reseed" type="button">变换构图</button></div><label class="row">时间流速<select id="speed"><option value="0.5">舒缓 · ½</option><option value="1" selected>自然 · 1</option><option value="2">轻快 · 2</option></select></label><label class="row">画质<select id="quality"><option value="high">精细</option><option value="low">节能</option></select></label><p><kbd>空格</kbd> 暂停 / 继续 · <kbd>H</kbd> 设置<br><kbd>E</kbd> 特殊事件 · <kbd>R</kbd> 变换构图</p><output id="status" aria-live="polite"></output></aside>
+<script>(() => {
+  'use strict';
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const params = new URLSearchParams(location.search);
+  const TAU = Math.PI * 2;
+  const clamp = (x, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, x));
+  const mix = (a, b, x) => a + (b - a) * x;
+  const smooth = (a, b, x) => { const v = clamp((x - a) / (b - a)); return v * v * (3 - 2 * v); };
+  const mod = (x, n) => ((x % n) + n) % n;
+  function numberParam(key, fallback, lo, hi) {
+    const v = params.has(key) ? Number(params.get(key)) : NaN;
+    return Number.isFinite(v) ? clamp(v, lo, hi) : fallback;
+  }
+  let seed = numberParam('seed', 20261111, 1, 4294967295) >>> 0;
+  function randomSource(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let v = Math.imul(s ^ s >>> 15, 1 | s); v ^= v + Math.imul(v ^ v >>> 7, 61 | v); return ((v ^ v >>> 14) >>> 0) / 4294967296; }; }
+  let rand = randomSource(seed);
+  // Smooth, bounded harmonic field: no texture or network input.
+  const field = (x, y = 0) => Math.sin(x * 1.73 + y * .73) * .5 + Math.sin(x * 3.17 - y * 1.37) * .27 + Math.sin(x * 7.13 + y * 2.71) * .13 + Math.cos(x * 13.31 - y) * .1;
+  const rgba = (r, g, b, a) => `rgba(${r},${g},${b},${clamp(a)})`;
+  let w = 1, h = 1, unit = 1, dpr = 1;
+  let t = numberParam('t', 24, 0, 1e8), speed = 1, frames = 0, raf = 0, last = null;
+  let quality = params.get('quality') === 'low' ? 'low' : 'high';
+  const media = matchMedia('(prefers-reduced-motion: reduce)');
+  let paused = params.has('still') ? params.get('still') !== '0' : media.matches;
+  let manualMotion = params.has('still');
+  let specialStart = -1e9, drawMs = 0, clockDate = new Date();
+  const pointer = { x: 0, y: 0, active: false };
+  const panel = document.getElementById('panel');
+  const status = document.getElementById('status');
+  function circle(x, y, r, color) { if (r <= 0) return; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); }
+  function ellipse(x, y, rx, ry, color, rotation = 0) { ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, Math.max(.01, rx), Math.max(.01, ry), rotation, 0, TAU); ctx.fill(); }
+  function glow(x, y, r, color) { const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(.1, r)); g.addColorStop(0, color); g.addColorStop(1, 'transparent'); circle(x, y, r, g); }
+  function background(top, bottom) { const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, top); g.addColorStop(1, bottom); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
+  function stroke(color, width = 1) { ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke(); }
+  function eventPhase(time, period, duration, offset = 0) {
+    const manual = time - specialStart;
+    if (manual >= 0 && manual <= duration) return manual / duration;
+    const cycle = mod(time + offset, period);
+    return cycle < duration ? cycle / duration : -1;
+  }
+  const bell = p => p < 0 ? 0 : Math.sin(clamp(p) * Math.PI) ** 2;
+  function stars(list, time, alpha = .6) {
+    for (const p of list) circle(p.x * w, p.y * h, p.r, rgba(174, 191, 214, alpha * (.65 + .35 * Math.sin(time * .25 + p.a))));
+  }
+  function makeStars(count) { return Array.from({ length: count }, () => ({ x: rand(), y: rand(), r: .3 + rand() * 1.1, a: rand() * TAU })); }
+  function vignette(alpha = .35) { const g = ctx.createRadialGradient(w / 2, h * .46, unit * .2, w / 2, h / 2, Math.hypot(w, h) * .55); g.addColorStop(0, 'transparent'); g.addColorStop(1, `rgba(0,0,0,${alpha})`); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
+
+  function createArtwork() {
+  let dust, sky, bands;
+  function reset() {
+    sky = makeStars(210);
+    dust = Array.from({ length: 11000 }, (_, i) => {
+      const r = .06 + Math.pow(rand(), .68) * .92;
+      return { a: rand() < .72 ? r * 7 + (rand() - .5) * .48 : rand() * TAU, r,
+        z: (rand() - .5) * .07, arm: i % 3, light: rand(), phase: rand() * TAU };
+    });
+    bands = [dust.filter(p => p.light < .55), dust.filter(p => p.light >= .55 && p.light < .87), dust.filter(p => p.light >= .87)];
+  }
+  reset();
+  function position(p, time, bloom) {
+    const angle = p.a + time * (.026 / (.15 + p.r)) + p.arm * 2.094;
+    const r = p.r * (1 + .14 * Math.cos(angle * 3 + p.r * 8 - time * .02));
+    const tidal = bloom * .21 * Math.sin(angle * 2 + p.r * 9);
+    const x = Math.cos(angle) * (r + tidal);
+    const y = Math.sin(angle) * (r + tidal);
+    const twist = .34 * Math.sin(p.r * 4 + time * .011);
+    return [x * Math.cos(twist) - y * Math.sin(twist), (x * Math.sin(twist) + y * Math.cos(twist)) * .44 + p.z * (1 + bloom * 3)];
+  }
+  return {
+    reset, eventDuration: 32,
+    snapshot: () => ({ particles: dust.length, event: eventPhase(t, 210, 32, 70) }),
+    draw(time) {
+      background('#05090f', '#0a101a'); stars(sky, time, .46);
+      const cx = w * .53 + pointer.x * unit * .018, cy = h * .49 + pointer.y * unit * .016;
+      const radius = Math.min(w * .43, h * .74), rotation = -.31 + Math.sin(time * .009) * .07;
+      const bloom = bell(eventPhase(time, 210, 32, 70));
+      glow(cx, cy, radius * .95, 'rgba(51,77,113,.13)');
+      // The subtle vessel rim remains distinct from the interior orbital field.
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(rotation);
+      ctx.beginPath(); ctx.ellipse(0, 0, radius * 1.06, radius * .6, 0, 0, TAU); stroke('rgba(153,183,212,.13)', .8);
+      ctx.beginPath(); ctx.ellipse(0, -radius * .006, radius * 1.066, radius * .606, 0, Math.PI * 1.03, Math.PI * 1.79); stroke('rgba(202,219,238,.28)', .6);
+      ctx.save(); ctx.scale(1, .43); glow(0, 0, radius * .6, 'rgba(205,153,78,.22)'); ctx.restore();
+      for (let j = 0; j < 18; j++) {
+        ctx.beginPath();
+        for (let i = 0; i <= 220; i++) {
+          const a = i / 220 * TAU, rr = .2 + j * .042;
+          const p = position({ a, r: rr, arm: j % 3, z: 0 }, time, bloom);
+          i ? ctx.lineTo(p[0] * radius, p[1] * radius) : ctx.moveTo(p[0] * radius, p[1] * radius);
+        }
+        stroke(j % 3 ? 'rgba(163,184,214,.055)' : 'rgba(211,174,113,.09)', .65);
+      }
+      ctx.globalCompositeOperation = 'screen';
+      const colors = ['rgba(151,181,220,.56)', 'rgba(229,191,132,.78)', 'rgba(249,245,229,.95)'];
+      for (let band = 0; band < bands.length; band++) {
+        ctx.beginPath();
+        const points = bands[band], skip = quality === 'low' ? 2 : 1;
+        for (let i = 0; i < points.length; i += skip) {
+          const p = points[i], xy = position(p, time, bloom);
+          const size = (band === 2 ? 1.45 : 1.02) * Math.max(.65, unit / 950);
+          ctx.rect(xy[0] * radius, xy[1] * radius, size, size);
+        }
+        ctx.fillStyle = colors[band]; ctx.fill();
+      }
+      // Analytic exposure streaks avoid accumulating opaque trails on pause/resize.
+      ctx.beginPath();
+      for (let i = 0; i < 850; i++) {
+        const p = dust[i * 11], a = position(p, time, bloom), b = position(p, time - .7, bloom);
+        ctx.moveTo(a[0] * radius, a[1] * radius); ctx.lineTo(b[0] * radius, b[1] * radius);
+      }
+      stroke('rgba(220,208,180,.32)', .75);
+      glow(0, 0, radius * .12, 'rgba(240,200,129,.36)');
+      circle(0, 0, 1.6, '#fff2c8');
+      ctx.restore(); vignette(.52);
+    },
+  };
+}
+
+
+  const art = createArtwork();
+  function draw() {
+    const begin = performance.now();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    art.draw(t);
+    drawMs = performance.now() - begin;
+    frames++;
+  }
+  function resize() {
+    w = Math.max(1, innerWidth); h = Math.max(1, innerHeight); unit = Math.min(w, h);
+    const budget = quality === 'low' ? 1200000 : 2600000;
+    dpr = Math.min(devicePixelRatio || 1, 2, Math.sqrt(budget / (w * h)));
+    canvas.width = Math.max(1, Math.floor(w * dpr)); canvas.height = Math.max(1, Math.floor(h * dpr));
+    art.resize?.(); draw();
+  }
+  function syncPanel() {
+    document.getElementById('pause').textContent = paused ? '继续' : '暂停';
+    document.getElementById('pause').setAttribute('aria-pressed', String(paused));
+    document.getElementById('settings').setAttribute('aria-expanded', String(!panel.hidden));
+    status.textContent = art.status?.() || (paused ? '画面已暂停' : '离线绘制 · 30 FPS');
+  }
+  function loop(now) {
+    raf = 0;
+    if (paused || document.hidden) { last = null; return; }
+    if (last === null) last = now;
+    if (now - last >= 1000 / 30 - .5) {
+      const dt = Math.min(.1, (now - last) / 1000); last = now;
+      t += dt * speed; clockDate = new Date(); art.update?.(dt, t); draw();
+      if (!panel.hidden) syncPanel();
+    }
+    raf = requestAnimationFrame(loop);
+  }
+  function schedule() { if (!raf && !paused && !document.hidden) { last = null; raf = requestAnimationFrame(loop); } }
+  function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; last = null; }
+  function togglePause() { paused = !paused; manualMotion = true; if (paused) { stop(); art.flush?.(); } else { clockDate = new Date(); schedule(); } syncPanel(); }
+  function trigger() { specialStart = t - (paused ? (art.eventDuration || 20) * .5 : 0); draw(); syncPanel(); }
+  function reseed() { seed = (seed + 2654435761) >>> 0; rand = randomSource(seed); art.reset?.(); art.resize?.(); draw(); }
+  function togglePanel() { document.body.classList.remove('clean'); panel.hidden = !panel.hidden; syncPanel(); }
+  document.getElementById('settings').addEventListener('click', togglePanel);
+  document.getElementById('pause').addEventListener('click', togglePause);
+  document.getElementById('event').addEventListener('click', trigger);
+  document.getElementById('reseed').addEventListener('click', reseed);
+  document.getElementById('speed').addEventListener('change', e => { speed = Number(e.target.value); });
+  document.getElementById('quality').value = quality;
+  document.getElementById('quality').addEventListener('change', e => { quality = e.target.value; resize(); });
+  addEventListener('keydown', e => {
+    if (e.repeat || /INPUT|SELECT|TEXTAREA|BUTTON/.test(e.target.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); togglePause(); }
+    else if (e.key.toLowerCase() === 'h') togglePanel();
+    else if (e.key.toLowerCase() === 'e') trigger();
+    else if (e.key.toLowerCase() === 'r') reseed();
+  });
+  canvas.addEventListener('pointermove', e => { pointer.x = (e.clientX / w - .5) * 2; pointer.y = (e.clientY / h - .5) * 2; pointer.active = true; });
+  canvas.addEventListener('pointerleave', () => { pointer.active = false; pointer.x = pointer.y = 0; });
+  addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); art.flush?.(); } else { clockDate = new Date(); if (!paused) draw(); schedule(); } });
+  addEventListener('pagehide', () => { stop(); art.flush?.(); });
+  media.addEventListener('change', e => { if (!manualMotion) { paused = e.matches; if (paused) stop(); else schedule(); syncPanel(); } });
+  if (params.get('hud') === '0') document.body.classList.add('clean');
+  setTimeout(() => document.body.classList.remove('intro'), 4500);
+  // Small diagnostics surface for deterministic captures and long-duration checks.
+  window.__dreamAtlas = {
+    snapshot: () => ({ id: 'gravity-specimen', seed, t, paused, frames, w, h, dpr, quality, speed, drawMs, scheduled: !!raf, specialStart, ...art.snapshot?.() }),
+    seek(time) { if (!Number.isFinite(time) || time < 0) throw new Error('Invalid time'); t = time; draw(); },
+    render: draw,
+    trigger,
+    // Advance active time only for persistence verification; normal playback uses RAF.
+    advance(seconds) { if (!Number.isFinite(seconds) || seconds < 0 || seconds > 86400) throw new Error('Invalid duration'); t += seconds * speed; art.update?.(seconds, t); draw(); },
+    flush() { art.flush?.(); },
+  };
+  resize(); syncPanel(); schedule();
+})();
+</script></body></html>

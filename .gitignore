@@ -11,7 +11,12 @@ Thumbs.db
 .idea/
 .codegraph/
 .cursor/
-scripts/
+scripts/*
+!scripts/dream-atlas/
+!scripts/verify-dream-atlas.cjs
+
+# 本地临时产物（验证截图、临时脚本）
+temp/
 
 # 屏幕保护程序构建产物
 screensaver/build/

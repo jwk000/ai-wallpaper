@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>一城四时 · A little city, a whole year</title>
+<style>
+:root{color-scheme:light;--ink:#334d50;--muted:#728587;--glass:rgba(250,253,249,.83);--line:rgba(78,108,105,.18)}
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#dce5df;color:var(--ink);font:12px/1.6 "Segoe UI","Microsoft YaHei",sans-serif}canvas#view{position:fixed;inset:0;width:100%;height:100%;outline:none;touch-action:none;cursor:grab}canvas#view:active{cursor:grabbing}
+header{position:fixed;top:38px;left:44px;pointer-events:none}header small{font-size:10px;letter-spacing:4px;color:var(--muted)}h1{font-family:"Microsoft YaHei",sans-serif;font-size:30px;font-weight:400;letter-spacing:10px;margin:10px 0 5px}header p{font-size:11px;letter-spacing:2px;color:var(--muted);margin:0}.edition{position:fixed;right:42px;top:40px;text-align:right;font-size:10px;letter-spacing:2px;color:var(--muted)}.edition b{font-size:24px;font-weight:300;display:block;letter-spacing:5px;color:var(--ink)}
+footer{position:fixed;bottom:32px;left:44px;display:flex;gap:26px;align-items:center}.season-mark{font-family:serif;font-size:34px;border-right:1px solid var(--line);padding-right:22px}.reading{letter-spacing:2px}.reading small{display:block;font-size:9px;color:var(--muted);margin-top:4px}.track{height:2px;background:var(--line);width:140px;margin-top:9px}.track i{display:block;height:100%;width:50%;background:#8aab90}.tools{position:fixed;bottom:32px;right:38px;display:flex;gap:8px}button,select,input{font:inherit}button,select{color:var(--ink);border:1px solid var(--line);background:var(--glass);border-radius:6px;padding:9px 13px;cursor:pointer}button:hover,button:focus-visible{background:#fff}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #66a6a0;outline-offset:3px}#panel{position:fixed;bottom:84px;right:38px;width:270px;background:var(--glass);backdrop-filter:blur(18px);padding:22px;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 44px #173f4210}#panel h2{font-size:14px;font-weight:500;margin:0 0 17px;letter-spacing:3px}label{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:13px 0}select{padding:6px;width:142px}input[type=range]{width:142px;accent-color:#6b9991}input[type=checkbox]{accent-color:#6b9991}#panel p{color:var(--muted);font-size:10px;border-top:1px solid var(--line);padding-top:13px;margin-bottom:0}.hud-off .hud{display:none}.hint{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);color:var(--muted);font-size:10px;letter-spacing:1px;pointer-events:none;animation:fade 12s forwards}@keyframes fade{0%,60%{opacity:.75}100%{opacity:0}}#error{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);max-width:400px;padding:30px;background:#fff;border-radius:12px;z-index:5}#error[hidden]{display:none}@media(max-width:700px){header{left:22px;top:24px}h1{font-size:23px}.edition{right:22px;top:24px}footer{left:22px;bottom:24px;gap:12px}.track{width:90px}.season-mark{padding-right:12px}.tools{right:18px;bottom:24px}.tools button{padding:8px}.hint{display:none}#panel{right:18px;bottom:72px}header p{font-size:9px;letter-spacing:0}}
+</style>
+</head><body>
+<canvas id="view" aria-label="可拖动旋转和滚轮缩放的四季城市三维沙盘" tabindex="0"></canvas>
+<header class="hud"><small>THE LIVING MINIATURE / 01</small><h1>一城四时</h1><p>一座小城，收藏一整年的光。</p></header>
+<div class="edition hud"><b id="clock">09:00</b><span id="lightLabel">日光漫游</span></div>
+<footer class="hud"><span class="season-mark" id="seasonMark">春</span><div class="reading"><span id="seasonName">花开时节</span><small id="cycleLabel">四季流转 · 自动昼夜</small><div class="track"><i id="yearProgress"></i></div></div></footer>
+<div class="hint hud">拖动环绕 · 滚轮缩放 · H 隐藏界面</div>
+<div class="tools hud"><button id="pause" aria-label="暂停或继续动画">暂停</button><button id="settings" aria-expanded="false" aria-controls="panel">时光设置</button></div>
+<section id="panel" class="hud" hidden><h2>城市的时间</h2><label>季节<select id="season"><option value="auto">四季流转</option><option value="0">春 · 樱花</option><option value="1">夏 · 浓荫</option><option value="2">秋 · 金叶</option><option value="3">冬 · 落雪</option></select></label><label>昼夜<select id="daymode"><option value="auto">自动昼夜</option><option value="fixed">固定时刻</option></select></label><label>时刻 <input id="hour" type="range" min="0" max="24" step="0.1" value="9" aria-label="固定时刻"></label><label>流转速度<select id="speed"><option value="0.5">慢慢走 · ½×</option><option value="1" selected>舒缓 · 1×</option><option value="3">快一些 · 3×</option><option value="10">看遍四季 · 10×</option></select></label><label>自动环绕<input id="orbit" type="checkbox" checked></label><button id="reset">恢复初始视角</button><p>一天 3 分钟，一年 12 分钟。<br>空格 暂停 · H 隐藏界面 · F 全屏<br>拖动旋转视角，滚轮拉近查看街巷。</p></section>
+<div id="error" hidden>暂时无法启动 3D 场景。请启用浏览器硬件加速，或使用支持 WebGL 的浏览器重新打开。</div>
+<script src="vendor/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+try {
+const T=THREE, $=id=>document.getElementById(id), query=new URLSearchParams(location.search);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), mix=(a,b,t)=>a+(b-a)*t, smooth=(a,b,x)=>{let t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)}, mod=(x,n)=>(x%n+n)%n;
+const numeric=(key,fallback,a,b)=>{const v=query.has(key)?Number(query.get(key)):fallback;return Number.isFinite(v)?clamp(v,a,b):fallback};
+let seed=321987;const rnd=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let paused=query.get('still')==='1'||(reduced&&query.get('still')!=='0'), time=numeric('t',0,0,86400), hour=numeric('hour',9,0,24), seasonValue=0, seasonMode=['0','1','2','3'].includes(query.get('season'))?query.get('season'):'auto', dayMode=query.has('hour')?'fixed':'auto', speed=1;
+let orbit=query.get('orbit')!=='0'&&!reduced, yaw=.68, elevation=.72, zoom=1, last=0, raf=0, lastRender=0, frames=0, dragging=false;
+const renderer=new T.WebGLRenderer({canvas:$('view'),antialias:true,alpha:true,powerPreference:'low-power'});
+renderer.setClearColor(0,0);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;
+const scene=new T.Scene(), camera=new T.OrthographicCamera(-25,25,15,-15,.1,180);const target=new T.Vector3(0,1,0);
+const hemi=new T.HemisphereLight(0xd8efff,0x7d7960,2.1);scene.add(hemi);
+const sun=new T.DirectionalLight(0xffe7be,3.4);sun.position.set(-18,30,15);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-29,right:29,top:29,bottom:-29,near:.5,far:100});sun.shadow.bias=-.00035;sun.shadow.normalBias=.035;scene.add(sun);scene.add(sun.target);
+const moon=new T.DirectionalLight(0x8ab9ff,.3);moon.position.set(10,20,-16);scene.add(moon);
+const mats={}, batches=new Map(), seasonal=[], canopies=[], cars=[], walkers=[], lamps=[];
+const mat=(name,color,extra={})=>mats[name]||(mats[name]=new T.MeshStandardMaterial({color,roughness:.83,...extra}));
+const ground=mat('grass',0xabc88c), stone=mat('stone',0xc7c9b9), road=mat('road',0x6b7c7b), trim=mat('trim',0xf5e9cc), wood=mat('wood',0x875c43), dark=mat('dark',0x30484b), metal=mat('metal',0x597274), water=mat('water',0x5eafb3,{metalness:.22,roughness:.28}), leaf=mat('leaf',0xe8b2be), leaf2=mat('leaf2',0x91b981), glass=mat('glass',0x638b99,{metalness:.35,roughness:.3}), glow=mat('glow',0xf6db9c,{emissive:0xffb957,emissiveIntensity:0}), white=mat('white',0xf1ebd8), roof=mat('roof',0x896858);
+const boxGeo=new T.BoxGeometry(1,1,1), sphereGeo=new T.IcosahedronGeometry(1,1), cylGeo=new T.CylinderGeometry(1,1,1,10), coneGeo=new T.ConeGeometry(1,1,4), dummy=new T.Object3D();
+function add(geo,m,x,y,z,sx,sy,sz,ry=0,parent=null){
+ if(parent){const o=new T.Mesh(geo,m);o.position.set(x,y,z);o.scale.set(sx,sy,sz);o.rotation.y=ry;o.castShadow=true;o.receiveShadow=true;parent.add(o);return o;}
+ const key=geo.uuid+m.uuid;if(!batches.has(key))batches.set(key,{geo,m,items:[]});dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.rotation.set(0,ry,0);dummy.updateMatrix();batches.get(key).items.push(dummy.matrix.clone());
+}
+const box=(m,x,y,z,w,h,d,ry=0,p=null)=>add(boxGeo,m,x,y,z,w,h,d,ry,p);
+const ball=(m,x,y,z,r,p=null)=>add(sphereGeo,m,x,y,z,r,r,r,0,p);
+const cyl=(m,x,y,z,r,h,p=null)=>add(cylGeo,m,x,y,z,r,h,r,0,p);
+function rod(a,b,r,m,parent=scene){const v=new T.Vector3(...a),end=new T.Vector3(...b),diff=end.clone().sub(v),o=new T.Mesh(cylGeo,m);o.position.copy(v.add(end).multiplyScalar(.5));o.scale.set(r,diff.length(),r);o.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),diff.normalize());o.castShadow=true;parent.add(o);return o;}
+function seasonalMat(name,color){const m=mat(name,color);seasonal.push({m,base:new T.Color(color)});return m;}
+function cap(x,y,z,w,d){box(seasonalMat('cap',0xd5c7ae),x,y,z,w,.08,d);}
+// A layered, freestanding model plinth.
+box(mat('base',0xe1d4b9),0,-.95,0,39,1.65,31);box(mat('baseedge',0xf6eedb),0,-.16,0,39.2,.16,31.2);box(ground,0,-.035,0,38.6,.12,30.6);
+box(mat('inlay',0xac956d),0,-.8,15.51,32,.025,.018);box(mat('inlay2',0xc7b28d),19.51,-.65,0,.018,.03,26);
+const floor=new T.Mesh(new T.PlaneGeometry(400,400),new T.ShadowMaterial({opacity:.15}));floor.rotation.x=-Math.PI/2;floor.position.y=-1.8;floor.receiveShadow=true;scene.add(floor);
+// Canal, embankments, moorings, two bridges.
+box(water,0,.035,9.4,38.6,.1,4.2);for(const z of [7.1,11.7]){box(stone,0,.11,z,38.6,.24,.5);box(trim,0,.25,z,38.7,.08,.55);for(let x=-18.8;x<19;x+=.8)box(metal,x,.48,z,.045,.48,.045);box(metal,0,.69,z,38.5,.035,.035);}
+const ripples=[];for(let i=0;i<65;i++){const o=box(mat('ripple',0xb4d9cf,{transparent:true,opacity:.42}),rnd()*37-18.5,.1,7.5+rnd()*3.6,.2+rnd()*.8,.015,.025,0,scene);ripples.push(o);}
+for(const x of [-10,10]){box(stone,x,.35,9.4,2.5,.35,5.6);box(road,x,.55,9.4,2,.04,5.6);for(const side of [-1,1]){box(trim,x+side*1.15,.68,9.4,.16,.25,5.6);for(let z=6.7;z<12.2;z+=.45)box(metal,x+side*1.15,1,z,.04,.65,.04);box(metal,x+side*1.15,1.32,9.4,.045,.05,5.6);for(const z of [7.9,10.9])box(stone,x+side*.85,-.05,z,.3,.9,.5);}}
+// Street grid, sidewalks, zebra crossings and lane markings.
+for(const z of [-11.5,-2.8,5.2]){box(stone,0,.08,z,35.4,.18,2.7);box(road,0,.185,z,35.4,.05,1.85);for(let x=-17;x<18;x+=1.1)box(white,x,.217,z,.48,.01,.045);}
+for(const x of [-14,-3,14]){box(stone,x,.08,-3.15,2.8,.18,19.5);box(road,x,.19,-3.15,1.9,.045,19.5);for(let z=-12;z<6;z+=1.1)box(white,x,.22,z,.045,.01,.45);}
+for(const x of [-14,-3,14])for(const z of [-11.5,-2.8,5.2])for(let k=-3;k<=3;k++){box(white,x+k*.22,.225,z+1.05,.12,.012,.5);box(white,x+1.13,.225,z+k*.22,.48,.012,.12);}
+const buildingColors=[0xe2b392,0xd9c9ab,0x9ebcb7,0xe4d6ba,0xbf9c84,0xc8b5a5];let buildingCount=0;
+function building(x,z,w,d,h,style,index){
+ buildingCount++;const wall=mat('wall'+index%6,buildingColors[index%6]), top=seasonalMat('roof'+index%3,[0x9b6552,0x657d7b,0xa38b76][index%3]);
+ box(stone,x,.22,z,w+.35,.4,d+.35);box(wall,x,.42+h/2,z,w,h,d);box(trim,x,.55,z,w+.1,.22,d+.1);box(trim,x,h+.43,z,w+.18,.18,d+.18);
+ for(let y=1.2;y<h+.05;y+=.75){for(let dx=-w/2+.38;dx<w/2-.2;dx+=.55){for(const side of [-1,1]){const wm=rnd()>.22?glow:glass;box(trim,x+dx,y,z+side*(d/2+.018),.36,.44,.05);box(wm,x+dx,y+.015,z+side*(d/2+.05),.25,.31,.025);}}
+ for(let dz=-d/2+.4;dz<d/2-.2;dz+=.62)for(const side of [-1,1])box(rnd()>.25?glow:glass,x+side*(w/2+.025),y,z+dz,.028,.32,.3);}
+ box(dark,x,.78,z+d/2+.04,.38,.75,.06);box(glow,x,.86,z+d/2+.08,.24,.45,.03);
+ if(style==='gable'){
+  // A triangular-prism roof, with its ridge along X.
+  const shape=new T.Shape();shape.moveTo(-d/2-.16,0);shape.lineTo(0,.85);shape.lineTo(d/2+.16,0);shape.closePath();const g=new T.ExtrudeGeometry(shape,{depth:w+.26,bevelEnabled:false});g.rotateY(-Math.PI/2);g.translate((w+.26)/2,h+.53,z);g.translate(x,0,0);const o=new T.Mesh(g,top);o.castShadow=true;o.receiveShadow=true;scene.add(o);
+  box(wall,x+w*.25,h+1.05,z-.2,.25,.8,.3);cap(x+w*.25,h+1.47,z-.2,.32,.36);
+ }else{box(top,x,h+.57,z,w+.1,.15,d+.1);for(const side of [-1,1]){box(trim,x+side*w/2,h+.73,z,.09,.3,d);box(trim,x,h+.73,z+side*d/2,w,.3,.09);}box(metal,x-.3,h+.85,z,.55,.4,.42);box(trim,x-.3,h+1.07,z,.6,.055,.46);for(let k=0;k<3;k++)box(dark,x-.49+k*.16,h+1.11,z,.05,.025,.34);
+  if(index%2===0){box(glass,x+.42,h+.88,z+.2,.7,.07,.65);for(let k=0;k<3;k++)box(trim,x+.2+k*.2,h+.925,z+.2,.015,.01,.65);}
+ }
+ if(index%3===0){for(let k=0;k<6;k++)box(k%2?trim:mat('awning',0xb96850),x-w/2+(k+.5)*w/6,1.05,z+d/2+.25,w/6,.09,.55);box(wood,x,.38,z+d/2+.5,w+.15,.12,.8);}
+}
+// Low-rise townhouses to the west; a small, varied skyline at the back.
+let bi=0;for(const z of [-8.8,-5.6,.1,2.5])for(const x of [-11.4,-8.5,-5.8])building(x,z,2.05,1.85,1.8+rnd()*1.8,'gable',bi++);
+for(const [x,z,w,d,h] of [[.2,-8.8,2.5,2.5,6.3],[3.5,-8.6,2.4,2.8,8.2],[.2,-5.2,2.4,2,4.4],[3.5,-5.1,2.5,2,5.2],[7,-10,2.4,1.6,3.5],[10.7,-10,2.6,1.6,4.3]])building(x,z,w,d,h,'flat',bi++);
+// Canal-side village at the front of the diorama.
+for(const x of [-16,-13,-6.6,-3.6,-.6,3,6.2,13.4,16.4])building(x,13.45,2.1,1.7,1.2+rnd()*1.1,'gable',bi++);
+// Civic square, clock tower and a fountain with moving droplets.
+box(mat('plaza',0xd7ccba),2.4,.09,1.2,7.2,.2,4.7);for(let x=-.8;x<6;x+=.55)for(let z=-.8;z<3.6;z+=.55)box(trim,x,.199,z,.025,.01,.5);
+building(.2,.5,1.9,1.9,2.6,'flat',bi++);box(trim,.2,4.5,.5,1.1,3,1.1);box(roof,.2,6.05,.5,1.35,.2,1.35);add(coneGeo,mat('towerroof',0x577d77),.2,6.6,.5,1.05,1.1,1.05,Math.PI/4);ball(glow,.2,7.22,.5,.08);
+function clockFace(x,y,z,ry){const g=new T.Group();g.position.set(x,y,z);g.rotation.y=ry;scene.add(g);const disc=new T.Mesh(new T.CircleGeometry(.39,32),trim);g.add(disc);for(let i=0;i<12;i++){const a=i*Math.PI/6;box(dark,Math.sin(a)*.31,Math.cos(a)*.31,.012,.025,.055,.015,-a,g);}const hands=new T.Group();g.add(hands);return hands;}
+const clockHands=[clockFace(.2,5.2,1.06,0),clockFace(.76,5.2,.5,Math.PI/2)];for(const g of clockHands){const a=box(dark,0,.105,.035,.04,.23,.025,0,g),b=box(dark,0,.15,.055,.025,.32,.02,0,g);g.userData={a,b};}
+cyl(stone,3.7,.3,1.4,1.25,.3);cyl(water,3.7,.48,1.4,1.08,.08);cyl(trim,3.7,.8,1.4,.18,.7);cyl(trim,3.7,1.1,1.4,.63,.12);cyl(water,3.7,1.17,1.4,.55,.03);
+const drops=[];for(let i=0;i<26;i++)drops.push(ball(mat('spray',0xbce6e1,{transparent:true,opacity:.75}),3.7,1.5,1.4,.035,scene));
+// Park, playground, flowering beds, benches and layered trees.
+box(ground,9,-.005,.4,6.4,.2,6.6);box(stone,9,.13,.4,1,.07,6.6);box(stone,9,.13,.4,6.4,.07,.7);
+function tree(x,z,size=1,pink=false){cyl(wood,x,.7*size,z,.085*size,1.4*size);for(const s of [-1,1])rod([x,.8*size,z],[x+s*.35*size,1.7*size,z+.12],.035*size,wood);const m=pink?leaf:leaf2;for(let k=0;k<3;k++){const o=ball(m,x+(k-1)*.33*size,(1.8+(k===1?.25:0))*size,z+(k%2)*.18,.63*size,scene);canopies.push({o,size:.63*size,pink});}cyl(mat('soil',0x99866a),x,.12,z,.43*size,.15);}
+for(const x of [-17,-12.4,12.4,17])for(const z of [-9.7,-6.7,-.9,2.4])tree(x,z,.65+rnd()*.2,x<0);
+for(const [x,z] of [[6.5,-1.4],[11.7,-1.5],[6.5,2.3],[11.6,2.5],[7,3.2],[10.5,3.1],[8,-6.5],[11.5,-6.4],[16.7,-12.8],[-17.1,-13]])tree(x,z,.8+rnd()*.2,true);
+for(let x=-17;x<18;x+=3)if(Math.abs(Math.abs(x)-10)>1.4)tree(x,6.4,.55,x%2<1);
+function bench(x,z,ry=0){const g=new T.Group();g.position.set(x,0,z);g.rotation.y=ry;scene.add(g);for(let k=0;k<3;k++){box(wood,0,.42,k*.1,.9,.06,.075,0,g);box(wood,0,.62+k*.1,-.07,.9,.075,.05,0,g);}for(const a of [-.32,.32])box(metal,a,.25,.08,.06,.35,.25,0,g);}
+for(const [x,z,r] of [[7.1,.9,0],[10.8,.9,0],[7.1,-.7,Math.PI],[5,2.9,0],[-6,6.5,Math.PI],[1,6.5,Math.PI],[15,6.5,Math.PI]])bench(x,z,r);
+for(const x of [6.5,11.5]){box(stone,x,.2,.3,.8,.3,1.5);for(let i=0;i<18;i++)ball(mat('flowers'+i%3,[0xdf9c84,0xe9bf68,0xe6b7c9][i%3]),x+(rnd()-.5)*.6,.42,.3+(rnd()-.5)*1.3,.085);}
+// A tiny playground with a slide and swings.
+box(mat('sand',0xdcc393),10.8,.13,-4.7,3.4,.12,2.8);for(const x of [9.8,11.2])for(const z of [-5.4,-4.5])rod([x,0,z],[x,1.6,-5],.04,metal);rod([9.8,1.6,-5],[11.2,1.6,-5],.06,wood);for(const x of [10.2,10.8]){rod([x,1.6,-5],[x,.55,-5],.015,metal);box(wood,x,.52,-5,.34,.045,.2);}rod([11.5,.2,-4],[11.5,1.15,-5.5],.15,mat('slide',0xc99769));
+// Ferris wheel, with suspended upright cabins.
+const wheel=new T.Group();wheel.position.set(8.5,2.85,-7);scene.add(wheel);const wheelMat=mat('wheel',0xeee1bf),wheelRadius=2.05;
+for(const x of [7.9,9.1]){rod([x,0,-6.3],[8.5,2.85,-7],.09,metal);rod([x,0,-7.8],[8.5,2.85,-7],.09,metal);}
+const ring=new T.Mesh(new T.TorusGeometry(wheelRadius,.045,6,64),wheelMat);wheel.add(ring);const cabins=[];
+for(let i=0;i<10;i++){const a=i*Math.PI/5;rod([0,0,0],[Math.cos(a)*wheelRadius,Math.sin(a)*wheelRadius,0],.025,wheelMat,wheel);const cabin=new T.Group();wheel.add(cabin);box(mat('cabin'+i%3,[0xc87560,0xe3bd69,0x6fa5a2][i%3]),0,-.22,0,.32,.3,.35,0,cabin);box(trim,0,.04,0,.37,.06,.4,0,cabin);for(const x of [-.13,.13])box(metal,x,-.05,0,.02,.2,.3,0,cabin);cabins.push({cabin,a});}
+// Streetlights with pooled light; emissive materials turn on at dusk.
+const poolMat=new T.MeshBasicMaterial({color:0xffce77,transparent:true,opacity:0,depthWrite:false});
+for(const z of [-10.2,-1.5,6.5])for(const x of [-15.6,-9,-1.3,5.7,15.6]){cyl(metal,x,1.03,z,.035,1.9);box(metal,x+.17,1.97,z,.4,.055,.055);box(glow,x+.34,1.94,z,.24,.09,.18);const p=new T.Mesh(new T.CircleGeometry(.75,24),poolMat);p.rotation.x=-Math.PI/2;p.position.set(x+.34,.235,z);scene.add(p);lamps.push(p);}
+for(const x of [-12.6,-1.6,15.3]){cyl(metal,x,.8,3.9,.04,1.6);box(dark,x,1.5,3.9,.17,.46,.16);ball(mat('signal',0x7bbc81,{emissive:0x469c60,emissiveIntensity:.7}),x,1.48,4,.05);}
+// Parking spaces, bollards, bins, bus shelter and cafe tables.
+for(let x=-11.5;x<-5;x+=1.15){box(white,x,.225,3.7,.025,.01,.8);box(white,x+.5,.225,4.1,1,.01,.025);}
+for(let x=-16;x<18;x+=2){cyl(metal,x,.38,6.9,.055,.46);if(x%4===0){cyl(metal,x,.37,6.15,.13,.55);cyl(trim,x,.67,6.15,.15,.06);}}
+for(const x of [-7.4,-6.3]){cyl(wood,x,.65,1.3,.33,.07);cyl(metal,x,.38,1.3,.04,.55);add(coneGeo,mat('umbrella',0xe1b982),x,1.6,1.3,.65,.28,.65,Math.PI/4);cyl(metal,x,1.05,1.3,.025,1.05);}
+box(glass,5.4,.95,4.05,2,.95,.045);for(const x of [4.4,6.4])box(metal,x,.83,4.05,.05,1.6,.05);box(trim,5.4,1.65,4.1,2.2,.1,.7);bench(5.4,4,Math.PI);
+function sign(text,x,y,z,color){const c=document.createElement('canvas');c.width=256;c.height=64;const ctx=c.getContext('2d');ctx.fillStyle=color;ctx.fillRect(0,0,256,64);ctx.fillStyle='#fff4dd';ctx.font='bold 28px sans-serif';ctx.textAlign='center';ctx.fillText(text,128,43);const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;const o=new T.Mesh(new T.PlaneGeometry(1.45,.36),new T.MeshBasicMaterial({map:tex}));o.position.set(x,y,z);scene.add(o);}
+sign('BAKERY',-11.4,1.65,1.04,'#987053');sign('BOOKS',-5.8,1.65,3.44,'#56766f');sign('RIVERSIDE',-.6,1.1,14.33,'#976a56');
+// Cars travel the complete road loop, while pedestrians follow the sidewalks.
+function vehicle(color,bus=false){const g=new T.Group();scene.add(g);box(mat('car'+color,color),0,.42,0,bus?.62:.53,.28,bus?1.35:.9,0,g);box(glass,0,.65,-.04,.44,bus?.3:.23,bus?1.08:.48,0,g);box(mat('carroof'+color,color),0,bus?.82:.79,-.04,.47,.05,bus?1.1:.5,0,g);for(const x of [-.28,.28])for(const z of [-.3,.3])ball(dark,x,.25,z,.12,g);for(const x of [-.17,.17])box(glow,x,.44,.46,.1,.07,.025,0,g);return g;}
+for(let i=0;i<13;i++)cars.push({g:vehicle([0xd8986e,0xe8d9b1,0x8bb5ab,0xb56e58,0x73939e][i%5],i===0),phase:i/13,dir:i%3===0?-1:1});
+function route(u,inset=0){const x=14-inset,z0=-11.5+inset,z1=5.2-inset,w=x*2,h=z1-z0,L=2*(w+h),s=mod(u,1)*L;if(s<w)return [-x+s,z0,Math.PI/2];if(s<w+h)return[x,z0+s-w,0];if(s<2*w+h)return[x-(s-w-h),z1,-Math.PI/2];return[-x,z1-(s-2*w-h),Math.PI];}
+for(let i=0;i<38;i++){const g=new T.Group();scene.add(g);const cloth=mat('person'+i%5,[0x496f78,0xb66f56,0xd3ac68,0x7f8870,0xdfc6ac][i%5]);box(cloth,0,.42,0,.13,.25,.1,0,g);ball(mat('skin',0xd9b18a),0,.62,0,.085,g);const legs=[];for(const x of [-.04,.04])legs.push(box(dark,x,.2,0,.045,.2,.06,0,g));walkers.push({g,legs,phase:rnd(),speed:.13+rnd()*.1});}
+// Railway with sleepers, overhead wires and a three-car local train.
+box(mat('ballast',0x9d9c8a),0,.07,-13.75,37,.15,1.1);for(let x=-18.2;x<18.5;x+=.36)box(wood,x,.18,-13.75,.11,.06,.85);for(const z of [-14.05,-13.45])box(metal,0,.24,z,37,.07,.045);
+for(const x of [-17,-9,-1,7,15]){box(metal,x,1.3,-14.6,.055,2.6,.055);box(metal,x,2.57,-13.8,.05,.04,1.65);}rod([-18,2.5,-13.75],[18,2.5,-13.75],.012,metal);
+const train=new T.Group();scene.add(train);for(let i=0;i<3;i++){const x=i*1.65;box(mat('train',0xadc4b9),x,.64,0,1.5,.65,.65,0,train);box(trim,x,1,0,1.5,.1,.68,0,train);box(mat('stripe',0xb56f54),x,.5,.335,1.5,.12,.025,0,train);for(let j=0;j<4;j++)for(const side of [-1,1])box(glow,x-.5+j*.32,.78,side*.337,.22,.22,.025,0,train);for(const a of [-.45,.45])ball(dark,x+a,.29,0,.17,train);}
+for(const x of [-18.15,18.15]){box(mat('tunnel',0x6c8273),x,.72,-13.8,1.4,1.4,2);box(dark,x+(x<0?.71:-.71),.6,-13.75,.015,1.05,.9);tree(x,-12.8,.7);}
+const boat=new T.Group();scene.add(boat);box(wood,0,.18,0,1.65,.25,.65,0,boat);box(trim,-.2,.48,0,.7,.4,.57,0,boat);box(glass,-.2,.51,.3,.4,.2,.02,0,boat);box(roof,-.2,.73,0,.8,.08,.7,0,boat);
+// Clip the train at the tunnel portals instead of allowing it to float off the model.
+renderer.localClippingEnabled=true;const trainPlanes=[new T.Plane(new T.Vector3(1,0,0),18.2),new T.Plane(new T.Vector3(-1,0,0),18.2)],trainMaterials=new Map();
+train.traverse(o=>{if(!o.isMesh)return;const key=o.material.uuid;if(!trainMaterials.has(key)){const m=o.material.clone();m.clippingPlanes=trainPlanes;m.clipShadows=true;trainMaterials.set(key,m);}o.material=trainMaterials.get(key);});
+// Moving details keep their scene transforms, but share GPU instance batches.
+const movingBatches=[],detailGroups=new Map();scene.traverse(o=>{if(!o.isMesh||o.isInstancedMesh||o===floor)return;const key=o.geometry.uuid+o.material.uuid;if(!detailGroups.has(key))detailGroups.set(key,[]);detailGroups.get(key).push(o);});
+for(const items of detailGroups.values()){if(items.length<2)continue;const mesh=new T.InstancedMesh(items[0].geometry,items[0].material,items.length);mesh.castShadow=items.some(o=>o.castShadow);mesh.receiveShadow=items.some(o=>o.receiveShadow);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);for(const o of items)o.visible=false;scene.add(mesh);movingBatches.push({mesh,items});}
+// Instanced static geometry keeps the detailed scene inexpensive to draw.
+for(const {geo,m,items} of batches.values()){const mesh=new T.InstancedMesh(geo,m,items.length);items.forEach((matrix,i)=>mesh.setMatrixAt(i,matrix));mesh.castShadow=m!==water;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);}
+const particleCount=220,particleGeo=new T.BufferGeometry(),particlePos=new Float32Array(particleCount*3),particleSeeds=Array.from({length:particleCount},()=>[rnd(),rnd(),rnd(),rnd()]);particleGeo.setAttribute('position',new T.BufferAttribute(particlePos,3));const particleMat=new T.PointsMaterial({color:0xffe0e6,size:.095,transparent:true,opacity:.8,depthWrite:false});const particles=new T.Points(particleGeo,particleMat);scene.add(particles);
+const palettes={leaf:[0xeab8c7,0x65985d,0xc88a43,0xced9d1],leaf2:[0x9abb77,0x4f865f,0xcaae5c,0xbecfc7],grass:[0xb5ca92,0x94b17b,0xb9ad79,0xe0e7df]};
+const colorAt=(arr,s)=>new T.Color(arr[Math.floor(s)%4]).lerp(new T.Color(arr[(Math.floor(s)+1)%4]),smooth(.4,.95,s%1));
+let night=0,winter=0;
+function environment(){
+ seasonValue=seasonMode==='auto'?mod(time/180,4):Number(seasonMode);const phase=seasonValue%1,i=Math.floor(seasonValue),t=smooth(.4,.95,phase),weights=[0,0,0,0];weights[i]=1-t;weights[(i+1)%4]+=t;winter=weights[3];
+ leaf.color.copy(colorAt(palettes.leaf,seasonValue));leaf2.color.copy(colorAt(palettes.leaf2,seasonValue));ground.color.copy(colorAt(palettes.grass,seasonValue));for(const {m,base} of seasonal)m.color.copy(base).lerp(new T.Color(0xecf0e9),winter*.94);
+ for(const {o,size,pink} of canopies)o.scale.setScalar(size*(1-winter*(pink?.78:.58)));
+ water.color.set(0x5eafb3).lerp(new T.Color(0xb6d4d7),winter*.75);water.roughness=mix(.28,.7,winter);
+ hour=dayMode==='auto'?mod(9+time*24/180,24):hour;const angle=(hour-6)/24*Math.PI*2,day=smooth(-.13,.32,Math.sin(angle));night=1-day;
+ sun.position.set(Math.cos(angle)*25,Math.max(1.5,Math.sin(angle)*32),12);sun.intensity=day*3.6;sun.color.set(0xffedd1).lerp(new T.Color(0xffa55d),(1-smooth(.05,.65,Math.sin(angle)))*day);hemi.intensity=mix(.42,2.1,day);moon.intensity=night*.65;glow.emissiveIntensity=night*2.8;glow.color.set(0x8daca9).lerp(new T.Color(0xffde9e),night);poolMat.opacity=night*.18;
+ floor.material.opacity=day*.15;
+ const bg=new T.Color(0x142b3e).lerp(new T.Color(0xdce5df),day);if(day>.05&&day<.95)bg.lerp(new T.Color(0xc7aaa1),.3);document.body.style.backgroundColor='#'+bg.getHexString();document.documentElement.style.setProperty('--ink',night>.65?'#d8e4dd':'#334d50');document.documentElement.style.setProperty('--muted',night>.65?'#8da9b4':'#728587');document.documentElement.style.setProperty('--glass',night>.65?'rgba(28,47,60,.91)':'rgba(250,253,249,.83)');
+ const labels=['花开时节','绿荫长日','金风入城','落雪无声'];$('seasonMark').textContent=['春','夏','秋','冬'][i];$('seasonName').textContent=labels[i];$('clock').textContent=String(Math.floor(hour)%24).padStart(2,'0')+':'+String(Math.floor(hour%1*60)).padStart(2,'0');$('lightLabel').textContent=night>.7?'万家灯火':day<.9?'晨昏之间':'日光漫游';$('yearProgress').style.width=(seasonValue/4*100)+'%';$('cycleLabel').textContent=(seasonMode==='auto'?'四季流转':'季节驻留')+' · '+(dayMode==='auto'?'自动昼夜':'此刻停留');
+ particleMat.opacity=weights[0]*.65+weights[2]*.6+winter*.85;particleMat.color.set(0xf4d3de).lerp(new T.Color(0xbf8a49),weights[2]).lerp(new T.Color(0xffffff),winter);particleMat.size=.08+winter*.025;particles.visible=particleMat.opacity>.02;
+}
+function animateObjects(){
+ for(const c of cars){const p=route(c.phase+time*.009*c.dir,c.dir>0?.38:-.38);c.g.position.set(p[0],0,p[1]);c.g.rotation.y=p[2]+(c.dir<0?Math.PI:0);}
+ for(const p of walkers){const q=route(p.phase+time*p.speed/90,1.22);p.g.position.set(q[0],0,q[1]);p.g.rotation.y=q[2];p.legs.forEach((l,i)=>l.rotation.x=Math.sin(time*5+p.phase*30+i*Math.PI)*.35);}
+ wheel.rotation.z=time*.065;for(const {cabin,a} of cabins){cabin.position.set(Math.cos(a)*wheelRadius,Math.sin(a)*wheelRadius,0);cabin.rotation.z=-wheel.rotation.z;}
+ for(const [key,m] of trainMaterials){const source=Object.values(mats).find(v=>v.uuid===key);if(source&&source===glow){m.color.copy(glow.color);m.emissiveIntensity=glow.emissiveIntensity;}}
+ train.position.set(mod(time*1.25+14,47)-25,.02,-13.75);boat.position.set(Math.sin(time*.035)*7.3,.1+Math.sin(time*1.8)*.025,9.7);boat.rotation.y=Math.cos(time*.035)>=0?0:Math.PI;
+ for(let i=0;i<drops.length;i++){const a=i/26*Math.PI*2,p=mod(time*.7+i/26,1),r=p*.85;drops[i].position.set(3.7+Math.cos(a)*r,1.2+Math.sin(p*Math.PI)*.8-p*.65,1.4+Math.sin(a)*r);}
+ for(let i=0;i<ripples.length;i++)ripples[i].scale.x=.2+.65*(.5+.5*Math.sin(time*.8+i));
+ for(let i=0;i<particleCount;i++){const [a,b,c,d]=particleSeeds[i],fall=mod(b*9-time*(.35+winter*.25),9);particlePos[i*3]=(a-.5)*38+Math.sin(time*.35+b*13)*.7;particlePos[i*3+1]=fall+.1;particlePos[i*3+2]=(c-.5)*29+Math.cos(time*.25+d*10)*.4;}particleGeo.attributes.position.needsUpdate=true;
+ for(const g of clockHands){const {a,b}=g.userData;const aa=-hour/12*Math.PI*2,bb=-hour%1*Math.PI*2;a.rotation.z=aa;a.position.set(-Math.sin(aa)*.105,Math.cos(aa)*.105,.035);b.rotation.z=bb;b.position.set(-Math.sin(bb)*.15,Math.cos(bb)*.15,.055);}
+}
+function cameraUpdate(){const aspect=innerWidth/innerHeight,half=Math.max(26/aspect,20)/zoom;camera.left=-half*aspect;camera.right=half*aspect;camera.top=half;camera.bottom=-half;camera.updateProjectionMatrix();camera.position.set(Math.sin(yaw)*55*Math.cos(elevation),55*Math.sin(elevation),Math.cos(yaw)*55*Math.cos(elevation));camera.lookAt(target);}
+function render(){environment();animateObjects();cameraUpdate();scene.updateMatrixWorld(true);for(const {mesh,items} of movingBatches){items.forEach((o,i)=>mesh.setMatrixAt(i,o.matrixWorld));mesh.instanceMatrix.needsUpdate=true;}renderer.render(scene,camera);frames++;}
+function resize(){renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5,Math.sqrt(2600000/(innerWidth*innerHeight))));renderer.setSize(innerWidth,innerHeight,false);render();}addEventListener('resize',resize);
+function schedule(){cancelAnimationFrame(raf);raf=0;last=0;if(!paused&&!document.hidden)raf=requestAnimationFrame(tick);}
+function tick(now){raf=0;if(paused||document.hidden)return;if(!last)last=now;const dt=Math.min((now-last)/1000,.1);if(now-lastRender>=1000/30){time+=dt*speed;if(orbit&&!dragging)yaw+=dt*.025;last=now;lastRender=now;render();}raf=requestAnimationFrame(tick);}
+function togglePause(){paused=!paused;$('pause').textContent=paused?'继续':'暂停';schedule();}
+$('pause').onclick=togglePause;$('settings').onclick=()=>{const open=$('panel').hidden;$('panel').hidden=!open;$('settings').setAttribute('aria-expanded',String(open));};
+$('season').value=seasonMode;$('season').onchange=e=>{seasonMode=e.target.value;render()};$('daymode').value=dayMode;$('daymode').onchange=e=>{dayMode=e.target.value;render()};$('hour').value=hour;$('hour').oninput=e=>{hour=Number(e.target.value);dayMode='fixed';$('daymode').value='fixed';render()};$('speed').onchange=e=>speed=Number(e.target.value);$('orbit').checked=orbit;$('orbit').onchange=e=>orbit=e.target.checked;$('reset').onclick=()=>{yaw=.68;elevation=.72;zoom=1;render()};
+const canvas=$('view');let px=0,py=0;canvas.addEventListener('pointerdown',e=>{dragging=true;px=e.clientX;py=e.clientY;canvas.setPointerCapture(e.pointerId);orbit=false;$('orbit').checked=false;});canvas.addEventListener('pointermove',e=>{if(!dragging)return;yaw-=(e.clientX-px)*.006;elevation=clamp(elevation+(e.clientY-py)*.004,.27,1.3);px=e.clientX;py=e.clientY;render()});const release=()=>dragging=false;canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);canvas.addEventListener('lostpointercapture',release);canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom*Math.exp(-e.deltaY*.001),.65,2.8);render()},{passive:false});
+addEventListener('keydown',e=>{if(/INPUT|SELECT|BUTTON/.test(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();togglePause()}if(e.key.toLowerCase()==='h')document.body.classList.toggle('hud-off');if(e.key.toLowerCase()==='f'){if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});else document.documentElement.requestFullscreen().catch(()=>{});}});
+document.addEventListener('visibilitychange',schedule);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();paused=true;schedule();$('error').hidden=false;});canvas.addEventListener('webglcontextrestored',()=>location.reload());
+if(query.get('hud')==='0')document.body.classList.add('hud-off');$('pause').textContent=paused?'继续':'暂停';
+window.__CITY__={state:()=>({time,hour,season:seasonValue,night,winter,paused,orbit,frames,buildings:buildingCount,trees:canopies.length/3,cars:cars.length,pedestrians:walkers.length,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,pixelRatio:renderer.getPixelRatio(),zoom,yaw,elevation,scheduled:!!raf}),set:(s,h)=>{seasonMode=String(s);hour=h;dayMode='fixed';render()},advance:dt=>{time+=dt;render()},render};
+resize();schedule();
+} catch(error){document.getElementById('error').hidden=false;console.error(error);}
+})();
+</script></body></html>

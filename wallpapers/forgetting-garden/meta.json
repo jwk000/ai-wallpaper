@@ -1,0 +1,13 @@
+{
+  "title": "会遗忘的花园",
+  "subtitle": "A Garden That Forgets",
+  "description": "递归枝条、叶序螺旋与数学花瓣组成的植物不断生长、盛开、遗忘，在原地留下漂散的孢子。",
+  "tags": [
+    "Canvas 2D",
+    "程序艺术",
+    "自然",
+    "离线"
+  ],
+  "accent": "#b9caa2",
+  "order": 20.5
+}

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>山河呼吸 · The Breathing Landscape</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070a10;color:#f2eadb;font-family:system-ui,"Microsoft YaHei",sans-serif}canvas{display:block;width:100%;height:100%;touch-action:none}button,select,input{font:inherit;accent-color:#9b5448}button,select{color:inherit;background:#ffffff0c;border:1px solid #ffffff24;border-radius:7px;padding:8px 12px}button{cursor:pointer}button:hover{background:#ffffff1c}button:focus-visible,select:focus-visible{outline:2px solid #9b5448;outline-offset:4px}#settings{position:fixed;right:20px;bottom:20px;opacity:0;transition:opacity .3s;background:#111820b8;backdrop-filter:blur(12px)}body:hover #settings,body:focus-within #settings,body.intro #settings{opacity:.75}#panel{position:fixed;bottom:72px;right:20px;width:min(330px,calc(100vw - 40px));max-height:calc(100vh - 100px);overflow:auto;background:#10151eea;border:1px solid #ffffff25;border-radius:14px;padding:22px;backdrop-filter:blur(20px);box-shadow:0 18px 70px #0006}#panel[hidden]{display:none}h1{font-family:serif;font-size:23px;font-weight:400;margin:0 0 5px}small{font-size:10px;letter-spacing:2px;color:#9b5448}p{font-size:12px;line-height:1.8;color:#c3c6cd}.controls{display:flex;flex-wrap:wrap;gap:8px}.row{display:flex;align-items:center;justify-content:space-between;margin:14px 0;font-size:12px}#status{display:block;margin-top:14px;color:#a4b1c1;font-size:11px}kbd{font-family:inherit;color:#eee}body.clean #settings{opacity:0;pointer-events:none}body.clean #panel{display:none}
+</style></head><body class="intro"><canvas id="scene" aria-label="山河呼吸：宣纸上的群山缓慢呼吸，河流悄悄改道，薄雾穿过松林；偶有墨点聚成飞鸟，掠过远山。"></canvas>
+<button id="settings" type="button" aria-controls="panel" aria-expanded="false" title="显示设置（H）">☷ 设置</button>
+<aside id="panel" hidden aria-label="壁纸设置"><h1>山河呼吸</h1><small>The Breathing Landscape</small><p>宣纸上的群山缓慢呼吸，河流悄悄改道，薄雾穿过松林；偶有墨点聚成飞鸟，掠过远山。</p><div class="controls"><button id="pause" type="button">暂停</button><button id="event" type="button">雁过远山</button><button id="reseed" type="button">变换构图</button></div><label class="row">时间流速<select id="speed"><option value="0.5">舒缓 · ½</option><option value="1" selected>自然 · 1</option><option value="2">轻快 · 2</option></select></label><label class="row">画质<select id="quality"><option value="high">精细</option><option value="low">节能</option></select></label><p><kbd>空格</kbd> 暂停 / 继续 · <kbd>H</kbd> 设置<br><kbd>E</kbd> 特殊事件 · <kbd>R</kbd> 变换构图</p><output id="status" aria-live="polite"></output></aside>
+<script>(() => {
+  'use strict';
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const params = new URLSearchParams(location.search);
+  const TAU = Math.PI * 2;
+  const clamp = (x, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, x));
+  const mix = (a, b, x) => a + (b - a) * x;
+  const smooth = (a, b, x) => { const v = clamp((x - a) / (b - a)); return v * v * (3 - 2 * v); };
+  const mod = (x, n) => ((x % n) + n) % n;
+  function numberParam(key, fallback, lo, hi) {
+    const v = params.has(key) ? Number(params.get(key)) : NaN;
+    return Number.isFinite(v) ? clamp(v, lo, hi) : fallback;
+  }
+  let seed = numberParam('seed', 20261111, 1, 4294967295) >>> 0;
+  function randomSource(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let v = Math.imul(s ^ s >>> 15, 1 | s); v ^= v + Math.imul(v ^ v >>> 7, 61 | v); return ((v ^ v >>> 14) >>> 0) / 4294967296; }; }
+  let rand = randomSource(seed);
+  // Smooth, bounded harmonic field: no texture or network input.
+  const field = (x, y = 0) => Math.sin(x * 1.73 + y * .73) * .5 + Math.sin(x * 3.17 - y * 1.37) * .27 + Math.sin(x * 7.13 + y * 2.71) * .13 + Math.cos(x * 13.31 - y) * .1;
+  const rgba = (r, g, b, a) => `rgba(${r},${g},${b},${clamp(a)})`;
+  let w = 1, h = 1, unit = 1, dpr = 1;
+  let t = numberParam('t', 24, 0, 1e8), speed = 1, frames = 0, raf = 0, last = null;
+  let quality = params.get('quality') === 'low' ? 'low' : 'high';
+  const media = matchMedia('(prefers-reduced-motion: reduce)');
+  let paused = params.has('still') ? params.get('still') !== '0' : media.matches;
+  let manualMotion = params.has('still');
+  let specialStart = -1e9, drawMs = 0, clockDate = new Date();
+  const pointer = { x: 0, y: 0, active: false };
+  const panel = document.getElementById('panel');
+  const status = document.getElementById('status');
+  function circle(x, y, r, color) { if (r <= 0) return; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); }
+  function ellipse(x, y, rx, ry, color, rotation = 0) { ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, Math.max(.01, rx), Math.max(.01, ry), rotation, 0, TAU); ctx.fill(); }
+  function glow(x, y, r, color) { const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(.1, r)); g.addColorStop(0, color); g.addColorStop(1, 'transparent'); circle(x, y, r, g); }
+  function background(top, bottom) { const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, top); g.addColorStop(1, bottom); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
+  function stroke(color, width = 1) { ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke(); }
+  function eventPhase(time, period, duration, offset = 0) {
+    const manual = time - specialStart;
+    if (manual >= 0 && manual <= duration) return manual / duration;
+    const cycle = mod(time + offset, period);
+    return cycle < duration ? cycle / duration : -1;
+  }
+  const bell = p => p < 0 ? 0 : Math.sin(clamp(p) * Math.PI) ** 2;
+  function stars(list, time, alpha = .6) {
+    for (const p of list) circle(p.x * w, p.y * h, p.r, rgba(174, 191, 214, alpha * (.65 + .35 * Math.sin(time * .25 + p.a))));
+  }
+  function makeStars(count) { return Array.from({ length: count }, () => ({ x: rand(), y: rand(), r: .3 + rand() * 1.1, a: rand() * TAU })); }
+  function vignette(alpha = .35) { const g = ctx.createRadialGradient(w / 2, h * .46, unit * .2, w / 2, h / 2, Math.hypot(w, h) * .55); g.addColorStop(0, 'transparent'); g.addColorStop(1, `rgba(0,0,0,${alpha})`); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
+
+  function createArtwork() {
+  let ridges, trees, birds, paper;
+  function reset() {
+    ridges = Array.from({ length: 7 }, (_, i) => ({ phase: rand() * 30, base: .26 + i * .092, amplitude: .12 + i * .012 }));
+    trees = Array.from({ length: 65 }, () => ({ x: rand(), size: .018 + rand() * .035, bend: rand() - .5 }));
+    birds = Array.from({ length: 11 }, (_, i) => ({ x: i * .018, y: Math.abs(i - 5) * .008, phase: rand() * TAU }));
+  }
+  reset();
+  function ridgeY(layer, x, time) {
+    const r = ridges[layer];
+    return h * (r.base - Math.abs(field(x * 5 + r.phase, layer * 2 + time * .006)) * r.amplitude - .006 * Math.sin(time * .055 + x * 8 + layer));
+  }
+  function pine(x, y, size, bend) {
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x - size * bend, y - size * .5, x + size * bend * .5, y - size);
+    stroke('rgba(38,51,48,.7)', Math.max(.8, size * .033));
+    for (let j = 1; j <= 5; j++) {
+      const yy = y - size * (.2 + j * .13), spread = size * (.38 - j * .043);
+      ctx.beginPath(); ctx.moveTo(x - spread, yy + size * .07); ctx.lineTo(x + size * bend * .2, yy - size * .07); ctx.lineTo(x + spread * .8, yy + size * .04);
+      stroke('rgba(42,56,49,.7)', Math.max(.8, size * .06));
+    }
+  }
+  return {
+    reset, eventDuration: 35,
+    resize() {
+      paper = document.createElement('canvas'); paper.width = 384; paper.height = 384;
+      const pc = paper.getContext('2d'), rr = randomSource(seed + 301);
+      for (let i = 0; i < 14000; i++) { pc.fillStyle = rr() > .5 ? 'rgba(63,50,29,.035)' : 'rgba(255,255,240,.12)'; pc.fillRect(rr() * 384, rr() * 384, 1, rr() * 2 + .5); }
+    },
+    snapshot: () => ({ ridges: ridges.length, birds: birds.length, event: eventPhase(t, 165, 35, 60) }),
+    draw(time) {
+      background('#e1dfce', '#c9cdbb');
+      const sunX = w * .77, sunY = h * .19;
+      circle(sunX, sunY, unit * .039, 'rgba(169,99,76,.55)');
+      for (let layer = 0; layer < 7; layer++) {
+        ctx.beginPath(); ctx.moveTo(-5, h);
+        for (let x = -5; x <= w + 9; x += 6) ctx.lineTo(x, ridgeY(layer, x / w, time));
+        ctx.lineTo(w + 5, h); ctx.closePath();
+        const shade = 148 - layer * 16;
+        const g = ctx.createLinearGradient(0, h * ridges[layer].base - h * .15, 0, h * (ridges[layer].base + .3));
+        g.addColorStop(0, rgba(shade - 4, shade + 9, shade + 4, .72)); g.addColorStop(1, rgba(shade + 30, shade + 40, shade + 28, .3));
+        ctx.fillStyle = g; ctx.fill(); stroke(rgba(shade - 20, shade - 7, shade - 14, .32), .7);
+        // Sparse vertical texture follows the actual moving ridge.
+        ctx.beginPath();
+        for (let j = 0; j < 115; j++) {
+          const x = (j / 114) * w, y = ridgeY(layer, j / 114, time);
+          ctx.moveTo(x, y + 2); ctx.quadraticCurveTo(x - 8, y + 24, x + Math.sin(j) * 10, y + 25 + Math.sin(j * 5 + layer) ** 2 * h * .09);
+        }
+        stroke(rgba(shade - 25, shade - 9, shade - 15, .11), .65);
+        const fog = ctx.createLinearGradient(0, h * (ridges[layer].base - .02), 0, h * (ridges[layer].base + .1));
+        fog.addColorStop(0, '#dcdccd00'); fog.addColorStop(.52, '#dcdfcf76'); fog.addColorStop(1, '#dcdccd00');
+        ctx.fillStyle = fog; ctx.fillRect(0, h * (ridges[layer].base - .02), w, h * .12);
+      }
+      // The river widens with perspective and softly migrates in its own bed.
+      const left = [], right = [];
+      for (let i = 0; i <= 90; i++) {
+        const z = i / 90, y = h * (.44 + z * .6), x = w * (.55 + Math.sin(z * 8 + time * .012) * (.018 + z * .1));
+        const width = (2 + z ** 2.2 * w * .1);
+        left.push([x - width, y]); right.push([x + width, y]);
+      }
+      ctx.beginPath(); left.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); right.reverse().forEach(([x, y]) => ctx.lineTo(x, y)); ctx.closePath();
+      ctx.fillStyle = '#d2d6c5'; ctx.fill();
+      ctx.beginPath();
+      for (let i = 0; i < 48; i++) {
+        const z = i / 48, y = h * (.48 + z * .52), x = w * (.55 + Math.sin((y / h - .44) / .6 * 8 + time * .012) * (.018 + z * .1));
+        const length = (3 + z * z * w * .06) * (.6 + .3 * Math.sin(i * 3 + time * .2));
+        ctx.moveTo(x - length, y); ctx.lineTo(x + length, y);
+      }
+      stroke('rgba(76,100,91,.2)', .6);
+      for (const tree of trees) {
+        if (tree.x > .42 && tree.x < .69) continue;
+        const y = ridgeY(6, tree.x, time) + h * .045;
+        pine(tree.x * w, y, tree.size * unit, tree.bend);
+      }
+      const hx = w * .315, hy = ridgeY(5, .315, time) + h * .035, hs = unit * .024;
+      ctx.fillStyle = '#7d8171'; ctx.fillRect(hx, hy - hs * .5, hs * 1.5, hs * .65);
+      ctx.beginPath(); ctx.moveTo(hx - hs * .25, hy - hs * .5); ctx.lineTo(hx + hs * .65, hy - hs); ctx.lineTo(hx + hs * 1.8, hy - hs * .5); stroke('#424d47', 2);
+      ctx.fillStyle = '#e2bd76'; ctx.fillRect(hx + hs * .45, hy - hs * .32, hs * .18, hs * .2);
+      const phase = eventPhase(time, 165, 35, 60);
+      if (phase >= 0) for (const b of birds) {
+        const x = w * (-.15 + phase * 1.35 + b.x), y = h * (.23 + b.y + .024 * Math.sin(phase * 4));
+        const wing = Math.sin(time * 4 + b.phase) * unit * .004;
+        ctx.beginPath(); ctx.moveTo(x - unit * .005, y - wing); ctx.quadraticCurveTo(x - 2, y - 2, x, y); ctx.quadraticCurveTo(x + 2, y - 2, x + unit * .005, y - wing); stroke('rgba(45,58,52,.65)', 1);
+      }
+      ctx.fillStyle = ctx.createPattern(paper, 'repeat'); ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(139,63,45,.65)'; ctx.fillRect(w * .942, h * .09, unit * .014, unit * .026);
+    },
+  };
+}
+
+
+  const art = createArtwork();
+  function draw() {
+    const begin = performance.now();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    art.draw(t);
+    drawMs = performance.now() - begin;
+    frames++;
+  }
+  function resize() {
+    w = Math.max(1, innerWidth); h = Math.max(1, innerHeight); unit = Math.min(w, h);
+    const budget = quality === 'low' ? 1200000 : 2600000;
+    dpr = Math.min(devicePixelRatio || 1, 2, Math.sqrt(budget / (w * h)));
+    canvas.width = Math.max(1, Math.floor(w * dpr)); canvas.height = Math.max(1, Math.floor(h * dpr));
+    art.resize?.(); draw();
+  }
+  function syncPanel() {
+    document.getElementById('pause').textContent = paused ? '继续' : '暂停';
+    document.getElementById('pause').setAttribute('aria-pressed', String(paused));
+    document.getElementById('settings').setAttribute('aria-expanded', String(!panel.hidden));
+    status.textContent = art.status?.() || (paused ? '画面已暂停' : '离线绘制 · 30 FPS');
+  }
+  function loop(now) {
+    raf = 0;
+    if (paused || document.hidden) { last = null; return; }
+    if (last === null) last = now;
+    if (now - last >= 1000 / 30 - .5) {
+      const dt = Math.min(.1, (now - last) / 1000); last = now;
+      t += dt * speed; clockDate = new Date(); art.update?.(dt, t); draw();
+      if (!panel.hidden) syncPanel();
+    }
+    raf = requestAnimationFrame(loop);
+  }
+  function schedule() { if (!raf && !paused && !document.hidden) { last = null; raf = requestAnimationFrame(loop); } }
+  function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; last = null; }
+  function togglePause() { paused = !paused; manualMotion = true; if (paused) { stop(); art.flush?.(); } else { clockDate = new Date(); schedule(); } syncPanel(); }
+  function trigger() { specialStart = t - (paused ? (art.eventDuration || 20) * .5 : 0); draw(); syncPanel(); }
+  function reseed() { seed = (seed + 2654435761) >>> 0; rand = randomSource(seed); art.reset?.(); art.resize?.(); draw(); }
+  function togglePanel() { document.body.classList.remove('clean'); panel.hidden = !panel.hidden; syncPanel(); }
+  document.getElementById('settings').addEventListener('click', togglePanel);
+  document.getElementById('pause').addEventListener('click', togglePause);
+  document.getElementById('event').addEventListener('click', trigger);
+  document.getElementById('reseed').addEventListener('click', reseed);
+  document.getElementById('speed').addEventListener('change', e => { speed = Number(e.target.value); });
+  document.getElementById('quality').value = quality;
+  document.getElementById('quality').addEventListener('change', e => { quality = e.target.value; resize(); });
+  addEventListener('keydown', e => {
+    if (e.repeat || /INPUT|SELECT|TEXTAREA|BUTTON/.test(e.target.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); togglePause(); }
+    else if (e.key.toLowerCase() === 'h') togglePanel();
+    else if (e.key.toLowerCase() === 'e') trigger();
+    else if (e.key.toLowerCase() === 'r') reseed();
+  });
+  canvas.addEventListener('pointermove', e => { pointer.x = (e.clientX / w - .5) * 2; pointer.y = (e.clientY / h - .5) * 2; pointer.active = true; });
+  canvas.addEventListener('pointerleave', () => { pointer.active = false; pointer.x = pointer.y = 0; });
+  addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); art.flush?.(); } else { clockDate = new Date(); if (!paused) draw(); schedule(); } });
+  addEventListener('pagehide', () => { stop(); art.flush?.(); });
+  media.addEventListener('change', e => { if (!manualMotion) { paused = e.matches; if (paused) stop(); else schedule(); syncPanel(); } });
+  if (params.get('hud') === '0') document.body.classList.add('clean');
+  setTimeout(() => document.body.classList.remove('intro'), 4500);
+  // Small diagnostics surface for deterministic captures and long-duration checks.
+  window.__dreamAtlas = {
+    snapshot: () => ({ id: 'breathing-shanshui', seed, t, paused, frames, w, h, dpr, quality, speed, drawMs, scheduled: !!raf, specialStart, ...art.snapshot?.() }),
+    seek(time) { if (!Number.isFinite(time) || time < 0) throw new Error('Invalid time'); t = time; draw(); },
+    render: draw,
+    trigger,
+    // Advance active time only for persistence verification; normal playback uses RAF.
+    advance(seconds) { if (!Number.isFinite(seconds) || seconds < 0 || seconds > 86400) throw new Error('Invalid duration'); t += seconds * speed; art.update?.(seconds, t); draw(); },
+    flush() { art.flush?.(); },
+  };
+  resize(); syncPanel(); schedule();
+})();
+</script></body></html>
