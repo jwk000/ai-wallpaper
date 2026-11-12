@@ -14,6 +14,8 @@ Thumbs.db
 scripts/*
 !scripts/dream-atlas/
 !scripts/verify-dream-atlas.cjs
+!scripts/verify-garden.cjs
+!scripts/garden/
 
 # 本地临时产物（验证截图、临时脚本）
 temp/
