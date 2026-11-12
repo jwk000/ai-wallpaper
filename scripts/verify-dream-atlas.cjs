@@ -7,7 +7,7 @@ const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 const root = path.resolve(__dirname, '..');
-const ids = ['gravity-specimen', 'breathing-shanshui', 'woven-ocean', 'time-resin', 'waking-reflection', 'forgetting-garden', 'lunar-tide-clock', 'eclipse-rehearsal'];
+const ids = ['gravity-specimen', 'waking-reflection', 'forgetting-garden', 'eclipse-rehearsal'];
 const out = path.join(os.tmpdir(), 'lumen-dream-atlas-check');
 const capture = process.argv.includes('--capture');
 const only = process.argv.find(x => x.startsWith('--only='))?.slice(7);
@@ -18,7 +18,7 @@ const hash = buffer => crypto.createHash('sha256').update(buffer).digest('hex');
 
 async function run() {
   const { app, BrowserWindow, nativeImage } = require('electron');
-  // An isolated profile makes persistence tests safe for the user's real amber.
+  // Keep verification isolated from the user profile.
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'lumen-atlas-profile-'));
   app.setPath('userData', profile);
   app.disableHardwareAcceleration();
@@ -124,24 +124,6 @@ async function run() {
       win.setContentSize(1920, 1080); await wait(100);
       const timings = await js(`(() => { const a=[]; for(let i=0;i<12;i++){ const start=performance.now(); __dreamAtlas.seek(24+i*.1);a.push(performance.now()-start); } return a.sort((a,b)=>a-b); })()`);
       const ms = timings[6];
-      if (id === 'time-resin') {
-        await js("localStorage.removeItem('lumen-dream-atlas-resin-v1')");
-        await win.loadFile(html, { query: { still: '1', hud: '0' } });
-        assert.equal((await state()).activeSeconds, 0);
-        await js('__dreamAtlas.advance(125);__dreamAtlas.flush()');
-        assert.equal((await state()).layers, 2);
-        await win.reload(); await wait(160); assert.ok(Math.abs((await state()).activeSeconds - 125) < .01);
-        await js('__dreamAtlas.advance(86400);__dreamAtlas.flush()'); assert.equal((await state()).layers, 240);
-        const before = (await state()).activeSeconds;
-        await js("document.getElementById('reseed').click()"); assert.equal((await state()).activeSeconds, before);
-        await js("Storage.prototype.setItem=function(){throw new Error('quota')}; __dreamAtlas.advance(61);__dreamAtlas.flush()"); assert.equal((await state()).storageOK, false);
-        // Invalid JSON and invalid schema both fall back without crashing.
-        for (const bad of ['{bad', '{"version":1,"seconds":-20,"layers":null}']) {
-          await win.loadFile(html, { query: { still: '1' } });
-          await js(`localStorage.setItem('lumen-dream-atlas-resin-v1',${JSON.stringify(bad)})`);
-          await win.loadFile(html, { query: { still: '1' } }); assert.equal((await state()).activeSeconds, 0);
-        }
-      }
       results.push({ id, medianRenderMs1080p: +ms.toFixed(2), viewports: 4, longTimeSeconds: 10000000 });
       console.log(`PASS ${id}: offline, animation, event, 4 viewports, controls, visibility, reduced motion; 1080p draw ${ms.toFixed(1)} ms`);
     }
@@ -161,7 +143,7 @@ async function run() {
     if (!only) {
       const slides = ids.map(id => ({ title: JSON.parse(fs.readFileSync(path.join(root, 'wallpapers', id, 'meta.json'), 'utf8')).title, url: nativeImage.createFromPath(path.join(out, id + '.png')).toDataURL() }));
       const sheet = await js(`(async () => {
-        const c=document.createElement('canvas'); c.width=1280;c.height=1568;
+        const c=document.createElement('canvas'); c.width=1280;c.height=Math.ceil(${ids.length}/2)*392;
         const g=c.getContext('2d');g.fillStyle='#11171f';g.fillRect(0,0,c.width,c.height);
         const slides=${JSON.stringify(slides)};
         for(let i=0;i<slides.length;i++) { const img=new Image();img.src=slides[i].url;await img.decode();

@@ -1,8 +1,0 @@
-{
-  "title": "机械植物园",
-  "subtitle": "The Clockwork Botanic Garden",
-  "description": "深夜玻璃温室里的三株发条植物：黄铜枝条按互质节律生长、开花、收拢，齿轮咬合处漏出暖光。悬停上发条，点击开花，键盘 1–3 对准展台。",
-  "tags": ["Canvas 2D", "发条", "植物", "温室", "程序生成", "交互"],
-  "accent": "#c99b5c",
-  "order": 3.1
-}
