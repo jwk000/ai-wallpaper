@@ -62,6 +62,23 @@ function findSiteWallpaperHtml(dir) {
   return found;
 }
 
+// Keep the downloaded HTML self-contained, including locally vendored libraries.
+function bundleLocalScripts(html, sourceDir) {
+  return html.replace(/<script\b([^>]*?)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>\s*<\/script>/gi,
+    (tag, before, src, after) => {
+      if (/^(?:[a-z]+:|\/\/)/i.test(src)) return tag;
+      const file = path.resolve(sourceDir, src);
+      if (!file.startsWith(sourceDir + path.sep) || !fs.existsSync(file)) {
+        fail(`找不到安全的本地脚本：${src} (${sourceDir})`);
+      }
+      if (/\btype\s*=\s*["']module["']/i.test(before + after)) {
+        fail(`模块脚本需要专用打包：${src}`);
+      }
+      const code = fs.readFileSync(file, 'utf8').replace(/<\/script/gi, '<\\/script');
+      return `<script${before}${after}>\n${code}\n</script>`;
+    });
+}
+
 function build() {
   if (!fs.existsSync(MANIFEST_FILE)) fail(`找不到清单：${MANIFEST_FILE}`);
   assertSafeOutputDir(OUT_DIR);
@@ -82,6 +99,13 @@ function build() {
   if (!manifest || !Array.isArray(manifest.wallpapers)) {
     fail('site/data/wallpapers.json 缺少 wallpapers 数组。');
   }
+
+  const ids = new Set(manifest.wallpapers.map(item => item.id));
+  if (ids.size !== manifest.wallpapers.length) fail('站点清单存在重复 id。');
+  const missing = fs.readdirSync(WALLPAPERS_DIR, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && fs.existsSync(path.join(WALLPAPERS_DIR, entry.name, 'wallpaper.html')) && !ids.has(entry.name))
+    .map(entry => entry.name);
+  if (missing.length) fail(`壁纸尚未发布到清单：${missing.join(', ')}。请运行 npm run sync:site。`);
 
   const live = [];
   const staticOnly = [];
@@ -109,7 +133,12 @@ function build() {
 
     const targetDir = path.join(OUT_DIR, 'assets', 'wallpapers', item.id);
     fs.mkdirSync(targetDir, { recursive: true });
-    fs.copyFileSync(source, path.join(targetDir, 'live.html'));
+    fs.writeFileSync(path.join(targetDir, 'live.html'), bundleLocalScripts(html, path.dirname(source)));
+    // Distribute vendored library attribution alongside the playable artifact.
+    for (const license of ['THREE-LICENSE.txt', 'vendor/LICENSE']) {
+      const file = path.join(path.dirname(source), license);
+      if (fs.existsSync(file)) fs.copyFileSync(file, path.join(targetDir, path.basename(license)));
+    }
 
     item.live = `assets/wallpapers/${item.id}/live.html`;
     live.push(item.id);

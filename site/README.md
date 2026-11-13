@@ -45,11 +45,15 @@ node scripts/build-site.js
 脚本会：
 
 1. 把 `site/` 复制到 `_site/`；
-2. 为存在 `wallpaper.html` 的作品生成 `_site/assets/wallpapers/<id>/live.html`；
+2. 检查全部本地作品均在清单中，并生成 `_site/assets/wallpapers/<id>/live.html`；本地经典脚本引用会内嵌到发布版，保留单 HTML 下载能力；
 3. 在 `_site/data/wallpapers.json` 里给这些作品补上 `live` 字段；
 4. 其余作品保持静图，详情页不显示播放按钮。
 
 `_site/` 是构建产物，已加入 `.gitignore`，不要提交。新增作品时把 HTML 放进 `wallpapers/<id>/`，站点和桌面引擎共用这一份；不要复制到 `site/`。
+
+当前全部 32 幅本地壁纸均已发布，原始 `wallpaper.html` 也不依赖外部 JS。新增或更新作品后执行 `npm run sync:site`，从各目录的 `meta.json` 与 `preview.png` / `preview.jpg` 刷新清单、网页预览图和可下载静帧。原有分类、作者、授权、排序和精选设置保留；新作品按现有站点默认信息添加，可在清单中调整。
+
+运行 `npm run build:site` 后执行 `npm run verify:site`：检查全量清单、图片与下载链接，将每个 HTML 单独复制到空目录并阻断外网加载，再逐个检查网站实际沙盒中的动效预览，以及桌面和手机布局。报告和截图位于 `temp/site-check/`，不会提交。
 
 ---
 
@@ -88,7 +92,7 @@ https://<username>.github.io/ai-wallpaper/
 4. 向 `main` 分支推送一次，或在 **Actions → Deploy wallpaper site → Run workflow** 手动运行。
 5. 部署完成后，在 Actions 的运行结果里可以看到站点地址。
 
-之后只要 `site/` 或 `wallpapers/*/wallpaper.html` 发生变化，Pages 都会自动重新部署。上传的作品通过 GitHub API 提交到同一个分支，因此也会触发部署。
+之后只要 `site/` 或 `wallpapers/` 发生变化，Pages 都会自动重新部署。新增本地作品必须先同步清单，否则构建会明确报错。上传的作品通过 GitHub API 提交到同一个分支，因此也会触发部署。
 
 桌面引擎的「在线壁纸馆」也直接读取同一个 `data/wallpapers.json` 和图片资源；部署完成后，引擎里点开在线标签就能浏览并下载这些作品，下载时会自动生成离线 HTML 壁纸。
 

@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "site/**"
-      - "wallpapers/**/wallpaper.html"
+      - "wallpapers/**"
       - "scripts/build-site.js"
       - ".github/workflows/pages.yml"
   workflow_dispatch:

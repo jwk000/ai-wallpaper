@@ -1,8 +1,8 @@
 # 一城四时
 
-一座真正以 WebGL 绘制的 3D 微缩城市沙盘。使用本地 Three.js r160，完全离线运行，无图片、字体、模型或网络请求依赖。模型由程序生成；窗招牌用本地 Canvas 绘制。
+一座真正以 WebGL 绘制的 3D 微缩城市沙盘。Three.js r160 已内嵌在单个 HTML 中，完全离线运行，无外部 JS、图片、字体、模型或网络请求依赖。模型由程序生成；窗招牌用本地 Canvas 绘制。
 
-直接打开 `wallpaper.html`，或在流光壁纸本机库中找到「一城四时」并预览、应用。请保持 `vendor` 文件夹与 HTML 的相对位置不变。`preview.png` 是实际渲染截图。
+直接打开 `wallpaper.html`，或在流光壁纸本机库中找到「一城四时」并预览、应用。单独复制 HTML 即可运行，无需 `vendor` 文件夹。`preview.png` 是实际渲染截图。
 
 ## 城市内容
 
@@ -63,4 +63,4 @@ node wallpapers/seasonal-city/verify.cjs --write-preview
 
 验证在 Electron 的真实 `file://` WebGL 环境运行，覆盖春夏秋冬与夜景、横屏/竖屏/超宽屏、动画与暂停、设置、缩放、全年循环、减少动态效果、离线请求和本机库识别。截图写入 `temp/seasonal-city/`。Windows WebView2 桌面挂载未在此验证中运行。
 
-Three.js 采用 MIT 许可，完整许可位于 `vendor/LICENSE`。
+Three.js 采用 MIT 许可，完整许可已内嵌到 HTML，并保留在 `vendor/LICENSE`。

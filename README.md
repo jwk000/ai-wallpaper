@@ -20,10 +20,11 @@
 
 - 本地预览：`npm run preview:site`（先构建 `_site/`，再在 <http://127.0.0.1:4173> 启动）
 - 只构建：`npm run build:site`，产物在 `_site/`（已加入 `.gitignore`）
-- 部署：推送涉及 `site/`、`wallpapers/*/wallpaper.html` 或 `scripts/build-site.js` 的改动后，[`pages.yml`](.github/workflows/pages.yml) 会构建并发布 `_site/`；首次使用需在 **Settings → Pages → Source** 选择 **GitHub Actions**。
+- 同步全部壁纸：`npm run sync:site` 从本地作品的 `meta.json` 与预览图刷新网站清单和图片，再运行 `npm run build:site` 与 `npm run verify:site`。
+- 部署：推送涉及 `site/`、`wallpapers/` 或 `scripts/build-site.js` 的改动后，[`pages.yml`](.github/workflows/pages.yml) 会构建并发布 `_site/`；首次使用需在 **Settings → Pages → Source** 选择 **GitHub Actions**。
 - 投稿：访客生成 ZIP 投稿包并提交 GitHub Issue；维护者可在「发布设置」中填入 Fine-grained Token 直接发布。
 
-> 直接托管 `site/` 只能看到静图，因为 `live.html` 与 `live` 字段是构建时生成的。壁纸 HTML 在仓库里只保留 `wallpapers/<id>/wallpaper.html` 这一份；站点清单是独立策展的，新增作品仍需在 `site/data/wallpapers.json` 和 `site/assets/wallpapers/` 中补齐条目与图片。
+> 直接托管 `site/` 只能看到静图，因为 `live.html` 与 `live` 字段是构建时生成的。全部 32 幅本地壁纸均已加入网站清单，每幅 HTML 内嵌运行所需的脚本。新增作品后先运行 `npm run sync:site`；构建会检查本地作品是否遗漏，避免部署成功但作品未上架。
 
 完整说明见 [`site/README.md`](site/README.md)。
 
