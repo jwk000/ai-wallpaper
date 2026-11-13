@@ -41,10 +41,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build installer and publish to GitHub Releases
-        run: npm run build:win -- --publish always
+      - name: Build Windows installers
+        run: npm run build:win -- --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload build artifacts
@@ -55,5 +54,44 @@ jobs:
             dist/*.exe
             dist/latest.yml
             dist/*.blockmap
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
+
+      # Publish once, after every artifact is complete. Concurrent electron-builder
+      # publishers can create separate releases for the installer and blockmap.
+      - name: Publish complete release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tag = "v$version"
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json' }
+          $existing = $null
+          try {
+            $existing = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" -Headers $headers
+          } catch {
+            if ([int]$_.Exception.Response.StatusCode -ne 404) { throw }
+          }
+          if ($existing) { throw "Release $tag already exists. Inspect it before retrying; existing assets will not be overwritten." }
+          $names = @("Lumen Wallpaper Setup $version.exe", "Lumen Wallpaper $version.exe", "Lumen Wallpaper Setup $version.exe.blockmap", 'latest.yml')
+          $staging = New-Item -ItemType Directory -Path 'dist/release-assets' -Force
+          foreach ($name in $names) {
+            $source = Get-Item -LiteralPath (Join-Path 'dist' $name)
+            if ($source.Length -eq 0) { throw "Empty artifact: $name" }
+            Copy-Item -LiteralPath $source.FullName -Destination (Join-Path $staging.FullName ($name -replace ' ', '-'))
+          }
+          gh release create $tag --repo $env:GITHUB_REPOSITORY --verify-tag --draft --title "Lumen Wallpaper $tag" --notes-file release-notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to create release draft' }
+          $assets = @(Get-ChildItem -LiteralPath $staging.FullName -File | ForEach-Object FullName)
+          gh release upload $tag @assets --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed; release remains a draft' }
+          $publishedAssets = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not verify uploaded assets' }
+          foreach ($file in Get-ChildItem -LiteralPath $staging.FullName -File) {
+            $uploaded = @($publishedAssets.assets | Where-Object { $_.name -eq $file.Name -and $_.size -eq $file.Length })
+            if ($uploaded.Count -ne 1) { throw "Missing or incomplete asset: $($file.Name)" }
+          }
+          gh release edit $tag --repo $env:GITHUB_REPOSITORY --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to publish complete release' }

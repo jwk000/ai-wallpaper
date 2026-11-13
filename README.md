@@ -254,7 +254,7 @@ wallpapers/
 1. 在 `CHANGELOG.md` 中新增对应版本的小节，例如 `## [0.2.0] - 2026-12-01`。
 2. 运行 `npm version minor`（或 `patch` / `major`），它会更新 `package.json` 并创建标签。
 3. 推送提交和标签：`git push --follow-tags`。
-4. `.github/workflows/release.yml` 会执行 `npm run build:win -- --publish always`，生成安装包、`latest.yml` 与 blockmap，并发布 GitHub Release。
+4. `.github/workflows/release.yml` 先执行 `npm run build:win -- --publish never`，生成安装包、`latest.yml` 与 blockmap；随后统一创建一个 Release 草稿、上传并核对全部文件，最后发布，避免并发创建同名 Release。
 
 > `release.yml` 目前只构建 Windows 安装包；macOS 的 dmg / zip 需要在 Mac 上按上方命令构建，再手动附加到同一个 Release。
 
