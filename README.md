@@ -32,6 +32,8 @@
 
 主窗口有「本机壁纸 / 在线壁纸馆」两个来源标签。在线标签会读取站点发布的 `data/wallpapers.json`，显示远端预览图、作者、标签和尺寸；可以直接查看大图，或下载到本机。目录缓存 5 分钟，也可以手动刷新；断网时优先回退到上一次的结果。
 
+点击来源栏右侧的 **「同步在线壁纸」**，可从任意来源页获取最新在线列表并切换到在线壁纸馆。按钮只刷新目录，不批量下载，也不修改本机作品；同步期间禁用重复点击，完成后显示作品数量和最近同步时间，网络异常时保留缓存目录并提供重试。
+
 ![引擎里的在线壁纸馆](docs/screenshots/online-library.jpg)
 
 下载后会生成一个完全离线的壁纸文件夹：
@@ -59,11 +61,11 @@ npm start
 
 ## 下载安装
 
-当前版本 **1.0.0**，Windows 安装包与免安装版由本仓库构建产出（见下方「构建」与「发布」）。最新的公开 Release 仍是 **v0.1**（macOS Apple Silicon，2026-11-09，较早的构建）。
+当前版本 **1.0.1**，Windows 安装包与免安装版见 [v1.0.1 Release](https://github.com/jwk000/ai-wallpaper/releases/tag/v1.0.1)。本次新增在线列表同步按钮，并包含 32 幅内置壁纸。
 
 ### macOS（Apple Silicon）
 
-最近一次公开的 macOS 构建是 v0.1：下载 [`Lumen.Wallpaper-0.1.0-arm64.dmg`](https://github.com/jwk000/ai-wallpaper/releases/download/v0.1/Lumen.Wallpaper-0.1.0-arm64.dmg)，打开后把 **Lumen Wallpaper** 拖进「应用程序」。1.0.0 的 macOS 包需要在 Mac 上构建（见下文）。
+最近一次公开的 macOS 构建是 v0.1：下载 [`Lumen.Wallpaper-0.1.0-arm64.dmg`](https://github.com/jwk000/ai-wallpaper/releases/download/v0.1/Lumen.Wallpaper-0.1.0-arm64.dmg)，打开后把 **Lumen Wallpaper** 拖进「应用程序」。1.0.1 的 macOS 包需要在 Mac 上构建（见下文）。
 
 安装包使用 ad-hoc 签名、暂未做 Apple 公证，首次打开会被 Gatekeeper 拦截。右键点击应用选择「打开」，或执行：
 
@@ -75,7 +77,7 @@ xattr -dr com.apple.quarantine "/Applications/Lumen Wallpaper.app"
 
 ### Windows
 
-暂未提供预编译安装包。可在 Windows 10/11 x64 上按下方「快速开始」自行构建（需要 Microsoft Edge WebView2 Runtime）。
+在 [v1.0.1 Release](https://github.com/jwk000/ai-wallpaper/releases/tag/v1.0.1) 下载 Windows x64 安装版或免安装版。已安装版本可在应用内点击「检查更新」。运行需要 Microsoft Edge WebView2 Runtime；也可按下方「快速开始」自行构建。
 
 ---
 
@@ -145,8 +147,8 @@ npm install
 
 构建完成后，Windows 产物会生成在 `dist/` 下：
 
-- 免安装版：`dist/Lumen Wallpaper 1.0.0.exe`
-- 安装版：`dist/Lumen Wallpaper Setup 1.0.0.exe`
+- 免安装版：`dist/Lumen Wallpaper 1.0.1.exe`
+- 安装版：`dist/Lumen Wallpaper Setup 1.0.1.exe`
 
 ### macOS
 
@@ -167,7 +169,7 @@ codesign --force --deep --sign - "dist/mac-arm64/Lumen Wallpaper.app"
   -c.mac.identity=null
 ```
 
-产物为 `dist/Lumen Wallpaper-1.0.0-arm64.dmg`。如需分发到其他机器并消除 Gatekeeper 提示，需要 Apple Developer ID 证书并完成 notarization。
+产物为 `dist/Lumen Wallpaper-1.0.1-arm64.dmg`。如需分发到其他机器并消除 Gatekeeper 提示，需要 Apple Developer ID 证书并完成 notarization。
 
 ---
 
@@ -267,7 +269,7 @@ npm run release:win
 
 > Release 需要包含 `latest.yml`（以及差分下载用的 blockmap），自动更新才能识别；只上传 dmg 的 Release（例如 v0.1）不会被更新器使用。
 >
-> 当前 `package.json` 与 `package-lock.json` 都是 `1.0.0`。发布时标签必须与 package.json 完全一致；运行 `npm version patch` / `minor` / `major` 会同时更新版本并创建对应的 `v` 标签。
+> 当前 `package.json` 与 `package-lock.json` 都是 `1.0.1`。发布时标签必须与 package.json 完全一致；运行 `npm version patch` / `minor` / `major` 会同时更新版本并创建对应的 `v` 标签。
 
 ---
 

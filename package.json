@@ -1,7 +1,7 @@
 {
   "name": "lumen-wallpaper",
   "productName": "Lumen Wallpaper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "流光壁纸 · 一个跨平台的单文件 HTML 动态壁纸引擎",
   "main": "src/main/index.js",
   "author": "Lumen",
@@ -23,6 +23,7 @@
     "build:site": "node scripts/build-site.js",
     "sync:site": "node scripts/sync-site-catalog.cjs",
     "verify:site": "node scripts/verify-site.cjs",
+    "verify:online-sync": "node scripts/verify-online-sync.cjs",
     "build:dream-atlas": "node scripts/dream-atlas/build.cjs",
     "verify:dream-atlas": "node scripts/verify-dream-atlas.cjs",
     "preview:site": "node scripts/build-site.js --serve",

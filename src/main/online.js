@@ -144,7 +144,7 @@ function addVersion(url, version) {
   return parsed.href;
 }
 
-async function fetchBuffer(fetchImpl, url, { limit, timeout = 25000, label = '文件' }) {
+async function fetchBuffer(fetchImpl, url, { limit, timeout = 25000, label = '文件', cache = 'default' }) {
   if (typeof fetchImpl !== 'function') throw new Error('当前网络组件不可用。');
 
   let response;
@@ -152,6 +152,7 @@ async function fetchBuffer(fetchImpl, url, { limit, timeout = 25000, label = '�
     response = await fetchImpl(url, {
       method: 'GET',
       redirect: 'follow',
+      cache,
       signal: AbortSignal.timeout(timeout),
       headers: { Accept: label === '壁纸清单' ? 'application/json' : 'image/*' },
     });
@@ -179,12 +180,15 @@ async function fetchBuffer(fetchImpl, url, { limit, timeout = 25000, label = '�
   return buffer;
 }
 
-async function fetchOnlineCatalog(fetchImpl, baseUrl = siteUrl()) {
-  const url = catalogUrl(baseUrl);
+async function fetchOnlineCatalog(fetchImpl, baseUrl = siteUrl(), { force = false } = {}) {
+  const requestUrl = new URL(catalogUrl(baseUrl));
+  if (force) requestUrl.searchParams.set('_sync', String(Date.now()));
+  const url = requestUrl.href;
   const buffer = await fetchBuffer(fetchImpl, url, {
     limit: MAX_CATALOG_BYTES,
     timeout: 20000,
     label: '壁纸清单',
+    cache: 'no-store',
   });
 
   let manifest;

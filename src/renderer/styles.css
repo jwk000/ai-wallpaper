@@ -537,6 +537,8 @@ body.modal-open .scroll {
 
 .source-status {
   display: flex;
+  flex: 1;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -576,6 +578,24 @@ body.modal-open .scroll {
 .source-status .link {
   flex: 0 0 auto;
   font-size: 9.5px;
+}
+
+.sync-online {
+  flex: 0 0 auto;
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.sync-online[aria-busy="true"] svg {
+  animation: sync-spin 1s linear infinite;
+}
+
+@keyframes sync-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-online[aria-busy="true"] svg { animation: none; }
 }
 
 .online-mark {

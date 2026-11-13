@@ -744,7 +744,7 @@ async function getOnlineCatalog(force = false) {
 
   onlineCatalogPromise = (async () => {
     try {
-      const catalog = await fetchOnlineCatalog((url, options) => net.fetch(url, options));
+      const catalog = await fetchOnlineCatalog((url, options) => net.fetch(url, options), getOnlineSiteUrl(), { force });
       onlineCatalogCache = catalog;
       onlineCatalogFetchedAt = Date.now();
       return { ...catalog, fetchedAt: onlineCatalogFetchedAt, cached: false, stale: false };

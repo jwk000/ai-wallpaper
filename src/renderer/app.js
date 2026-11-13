@@ -19,6 +19,8 @@ const els = {
   sourceStatus: document.getElementById('sourceStatus'),
   sourceStatusText: document.getElementById('sourceStatusText'),
   onlineSiteBtn: document.getElementById('onlineSiteBtn'),
+  syncOnlineBtn: document.getElementById('syncOnlineBtn'),
+  syncOnlineLabel: document.getElementById('syncOnlineLabel'),
   nowCard: document.getElementById('nowCard'),
   nowBg: document.getElementById('nowBg'),
   nowStatus: document.getElementById('nowStatus'),
@@ -209,6 +211,7 @@ function bindStaticActions() {
   els.addBtn.addEventListener('click', () => openAddModal());
   els.footAdd.addEventListener('click', () => openAddModal());
   els.refreshBtn.addEventListener('click', () => refreshActiveSource());
+  els.syncOnlineBtn.addEventListener('click', () => syncOnlineCatalog());
 
   els.sourceLocalBtn.addEventListener('click', () => switchSource('local'));
   els.sourceOnlineBtn.addEventListener('click', () => switchSource('online'));
@@ -460,6 +463,18 @@ async function refreshActiveSource() {
   await refreshWallpapers();
 }
 
+async function syncOnlineCatalog() {
+  if (online.status === 'loading') return;
+  if (sourceMode !== 'online') {
+    sourceMode = 'online';
+    activeTag = '__all__';
+    query = '';
+    els.searchInput.value = '';
+  }
+  // Only refresh metadata. Downloading remains an explicit per-artwork action.
+  await loadOnlineCatalog(true);
+}
+
 function switchSource(mode) {
   if (mode !== 'local' && mode !== 'online') return;
   if (sourceMode === mode) {
@@ -504,7 +519,7 @@ async function loadOnlineCatalog(force = false) {
     if (online.error) {
       toast('在线壁纸目录刷新失败，正在显示上次的结果。', 'error');
     } else if (force) {
-      toast(`在线壁纸馆已更新，共 ${online.items.length} 幅作品。`);
+      toast(`已同步在线列表，共 ${online.items.length} 幅作品。`, { duration: 5000 });
     }
   } catch (error) {
     online.status = 'error';
@@ -512,7 +527,7 @@ async function loadOnlineCatalog(force = false) {
     if (sourceMode === 'online') {
       renderOnlineGrid();
     }
-    toast('在线壁纸馆连接失败：' + online.error, { type: 'error', duration: 8000 });
+    toast('在线壁纸馆连接失败：' + online.error, 'error', { duration: 8000 });
   } finally {
     els.refreshBtn.classList.remove('busy');
     els.refreshBtn.disabled = false;
@@ -1137,6 +1152,11 @@ function renderCountLabel() {
 function renderSourceControls() {
   if (!state) return;
   const onlineMode = sourceMode === 'online';
+  const syncing = online.status === 'loading';
+  const syncFailed = online.status === 'error' || online.stale;
+  els.syncOnlineBtn.disabled = syncing;
+  els.syncOnlineBtn.setAttribute('aria-busy', String(syncing));
+  els.syncOnlineLabel.textContent = syncing ? '正在同步…' : syncFailed ? '重试同步' : '同步在线壁纸';
 
   els.sourceLocalBtn.classList.toggle('active', !onlineMode);
   els.sourceOnlineBtn.classList.toggle('active', onlineMode);
@@ -1160,22 +1180,25 @@ function renderSourceControls() {
   if (onlineMode) {
     if (online.status === 'loading') {
       statusClass += ' is-loading';
-      statusText = '正在读取在线壁纸馆…';
+      statusText = '正在同步在线列表…';
     } else if (online.status === 'ready') {
       statusClass += online.stale ? ' is-error' : ' is-online';
-      const date = online.updatedAt ? formatDate(online.updatedAt) : '';
+      const time = online.fetchedAt ? new Date(online.fetchedAt).toLocaleTimeString('zh-CN', { hour12: false }) : '';
       statusText = online.stale
         ? `网络异常 · 显示缓存目录 · ${online.items.length} 幅`
-        : `在线目录已同步 · ${online.items.length} 幅${date ? ' · ' + date : ''}`;
+        : `已同步 ${online.items.length} 幅${time ? ' · ' + time : ''}`;
     } else if (online.status === 'error') {
       statusClass += ' is-error';
-      statusText = '无法连接壁纸馆 · 点击右上角刷新重试';
+      statusText = '无法连接壁纸馆 · 请重试同步';
     } else {
       statusText = '来自 GitHub Pages · 按需连接';
     }
   }
   els.sourceStatus.className = statusClass;
   els.sourceStatusText.textContent = statusText;
+  els.sourceStatusText.title = onlineMode && online.fetchedAt
+    ? `最近成功同步：${new Date(online.fetchedAt).toLocaleString('zh-CN')} · 目录更新：${online.updatedAt || '未知'}`
+    : '';
 }
 
 function renderActiveList() {
